@@ -1,0 +1,30 @@
+{
+  "description": "sha256(\"<ref>:<code>\") hex. Asserted by tests/unit (TypeScript hashHandoverCode) and E_waste/test/contract_fixtures_test.dart (Dart hashHandoverCode). Never add a plain code anywhere except here.",
+  "vectors": [
+    {
+      "ref": "HO-LOT-RAJ-261101-001",
+      "code": "4821",
+      "hash": "c90d354603ff220189e72af718e9bbf9a596f817a902c42285e87e8aba0e171d"
+    },
+    {
+      "ref": "HO-LOT-RAJ-261101-001-2",
+      "code": "0007",
+      "hash": "da312358e926cb0c121bb71d530d1560fb2b6c5bd8ef31a10dfbf2d943f7e9ce"
+    },
+    {
+      "ref": "BATCH-RAJ-261101-01",
+      "code": "7305",
+      "hash": "0a1ba9f2aa90d5bf5fb570129b7ca275554daf125e41924e3940646b9bd3ab20"
+    },
+    {
+      "ref": "HO-LOT-AB12-270301-0042",
+      "code": "0000",
+      "hash": "bf8c932225d7858a986c8e0ca893fe6ce43f103617a4e5d959161bb9c2e3e9c0"
+    },
+    {
+      "ref": "HO-LOT-AB12-270301-0042",
+      "code": "9999",
+      "hash": "507725f7d570b361c23fa0d3d896bd69480c976b71be1ab5457f168bbd3a6bae"
+    }
+  ]
+}

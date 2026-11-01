@@ -1,0 +1,311 @@
+{
+  "deviceId": "7d1f4c2a-6b3e-4a58-9f0d-2c8e1b5a9e44",
+  "mutations": [
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000001",
+      "entity": "lot",
+      "entityId": "a1000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "a1000000-0000-4000-8000-000000000001",
+        "lotRef": "LOT-RAJ-261101-001",
+        "categoryId": 1,
+        "approxWeightGrams": 5000,
+        "estimatedValuePaise": 160000,
+        "estimatedMinPaise": 144000,
+        "estimatedMaxPaise": 176000,
+        "aiCategoryId": 1,
+        "aiConfidence": 0.82,
+        "transactionStatus": "SAVED",
+        "expiresAt": "2026-11-08T10:15:30.000Z",
+        "collectedAt": "2026-11-01T10:15:30.000Z",
+        "collectLat": 18.5204,
+        "collectLng": 73.8567,
+        "isHazardous": true,
+        "soldBy": null
+      },
+      "clientTimestamp": "2026-11-01T10:15:30.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000002",
+      "entity": "lot_image",
+      "entityId": "b1000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "b1000000-0000-4000-8000-000000000001",
+        "lotId": "a1000000-0000-4000-8000-000000000001",
+        "kind": "COLLECTION",
+        "takenAt": "2026-11-01T10:15:40.000Z",
+        "imageHash": "f0e1d2c3b4a59687",
+        "storageKey": "images/50000000-0000-4000-8000-0000000000a1/1730456140_photo.jpg",
+        "sha256": "9f2c7a1e5b3d4c8a6e0f1b2d3c4a5968778695a4b3c2d1e0f9a8b7c6d5e4f3a2",
+        "bytes": 118432,
+        "widthPx": 1024,
+        "heightPx": 768
+      },
+      "clientTimestamp": "2026-11-01T10:15:40.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000003",
+      "entity": "lot",
+      "entityId": "a1000000-0000-4000-8000-000000000001",
+      "op": "update",
+      "payload": {
+        "transactionStatus": "QUOTED",
+        "chosenRecyclerId": "rec-ecogreen-pune-01",
+        "quotedRatePaise": 34000,
+        "expectedValuePaise": 170000
+      },
+      "clientTimestamp": "2026-11-01T10:16:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000004",
+      "entity": "lot",
+      "entityId": "a1000000-0000-4000-8000-000000000001",
+      "op": "update",
+      "payload": {
+        "transactionStatus": "HANDOVER_PENDING"
+      },
+      "clientTimestamp": "2026-11-01T10:16:01.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000005",
+      "entity": "handover",
+      "entityId": "d1000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "d1000000-0000-4000-8000-000000000001",
+        "lotId": "a1000000-0000-4000-8000-000000000001",
+        "handoverRef": "HO-LOT-RAJ-261101-001",
+        "declaredWeightGrams": 5000,
+        "qrPayload": "EWS|LOT-RAJ-261101-001|HO-LOT-RAJ-261101-001|c90d354603ff220189e72af718e9bbf9a596f817a902c42285e87e8aba0e171d",
+        "codeHash": "c90d354603ff220189e72af718e9bbf9a596f817a902c42285e87e8aba0e171d",
+        "capturedAt": "2026-11-01T10:16:01.000Z",
+        "latitude": 18.5204,
+        "longitude": 73.8567,
+        "accuracy": 12.5,
+        "locationSource": "GPS",
+        "mockLocationFlag": false
+      },
+      "clientTimestamp": "2026-11-01T10:16:01.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000006",
+      "entity": "handover",
+      "entityId": "d1000000-0000-4000-8000-000000000001",
+      "op": "update",
+      "payload": {
+        "packedSafely": true
+      },
+      "clientTimestamp": "2026-11-01T10:17:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000007",
+      "entity": "dispute",
+      "entityId": "e1000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "e1000000-0000-4000-8000-000000000001",
+        "lotId": "a1000000-0000-4000-8000-000000000001",
+        "handoverId": "d1000000-0000-4000-8000-000000000001",
+        "reason": "WRONG_WEIGHT",
+        "hasEvidence": true,
+        "createdAt": "2026-11-01T11:00:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T11:00:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000008",
+      "entity": "lot",
+      "entityId": "a2000000-0000-4000-8000-000000000002",
+      "op": "create",
+      "payload": {
+        "id": "a2000000-0000-4000-8000-000000000002",
+        "lotRef": "LOT-RAJ-261101-002",
+        "categoryId": 2,
+        "approxWeightGrams": 3200,
+        "estimatedValuePaise": 192000,
+        "transactionStatus": "SAVED",
+        "collectedAt": "2026-11-01T11:05:00.000Z",
+        "isHazardous": false
+      },
+      "clientTimestamp": "2026-11-01T11:05:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000009",
+      "entity": "payment",
+      "entityId": "f1000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "f1000000-0000-4000-8000-000000000001",
+        "lotId": "a2000000-0000-4000-8000-000000000002",
+        "amountPaise": 170000,
+        "method": "UPI",
+        "upiRef": "UPI-9821-4401",
+        "paidAt": "2026-11-01T11:30:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T11:30:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000010",
+      "entity": "dealer_comparison",
+      "entityId": "91000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "91000000-0000-4000-8000-000000000001",
+        "lotId": "a1000000-0000-4000-8000-000000000001",
+        "categoryId": 1,
+        "dealerRatePaise": 30000,
+        "ourRatePaise": 34000,
+        "createdAt": "2026-11-01T10:14:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T11:31:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000011",
+      "entity": "batch_handover",
+      "entityId": "92000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "92000000-0000-4000-8000-000000000001",
+        "batchRef": "BATCH-RAJ-261101-01",
+        "recyclerId": "rec-ecogreen-pune-01",
+        "lotIds": [
+          "a1000000-0000-4000-8000-000000000001",
+          "a2000000-0000-4000-8000-000000000002"
+        ],
+        "totalWeightGrams": 8200,
+        "qrPayload": "{\"batchRef\":\"BATCH-RAJ-261101-01\",\"codeHash\":\"0a1ba9f2aa90d5bf5fb570129b7ca275554daf125e41924e3940646b9bd3ab20\"}",
+        "codeHash": "0a1ba9f2aa90d5bf5fb570129b7ca275554daf125e41924e3940646b9bd3ab20",
+        "capturedAt": "2026-11-01T12:00:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T12:00:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000012",
+      "entity": "price_point",
+      "entityId": "93000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "93000000-0000-4000-8000-000000000001",
+        "categoryId": 2,
+        "buyingPricePaise": 58000,
+        "buyerType": "SCRAP_DEALER",
+        "area": "Pune / Pimpri",
+        "latitude": 18.6298,
+        "longitude": 73.7997,
+        "recordedAt": "2026-11-01T12:10:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T12:10:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000013",
+      "entity": "consent",
+      "entityId": "94000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "94000000-0000-4000-8000-000000000001",
+        "version": "1.0",
+        "language": "HI",
+        "locationConsent": true,
+        "timestamp": "2026-11-01T09:00:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T12:11:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000014",
+      "entity": "pickup_request",
+      "entityId": "95000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "95000000-0000-4000-8000-000000000001",
+        "lotId": "a1000000-0000-4000-8000-000000000001",
+        "recyclerId": "rec-ecogreen-pune-01",
+        "slot": "2026-11-02T09:00:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T12:12:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000015",
+      "entity": "coverage_request",
+      "entityId": "96000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "96000000-0000-4000-8000-000000000001",
+        "latitude": 18.52,
+        "longitude": 73.857,
+        "categoryId": 1,
+        "approxWeightGrams": 4000
+      },
+      "clientTimestamp": "2026-11-01T12:13:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000016",
+      "entity": "incident",
+      "entityId": "97000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "97000000-0000-4000-8000-000000000001",
+        "type": "battery_leak",
+        "note": null,
+        "occurredAt": "2026-11-01T12:14:00.000Z",
+        "latitude": null,
+        "longitude": null
+      },
+      "clientTimestamp": "2026-11-01T12:14:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000017",
+      "entity": "quiz_result",
+      "entityId": "98000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "98000000-0000-4000-8000-000000000001",
+        "topicId": "crt-glass",
+        "score": 3,
+        "passed": true,
+        "completedAt": "2026-11-01T12:15:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T12:15:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000018",
+      "entity": "rating",
+      "entityId": "99000000-0000-4000-8000-000000000001",
+      "op": "create",
+      "payload": {
+        "id": "99000000-0000-4000-8000-000000000001",
+        "recyclerId": "rec-ecogreen-pune-01",
+        "rating": 5,
+        "comment": null
+      },
+      "clientTimestamp": "2026-11-01T12:16:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000019",
+      "entity": "profile",
+      "entityId": "a0000000-0000-4000-8000-0000000000c1",
+      "op": "update",
+      "payload": {
+        "preferredLanguage": "MR"
+      },
+      "clientTimestamp": "2026-11-01T12:17:00.000Z"
+    },
+    {
+      "clientMutationId": "c0000000-0000-4000-8000-000000000020",
+      "entity": "lot_image",
+      "entityId": "b2000000-0000-4000-8000-000000000002",
+      "op": "create",
+      "payload": {
+        "id": "b2000000-0000-4000-8000-000000000002",
+        "kind": "TRAINING",
+        "categoryId": 1,
+        "angle": "top",
+        "storageKey": "images/50000000-0000-4000-8000-0000000000a1/1730456280_train.jpg",
+        "imageHash": "0f1e2d3c4b5a6978",
+        "takenAt": "2026-11-01T12:18:00.000Z"
+      },
+      "clientTimestamp": "2026-11-01T12:18:00.000Z"
+    }
+  ]
+}

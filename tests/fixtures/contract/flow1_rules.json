@@ -1,0 +1,47 @@
+{
+  "_comment": "Flow 1 shared vectors (spec sections 2, 3, 4, 7, 9, 12). Edit here, then copy to E_waste/test/fixtures/contract/. Asserted in Dart and TypeScript.",
+  "config": {
+    "WEIGHT_TOLERANCE_PERCENT": 5,
+    "LOT_EXPIRY_DAYS": 7,
+    "RATE_LOCK_HOURS": 24,
+    "SEARCH_RADII_KM": [5, 10, 25, 50]
+  },
+  "amount": [
+    { "grams": 5000, "ratePerKgPaise": 34000, "paise": 170000 },
+    { "grams": 4800, "ratePerKgPaise": 34000, "paise": 163200 },
+    { "grams": 1, "ratePerKgPaise": 1, "paise": 0 },
+    { "grams": 499, "ratePerKgPaise": 1, "paise": 0 },
+    { "grams": 500, "ratePerKgPaise": 1, "paise": 1 },
+    { "grams": 1500, "ratePerKgPaise": 1, "paise": 2 },
+    { "grams": 0, "ratePerKgPaise": 34000, "paise": 0 },
+    { "grams": 500000, "ratePerKgPaise": 1000000, "paise": 500000000 }
+  ],
+  "tolerance": [
+    { "declared": 5000, "actual": 4800, "within": true },
+    { "declared": 5000, "actual": 4500, "within": false },
+    { "declared": 5000, "actual": 4750, "within": true },
+    { "declared": 5000, "actual": 4749, "within": false },
+    { "declared": 5000, "actual": 5250, "within": true },
+    { "declared": 5000, "actual": 5251, "within": false },
+    { "declared": 100, "actual": 105, "within": true },
+    { "declared": 3, "actual": 3, "within": true },
+    { "declared": 0, "actual": 0, "within": true },
+    { "declared": 0, "actual": 1, "within": false }
+  ],
+  "lotRef": [
+    { "shortCode": "AB12", "utcDate": "2026-01-01", "seq": 42, "lotRef": "LOT-AB12-260101-0042", "handoverRef": "HO-LOT-AB12-260101-0042" }
+  ],
+  "lotTransitions": {
+    "DRAFT": ["SAVED", "CANCELLED"],
+    "SAVED": ["QUOTED", "CANCELLED", "EXPIRED"],
+    "QUOTED": ["HANDOVER_PENDING", "SAVED", "REJECTED", "CANCELLED", "EXPIRED"],
+    "HANDOVER_PENDING": ["CONFIRMED", "REJECTED", "DISPUTED", "CANCELLED"],
+    "CONFIRMED": ["PAID", "DISPUTED"],
+    "PAID": [],
+    "REJECTED": ["QUOTED", "CANCELLED"],
+    "CANCELLED": [],
+    "EXPIRED": ["QUOTED", "CANCELLED"],
+    "DISPUTED": ["CONFIRMED", "CANCELLED"]
+  },
+  "lotTransitionsNote": "EXPIRED -> QUOTED (re-quote an expired lot) is a deliberate deviation from spec section 3, where EXPIRED is terminal. Adopt it in the spec."
+}

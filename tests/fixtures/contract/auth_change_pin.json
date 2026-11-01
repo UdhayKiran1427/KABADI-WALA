@@ -1,0 +1,5 @@
+{
+  "httpStatus": 200,
+  "request": { "oldPin": "1234", "newPin": "4321" },
+  "response": { "data": { "message": "PIN changed successfully" } }
+}

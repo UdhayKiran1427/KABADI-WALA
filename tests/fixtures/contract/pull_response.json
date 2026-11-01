@@ -1,0 +1,80 @@
+{
+  "data": {
+    "serverTimestamp": "2026-11-01T12:30:00.000Z",
+    "nextSince": "2026-11-01T12:25:10.000Z|1|c5000000-0000-4000-8000-000000000001",
+    "hasMore": false,
+    "lots": [
+      {
+        "id": "a1000000-0000-4000-8000-000000000001",
+        "lotRef": "LOT-RAJ-261101-001",
+        "categoryId": 1,
+        "subCategory": null,
+        "approxWeightGrams": 5000,
+        "estimatedValuePaise": 160000,
+        "estimatedMinPaise": 144000,
+        "estimatedMaxPaise": 176000,
+        "transactionStatus": "CONFIRMED",
+        "chosenRecyclerId": "rec-ecogreen-pune-01",
+        "quotedRatePaise": 34000,
+        "finalPricePaise": 166600,
+        "confirmedWeightGrams": 4900,
+        "paymentStatus": "UNPAID",
+        "collectedAt": "2026-11-01T10:15:30.000Z",
+        "createdAt": "2026-11-01T10:20:00.000Z",
+        "updatedAt": "2026-11-01T12:25:10.000Z",
+        "handovers": [
+          {
+            "id": "d1000000-0000-4000-8000-000000000001",
+            "handoverRef": "HO-LOT-RAJ-261101-001",
+            "status": "CONFIRMED",
+            "declaredWeightGrams": 5000,
+            "confirmedWeightGrams": 4900
+          }
+        ],
+        "payments": []
+      }
+    ],
+    "lotUpdates": [
+      {
+        "lotId": "a1000000-0000-4000-8000-000000000001",
+        "transactionStatus": "CONFIRMED",
+        "finalPricePaise": 166600,
+        "confirmedWeightGrams": 4900,
+        "paymentStatus": "UNPAID",
+        "confirmedAt": "2026-11-01T12:25:10.000Z",
+        "updatedAt": "2026-11-01T12:25:10.000Z"
+      },
+      {
+        "lotId": "a2000000-0000-4000-8000-000000000002",
+        "transactionStatus": "PAID",
+        "finalPricePaise": 170000,
+        "confirmedWeightGrams": 3200,
+        "paymentStatus": "PAID",
+        "confirmedAt": "2026-11-01T11:20:00.000Z",
+        "updatedAt": "2026-11-01T11:30:05.000Z"
+      }
+    ],
+    "notifications": [
+      {
+        "id": "c5000000-0000-4000-8000-000000000001",
+        "title": "Recycler confirmed your lot",
+        "body": "LOT-RAJ-261101-001 was weighed at 4.9 kg",
+        "isRead": false,
+        "dataJson": "{\"type\":\"RECYCLER_CONFIRMED\",\"relatedId\":\"a1000000-0000-4000-8000-000000000001\"}",
+        "createdAt": "2026-11-01T12:25:10.000Z"
+      }
+    ],
+    "pickupRequests": [
+      {
+        "id": "95000000-0000-4000-8000-000000000001",
+        "lotId": "a1000000-0000-4000-8000-000000000001",
+        "recyclerId": "rec-ecogreen-pune-01",
+        "slot": "2026-11-02T09:00:00.000Z",
+        "status": "ACCEPTED",
+        "expiresAt": "2026-11-02T12:12:00.000Z",
+        "createdAt": "2026-11-01T12:12:00.000Z",
+        "updatedAt": "2026-11-01T12:20:00.000Z"
+      }
+    ]
+  }
+}

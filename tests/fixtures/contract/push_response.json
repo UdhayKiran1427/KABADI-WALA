@@ -1,0 +1,172 @@
+{
+  "data": {
+    "deviceId": "7d1f4c2a-6b3e-4a58-9f0d-2c8e1b5a9e44",
+    "serverTimestamp": "2026-11-01T12:20:00.000Z",
+    "totalMutations": 20,
+    "results": [
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000001",
+        "status": "DUPLICATE",
+        "code": "ALREADY_PROCESSED",
+        "message": "Mutation was previously processed",
+        "retryable": false,
+        "canonicalId": "a1000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000002",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "b1000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000003",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "a1000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000004",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "a1000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000005",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "d1000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000006",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "d1000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000007",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "e1000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000008",
+        "status": "CONFLICT",
+        "code": "DUPLICATE_LOT_REF",
+        "message": "Lot reference already exists",
+        "retryable": false,
+        "serverState": {
+          "id": "a9000000-0000-4000-8000-000000000009",
+          "lotRef": "LOT-RAJ-261101-002",
+          "transactionStatus": "SAVED",
+          "updatedAt": "2026-11-01T10:59:00.000Z"
+        }
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000009",
+        "status": "REJECTED",
+        "code": "PARENT_LOT_NOT_FOUND",
+        "message": "Lot a2000000-0000-4000-8000-000000000002 not found",
+        "retryable": true
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000010",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "91000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000011",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "92000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000012",
+        "status": "REJECTED",
+        "code": "FORBIDDEN_ROLE",
+        "message": "Only field agents may push price_point",
+        "retryable": false
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000013",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "94000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000014",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "95000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000015",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "96000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000016",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "97000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000017",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "98000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000018",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "99000000-0000-4000-8000-000000000001"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000019",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "a0000000-0000-4000-8000-0000000000c1"
+      },
+      {
+        "clientMutationId": "c0000000-0000-4000-8000-000000000020",
+        "status": "APPLIED",
+        "code": "OK",
+        "message": "Applied",
+        "retryable": false,
+        "canonicalId": "b2000000-0000-4000-8000-000000000002"
+      }
+    ]
+  }
+}

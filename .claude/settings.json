@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./node_modules/**)",
+      "Read(./.next/**)",
+      "Read(./package-lock.json)",
+      "Read(./**/*.tsbuildinfo)",
+      "Read(./docs/openapi/**)",
+      "Read(./docs/*.xlsx)",
+      "Read(./*.pptx)",
+      "Read(./.env)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I /Users/mukesh/development/ridhan/kabhadiwala/.claude/hooks/guard-big-read.py"
+          }
+        ]
+      }
+    ]
+  }
+}

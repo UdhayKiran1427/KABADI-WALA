@@ -1,0 +1,120 @@
+{
+  "data": {
+    "serverTimestamp": "2026-11-01T12:00:00.000Z",
+    "categories": [
+      {
+        "id": 1,
+        "code": "mat_pcb",
+        "parentId": null,
+        "nameEn": "PCB (Circuit Boards)",
+        "nameHi": "PCB (सर्किट बोर्ड)",
+        "nameMr": "PCB (सर्किट बोर्ड)",
+        "iconKey": "memory",
+        "isHazardous": true
+      },
+      {
+        "id": 2,
+        "code": "mat_cable",
+        "parentId": null,
+        "nameEn": "Copper Wire / Cable",
+        "nameHi": "तांबे का तार / केबल",
+        "nameMr": "तांब्याची वायर / केबल",
+        "iconKey": "cable",
+        "isHazardous": false
+      }
+    ],
+    "safetyTopics": [
+      {
+        "id": "5a000000-0000-4000-8000-000000000001",
+        "key": "crt-glass",
+        "titleEn": "CRT glass",
+        "titleHi": "सीआरटी का कांच",
+        "titleMr": "सीआरटी काच",
+        "contentEn": null,
+        "contentHi": null,
+        "contentMr": null,
+        "imageKey": "safety/crt.png",
+        "audioKeyHi": "safety/hi/crt.mp3",
+        "audioKeyMr": "safety/mr/crt.mp3",
+        "sortOrder": 1
+      }
+    ],
+    "prices": [
+      {
+        "id": "93a00000-0000-4000-8000-000000000001",
+        "categoryId": 1,
+        "area": "Pune / Pimpri",
+        "district": "Pune",
+        "recordedAt": "2026-11-01T06:00:00.000Z",
+        "buyerType": "MARKET",
+        "source": "ADMIN",
+        "benchmarkPricePaise": 34000,
+        "tolerancePercent": 15
+      },
+      {
+        "id": "93a00000-0000-4000-8000-000000000002",
+        "categoryId": 2,
+        "area": "Pune / Pimpri",
+        "district": "Pune",
+        "recordedAt": "2026-11-01T06:00:00.000Z",
+        "buyerType": "SCRAP_DEALER",
+        "source": "FIELD",
+        "benchmarkPricePaise": 60000,
+        "tolerancePercent": 10
+      }
+    ],
+    "recyclers": [
+      {
+        "id": "rec-ecogreen-pune-01",
+        "name": "EcoGreen Recyclers Pvt Ltd",
+        "latitude": 18.5204,
+        "longitude": 73.8567,
+        "authorizationStatus": "VERIFIED",
+        "authorizationValidTill": "2028-12-31T23:59:59.000Z",
+        "pickupAvailable": true,
+        "serviceRadiusKm": 25,
+        "contactPhone": "9822012345",
+        "minimumWeightGrams": 2000,
+        "pickupChargePaise": 5000
+      }
+    ],
+    "recyclerRates": [
+      {
+        "recyclerId": "rec-ecogreen-pune-01",
+        "categoryId": 1,
+        "ratePerKgPaise": 34000,
+        "updatedAt": "2026-10-30T08:00:00.000Z"
+      },
+      {
+        "recyclerId": "rec-ecogreen-pune-01",
+        "categoryId": 2,
+        "ratePerKgPaise": 60000,
+        "updatedAt": "2026-10-30T08:00:00.000Z"
+      }
+    ],
+    "collectionPoints": [
+      {
+        "id": "c1000000-0000-4000-8000-000000000001",
+        "recyclerId": "rec-ecogreen-pune-01",
+        "name": "Pimpri Sunday Camp",
+        "type": "MOBILE_CAMP",
+        "latitude": 18.6298,
+        "longitude": 73.7997,
+        "address": "Near Pimpri bus stand",
+        "operatingHours": "09:00-13:00",
+        "operatingDates": "Sundays",
+        "contactPhone": null,
+        "createdAt": "2026-10-01T00:00:00.000Z"
+      }
+    ],
+    "areaCentroids": [
+      {
+        "id": "ac000000-0000-4000-8000-000000000001",
+        "area": "Pune / Pimpri",
+        "district": "Pune",
+        "latitude": 18.6298,
+        "longitude": 73.7997
+      }
+    ]
+  }
+}

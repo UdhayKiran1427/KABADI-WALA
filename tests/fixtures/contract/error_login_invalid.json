@@ -1,0 +1,10 @@
+{
+  "httpStatus": 401,
+  "request": { "phone": "9876543210", "pin": "0000" },
+  "response": {
+    "error": {
+      "code": "INVALID_CREDENTIALS",
+      "message": "Invalid PIN. 4 attempts remaining before lockout."
+    }
+  }
+}

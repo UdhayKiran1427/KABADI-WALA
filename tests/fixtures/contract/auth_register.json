@@ -1,0 +1,26 @@
+{
+  "httpStatus": 201,
+  "request": {
+    "name": "Raju Kabadi",
+    "phone": "9876543210",
+    "pin": "1234",
+    "preferredLanguage": "HI",
+    "operatingArea": "Pune / Pimpri",
+    "district": "Pune",
+    "consent": { "version": "1.0", "locationConsent": true }
+  },
+  "response": {
+    "data": {
+      "token": "eyJhbGciOiJIUzI1NiJ9.eyJmaXh0dXJlIjp0cnVlfQ.fixture-signature-not-valid",
+      "profile": {
+        "collectorId": "a0000000-0000-4000-8000-0000000000c1",
+        "userId": "50000000-0000-4000-8000-0000000000a1",
+        "name": "Raju Kabadi",
+        "shortCode": "RAJ",
+        "preferredLanguage": "HI",
+        "operatingArea": "Pune / Pimpri",
+        "phone": "9876543210"
+      }
+    }
+  }
+}
