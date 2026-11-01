@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { z } from "zod";
 
 const CreateNotificationSchema = z.object({
@@ -28,9 +28,8 @@ export async function GET(req: NextRequest) {
       unreadCount: notifications.filter((n) => !n.isRead).length,
       notifications,
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 
@@ -65,8 +64,7 @@ export async function POST(req: NextRequest) {
       message: "Notification sent successfully",
       notification: notif,
     }, 201);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireOwnedLot } from "@/lib/auth/lotAccess";
-import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import { apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
 import { selectOffer } from "@/lib/services/lotFlowService";
 import { getDealView } from "@/lib/services/dealView";
 
@@ -17,18 +17,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { lot, response } = await requireOwnedLot(req, id);
     if (response) return response;
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = SelectSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, SelectSchema);
+    if (bodyError) return bodyError;
 
-    await selectOffer(lot.id, parsed.data.offerId);
+    await selectOffer(lot.id, body.offerId);
     return apiSuccess({ deal: await getDealView(lot.id, req.nextUrl.origin) });
   } catch (err) {
     return apiErrorFrom(err);

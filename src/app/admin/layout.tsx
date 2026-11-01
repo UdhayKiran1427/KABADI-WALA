@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/admin/recyclers", label: "Recyclers" },
   { href: "/admin/prices", label: "Prices" },
   { href: "/admin/anomalies", label: "Alerts" },
+  { href: "/admin/disputes", label: "Disputes" },
   { href: "/admin/dataset-health", label: "Data" },
   { href: "/admin/impact", label: "Impact" },
   { href: "/admin/team", label: "Team" },

@@ -2,12 +2,13 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPin } from "@/lib/auth/password";
 import { signMobileToken } from "@/lib/auth/jwt";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { generateUniqueShortCode } from "@/lib/services/collectorService";
 import { z } from "zod";
 
 const RegisterSchema = z.object({
-  name: z.string().trim().min(2, "Name is required"),
+  // Optional: the platform stores no collector PII by default and the app does not ask for a name.
+  name: z.string().trim().min(2, "Name must be at least 2 characters").optional(),
   phone: z.string().regex(/^\d{10}$/, "Phone must be a valid 10-digit number"),
   pin: z.string().regex(/^\d{4}$/, "PIN must be a 4-digit number"),
   preferredLanguage: z.enum(["HI", "MR", "EN"]).default("HI"),
@@ -104,9 +105,8 @@ export async function POST(req: NextRequest) {
       },
       201
     );
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

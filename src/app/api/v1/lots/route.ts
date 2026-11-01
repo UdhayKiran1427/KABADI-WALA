@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
 import { createLot } from "@/lib/services/lotFlowService";
 import { lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
 import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
 import { COLLECTOR_HISTORY_STATUSES, collectorHistoryWhere } from "@/lib/services/historyQuery";
 import { parseHistoryQuery } from "@/lib/historyFilters";
-import { LotStatus } from "@prisma/client";
+import { LotStatus, Prisma } from "@prisma/client";
 import { validateStorageKey } from "@/lib/storage";
 import { z } from "zod";
 
@@ -62,9 +62,8 @@ export async function GET(req: NextRequest) {
       count: lots.length,
       lots,
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 
@@ -78,18 +77,10 @@ export async function POST(req: NextRequest) {
       return apiError("UNAUTHORIZED", "Missing or invalid collector authorization", 401);
     }
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = CreateLotSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, CreateLotSchema);
+    if (bodyError) return bodyError;
 
-    const { id, items, categoryId, approxWeightGrams, latitude, longitude, deviceLat, deviceLng, photos } = parsed.data;
+    const { id, items, categoryId, approxWeightGrams, latitude, longitude, deviceLat, deviceLng, photos } = body;
     const lotItems = items ?? (categoryId && approxWeightGrams ? [{ categoryId, weightGrams: approxWeightGrams }] : []);
     if (lotItems.length === 0) {
       return apiError("VALIDATION_ERROR", "Send items: [{ categoryId, weightGrams }]", 400);

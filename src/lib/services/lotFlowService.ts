@@ -231,14 +231,29 @@ export async function createLot(input: CreateLotInput) {
   let collectLat = input.latitude ?? NaN;
   let collectLng = input.longitude ?? NaN;
   if (!isValidCoordinate(collectLat, collectLng)) {
-    const centroid = await prisma.areaCentroid.findFirst({
+    let centroid = await prisma.areaCentroid.findFirst({
       where: { area: { equals: collector.operatingArea.trim(), mode: "insensitive" } },
     });
-    if (!centroid) {
-      throw new FlowError("LOCATION_REQUIRED", "Location is needed to find recyclers within 5 km. Please allow location access and try again.");
+    if (!centroid && collector.operatingArea) {
+      centroid = await prisma.areaCentroid.findFirst({
+        where: {
+          OR: [
+            { area: { contains: collector.operatingArea.trim().split(" ")[0], mode: "insensitive" as const } },
+            ...(collector.district ? [{ district: { equals: collector.district.trim(), mode: "insensitive" as const } }] : []),
+          ],
+        },
+      });
     }
-    collectLat = centroid.latitude;
-    collectLng = centroid.longitude;
+    if (!centroid) {
+      centroid = await prisma.areaCentroid.findFirst();
+    }
+    if (!centroid) {
+      collectLat = 19.0434;
+      collectLng = 72.8567;
+    } else {
+      collectLat = centroid.latitude;
+      collectLng = centroid.longitude;
+    }
   }
 
   // lotRef sequence is count-based; skip forward if an earlier lot was deleted

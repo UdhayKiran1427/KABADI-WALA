@@ -1,3 +1,4 @@
+import { getSecretKey } from "./secrets";
 import { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "../prisma";
@@ -5,8 +6,7 @@ import { Role } from "@prisma/client";
 import { verifyMobileToken } from "./jwt";
 import { apiError } from "../apiResponse";
 
-const SESSION_SECRET_STRING = process.env.SESSION_SECRET || "super-secret-session-cookie-key-for-recycler-and-admin-32-chars";
-const SECRET_KEY = new TextEncoder().encode(SESSION_SECRET_STRING);
+const getKey = () => getSecretKey("SESSION_SECRET");
 const COOKIE_NAME = "ewaste_session";
 
 export interface AuthenticatedUser {
@@ -44,7 +44,7 @@ export async function getAuthUser(req: NextRequest): Promise<AuthenticatedUser |
     const cookie = req.cookies.get(COOKIE_NAME);
     if (cookie && cookie.value) {
       try {
-        const { payload } = await jwtVerify(cookie.value, SECRET_KEY);
+        const { payload } = await jwtVerify(cookie.value, getKey());
         if (payload && payload.userId) {
           userId = String(payload.userId);
           role = payload.role as Role;

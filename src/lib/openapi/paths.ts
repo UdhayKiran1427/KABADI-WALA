@@ -822,24 +822,24 @@ export const operations: OperationDef[] = [
   {
     path: "/api/v1/sync/push",
     method: "post",
-    roles: ["COLLECTOR"],
+    roles: ["COLLECTOR", "FIELD_AGENT"],
     operation: {
       tags: ["Sync"],
       operationId: "syncPush",
       summary: "Push offline mutations (outbox)",
-      description: "Up to 100 mutations; parents are applied first. Each mutation yields `APPLIED`, `DUPLICATE`, `CONFLICT` or `REJECTED` (with `retryable`).",
+      description: "Up to 100 mutations; parents are applied first. Each item is validated on its own (a malformed one is a per-item `REJECTED / INVALID_PAYLOAD`). Results come back in request order, each with `clientMutationId`, `status` (`APPLIED`, `DUPLICATE` only for a repeat of an applied mutation, `CONFLICT`, `REJECTED`), `code`, `message`, `retryable`. `REJECTED` + `retryable:true` is not remembered, so the same mutation can be resent. Contract: docs/sync-contract.md.",
       security: bearer,
       requestBody: body(
         { type: "object", required: ["deviceId", "mutations"], properties: { deviceId: { type: "string" }, mutations: { type: "array", maxItems: 100, items: ref("SyncMutation") } } },
         {
           deviceId: "android-device-uuid",
           mutations: [
-            { clientMutationId: "mutation-uuid-1", entity: "lot", entityId: "lot-uuid-1", op: "create", payload: { lotRef: "LOT-KW01-261101-0001", categoryId: 1, approxWeightGrams: 5000, status: "DRAFT", collectedAt: "2026-11-01T10:00:00.000Z" }, clientTimestamp: "2026-11-01T10:00:05.000Z" },
+            { clientMutationId: "mutation-uuid-1", entity: "lot", entityId: "lot-uuid-1", op: "create", payload: { id: "lot-uuid-1", lotRef: "LOT-KW01-261101-0001", categoryId: 1, approxWeightGrams: 5000, transactionStatus: "SAVED", collectedAt: "2026-11-01T10:00:00.000Z" }, clientTimestamp: "2026-11-01T10:00:05.000Z" },
           ],
         }
       ),
       responses: {
-        "200": okJson("Per-mutation results", { type: "object", properties: { deviceId: { type: "string" }, totalMutations: { type: "integer" }, results: { type: "array", items: ref("SyncResult") } } }),
+        "200": okJson("Per-mutation results", { type: "object", properties: { deviceId: { type: "string" }, serverTimestamp: { type: "string", format: "date-time" }, totalMutations: { type: "integer" }, results: { type: "array", items: ref("SyncResult") } } }),
         "400": r("BadRequest"),
         ...authErrors,
       },
@@ -848,25 +848,45 @@ export const operations: OperationDef[] = [
   {
     path: "/api/v1/sync/pull",
     method: "get",
-    roles: ["COLLECTOR"],
+    roles: ["COLLECTOR", "FIELD_AGENT"],
     operation: {
       tags: ["Sync"],
       operationId: "syncPull",
       summary: "Pull server-side changes since a cursor",
-      description: "Lots (page size 500), notifications and pickup requests changed after `since`. Use `nextSince` as the next cursor while `hasMore` is true.",
+      description: "Lots, notifications and pickup requests changed after `since`, paged as one stream (at most `limit` items in total, default 200, max 500). `since` is an ISO time or a `nextSince` value returned earlier (opaque; send it back unchanged). Loop while `hasMore`. `lotUpdates` announces server-decided lot states (`CONFIRMED`, `PAID`, `REJECTED`, `DISPUTED`) in the client vocabulary. Contract: docs/sync-contract.md §4.",
       security: bearer,
-      parameters: [query("since", { type: "string", format: "date-time" }, "Cursor from the previous pull")],
+      parameters: [
+        query("since", { type: "string" }, "ISO time, or `nextSince` from the previous pull"),
+        query("limit", { type: "integer", minimum: 1, maximum: 500 }, "Items per response across all collections"),
+      ],
       responses: {
         "200": okJson("Changes", {
           type: "object",
           properties: {
+            serverTimestamp: { type: "string", format: "date-time" },
+            nextSince: { type: "string", description: "Opaque cursor: `<ISO>|<kind>|<id>`" },
             hasMore: { type: "boolean" },
-            nextSince: { type: "string", format: "date-time" },
-            lots: { type: "array", items: ref("Lot") },
+            lots: { type: "array", items: { type: "object", additionalProperties: true } },
+            lotUpdates: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  lotId: { type: "string" },
+                  transactionStatus: { type: "string", enum: ["CONFIRMED", "PAID", "REJECTED", "DISPUTED"] },
+                  finalPricePaise: { type: "integer", nullable: true },
+                  confirmedWeightGrams: { type: "integer", nullable: true },
+                  paymentStatus: { type: "string", enum: ["UNPAID", "PARTIAL", "PAID"] },
+                  confirmedAt: { type: "string", format: "date-time", nullable: true },
+                  updatedAt: { type: "string", format: "date-time" },
+                },
+              },
+            },
             notifications: { type: "array", items: ref("Notification") },
             pickupRequests: { type: "array", items: ref("PickupRequest") },
           },
         }),
+        "400": r("BadRequest"),
         ...authErrors,
       },
     },

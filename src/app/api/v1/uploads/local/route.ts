@@ -31,7 +31,11 @@ export async function PUT(req: NextRequest) {
 
     const cleanKey = sanitizeStorageKey(key)!;
     await saveLocalFile(cleanKey, buffer);
-    return apiSuccess({ storageKey: cleanKey, bytes: buffer.length });
+    return apiSuccess({
+      message: "File uploaded successfully to local storage",
+      storageKey: cleanKey,
+      bytes: buffer.length,
+    });
   } catch (err) {
     return apiErrorFrom(err);
   }

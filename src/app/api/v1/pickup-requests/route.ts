@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthCollector } from "@/lib/auth/getAuthCollector";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
 import { z } from "zod";
 
 const PickupRequestSchema = z.object({
@@ -17,18 +17,10 @@ export async function POST(req: NextRequest) {
       return apiError("UNAUTHORIZED", "Sign-in required", 401);
     }
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = PickupRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, PickupRequestSchema);
+    if (bodyError) return bodyError;
 
-    const { lotId, recyclerId, slot } = parsed.data;
+    const { lotId, recyclerId, slot } = body;
 
     // Verify lot exists and is owned by collector
     const lot = await prisma.lot.findUnique({
@@ -63,9 +55,8 @@ export async function POST(req: NextRequest) {
       message: "Doorstep pickup requested successfully. Awaiting recycler confirmation.",
       pickupRequest: request,
     }, 201);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 
@@ -86,9 +77,41 @@ export async function GET(req: NextRequest) {
     });
 
     return apiSuccess({ requests });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
+  }
+}
+
+const UpdatePickupStatusSchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(["REQUESTED", "ACCEPTED", "ON_THE_WAY", "ARRIVED", "COMPLETED", "CANCELLED"]),
+  etaMinutes: z.number().int().nonnegative().optional(),
+  cancellationReason: z.string().optional(),
+});
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { body, response: bodyError } = await parseBody(req, UpdatePickupStatusSchema);
+    if (bodyError) return bodyError;
+
+    const { id, status, etaMinutes, cancellationReason } = body;
+
+    const request = await prisma.pickupRequest.update({
+      where: { id },
+      data: {
+        status,
+        ...(etaMinutes !== undefined && { etaMinutes }),
+        ...(cancellationReason !== undefined && { cancellationReason }),
+        updatedAt: new Date(),
+      },
+    });
+
+    return apiSuccess({
+      message: `Pickup request status updated to ${status}`,
+      pickupRequest: request,
+    });
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

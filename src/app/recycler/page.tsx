@@ -8,6 +8,7 @@ import { BROADCAST_RADIUS_KM } from "@/lib/domain/lotBroadcast";
 import { offerTotalPaise } from "@/lib/services/lotFlowService";
 import { LOT_ITEMS_INCLUDE, lotItemsLabel, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
 import { LotPhotoStrip } from "@/components/LotPhotoStrip";
+import { rupeesIN } from "@/lib/format";
 
 function timeAgo(date: Date): string {
   const minutes = Math.round((Date.now() - date.getTime()) / 60000);
@@ -85,10 +86,37 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
     take: 20,
   });
   const unpaidDealCount = deals.filter((d) => d.transaction?.paymentStatus !== "PAID").length;
+  const isFacilityBlocked = facility.authorizationStatus === "EXPIRED" || facility.authorizationStatus === "SUSPENDED";
 
   return (
     <div className="r-stack">
       <AutoRefresh intervalMs={20000} />
+      {isFacilityBlocked && (
+        <div
+          className="alert alert-danger"
+          style={{
+            backgroundColor: "#fef2f2",
+            border: "2px solid #ef4444",
+            color: "#991b1b",
+            padding: "1rem 1.25rem",
+            borderRadius: "0.5rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            fontWeight: 600,
+          }}
+        >
+          <CircleAlert size={24} style={{ color: "#dc2626", flexShrink: 0 }} aria-hidden="true" />
+          <div>
+            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+              Facility Authorization is {facility.authorizationStatus}
+            </div>
+            <div style={{ fontSize: "0.875rem", fontWeight: 500, marginTop: "0.2rem" }}>
+              Your recycler authorization has been {facility.authorizationStatus.toLowerCase()}. Accepting new lots is blocked. Please contact the platform administration to renew your accreditation.
+            </div>
+          </div>
+        </div>
+      )}
       {searchParams.success && (
         <div className="alert alert-success" style={{ marginBottom: 0 }}>
           <CircleCheck size={18} aria-hidden="true" /> {searchParams.success}
@@ -140,7 +168,7 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
                           Lot {lot.lotRef} &middot; posted {timeAgo(offer.createdAt)}
                         </div>
                       </div>
-                      <div className="r-amount">₹{((lot.estimatedValuePaise ?? 0) / 100).toLocaleString("en-IN")}</div>
+                      <div className="r-amount">₹{rupeesIN(lot.estimatedValuePaise ?? 0)}</div>
                     </div>
 
                     <LotPhotoStrip photos={photos} />
@@ -184,8 +212,13 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
                               </span>
                             </label>
                           ))}
-                          <button type="submit" className="btn btn-primary btn-block">
-                            Ready to buy
+                          <button
+                            type="submit"
+                            className="btn btn-primary btn-block"
+                            disabled={isFacilityBlocked}
+                            title={isFacilityBlocked ? "Accepting lots is blocked due to authorization status" : undefined}
+                          >
+                            {isFacilityBlocked ? "Blocked" : "Ready to buy"}
                           </button>
                         </form>
                         <form action={respondToLotOfferAction}>
@@ -237,7 +270,7 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
                         </div>
                         <div className="r-muted">Lot {lot.lotRef}</div>
                       </div>
-                      <div className="r-amount">₹{(amount / 100).toLocaleString("en-IN")}</div>
+                      <div className="r-amount">₹{rupeesIN(amount)}</div>
                     </div>
 
                     <div className="r-meta">

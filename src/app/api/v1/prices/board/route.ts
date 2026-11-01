@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { generateCategoryPriceBoard } from "@/lib/domain/priceBoard";
 
 export async function GET(req: NextRequest) {
@@ -70,9 +70,8 @@ export async function GET(req: NextRequest) {
       updatedAt: now.toISOString(),
       board,
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

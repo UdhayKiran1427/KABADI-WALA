@@ -327,29 +327,31 @@ export const schemas: Json = {
     type: "object",
     required: ["clientMutationId", "entity", "entityId", "op", "payload", "clientTimestamp"],
     properties: {
-      clientMutationId: { ...str, description: "Idempotency key (UUID)" },
+      clientMutationId: { ...str, description: "Idempotency key (UUID v4), reused unchanged on every retry" },
       entity: {
         type: "string",
         enum: [
-          "lot", "lot_image", "transaction", "handover", "payment", "price_point", "pickup_request",
-          "coverage_request", "consent", "dispute", "incident", "quiz_result", "rating",
+          "lot", "lot_image", "handover", "batch_handover", "payment", "price_point", "pickup_request",
+          "coverage_request", "consent", "dispute", "incident", "quiz_result", "rating", "profile", "dealer_comparison",
         ],
       },
       entityId: str,
-      op: { type: "string", enum: ["create", "update"] },
+      op: { type: "string", enum: ["create", "update"], description: "Which ops an entity allows: docs/sync-contract.md §7" },
       payload: { type: "object", additionalProperties: true },
       clientTimestamp: dateTime,
     },
   },
   SyncResult: {
     type: "object",
+    required: ["clientMutationId", "status", "code", "message", "retryable"],
     properties: {
       clientMutationId: str,
       status: { type: "string", enum: ["APPLIED", "DUPLICATE", "CONFLICT", "REJECTED"] },
-      retryable: bool,
-      serverState: { description: "Present on CONFLICT" },
+      code: { ...str, description: "Machine code, `OK` when applied" },
       message: str,
+      retryable: { ...bool, description: "Only `REJECTED` may be true; such an outcome is not remembered and can be resent" },
+      canonicalId: str,
+      serverState: { type: "object", additionalProperties: true, description: "Present on CONFLICT" },
     },
-    additionalProperties: true,
   },
 };

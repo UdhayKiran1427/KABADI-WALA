@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { buildPublicReceipt } from "@/lib/domain/anonymization";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
@@ -50,9 +50,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     );
 
     return apiSuccess({ receipt });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

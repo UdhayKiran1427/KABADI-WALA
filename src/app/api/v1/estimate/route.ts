@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
 import { calculateEstimate } from "@/lib/domain/estimates";
 import { z } from "zod";
 
@@ -11,18 +11,10 @@ const EstimateSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = EstimateSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, EstimateSchema);
+    if (bodyError) return bodyError;
 
-    const { categoryId, approxWeightGrams } = parsed.data;
+    const { categoryId, approxWeightGrams } = body;
 
     // Fetch last 30 days prices for this category
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -64,9 +56,8 @@ export async function POST(req: NextRequest) {
         range: `₹${(result.estimatedMinPaise / 100).toFixed(0)} – ₹${(result.estimatedMaxPaise / 100).toFixed(0)}`,
       },
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

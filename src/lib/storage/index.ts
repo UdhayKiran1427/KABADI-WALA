@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs/promises";
 import path from "path";
@@ -25,13 +25,24 @@ export interface PresignedUploadResponse {
 
 export function sanitizeStorageKey(storageKey: string): string | null {
   if (!storageKey || typeof storageKey !== "string") return null;
-  // Disallow any path traversal characters and null bytes
-  if (storageKey.includes("..") || storageKey.includes("\0") || storageKey.startsWith("/") || storageKey.startsWith("\\")) {
+  // Disallow any path traversal characters, null bytes, Windows drive prefixes, or absolute paths
+  if (
+    storageKey.includes("..") ||
+    storageKey.includes("\0") ||
+    storageKey.startsWith("/") ||
+    storageKey.startsWith("\\") ||
+    /^[a-zA-Z]:/.test(storageKey)
+  ) {
     return null;
   }
   // Normalize path and ensure it does not escape
   const normalized = path.normalize(storageKey).replace(/\\/g, "/");
-  if (normalized.startsWith("../") || normalized.includes("/../") || path.isAbsolute(normalized)) {
+  if (
+    normalized.startsWith("../") ||
+    normalized.includes("/../") ||
+    path.isAbsolute(normalized) ||
+    /^[a-zA-Z]:/.test(normalized)
+  ) {
     return null;
   }
   return normalized;
@@ -106,7 +117,6 @@ export async function readLocalFile(storageKey: string): Promise<Buffer | null> 
   }
 }
 
-
 export const IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -147,4 +157,34 @@ export async function getImageUrl(storageKey: string): Promise<string> {
 export function imageContentType(storageKey: string): string {
   const ext = storageKey.split(".").pop()?.toLowerCase();
   return Object.entries(IMAGE_TYPES).find(([, e]) => e === ext || (ext === "jpeg" && e === "jpg"))?.[0] ?? "image/jpeg";
+}
+
+/**
+ * True when the object behind [storageKey] has been uploaded. Used by the sync engine so a
+ * `lot_image` mutation that arrives before its file is answered with a retryable reject.
+ * Returns false (never throws) for unsafe keys and missing objects; throws only on storage outages
+ * other than "not found" so the caller can treat them as retryable processing errors.
+ */
+export async function storageObjectExists(storageKey: string): Promise<boolean> {
+  const cleanKey = sanitizeStorageKey(storageKey);
+  if (!cleanKey) return false;
+  if (STORAGE_DRIVER === "s3") {
+    try {
+      await s3Client.send(new HeadObjectCommand({ Bucket: process.env.S3_BUCKET || "ewaste-media", Key: cleanKey }));
+      return true;
+    } catch (err: unknown) {
+      const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+      if (e.name === "NotFound" || e.name === "NoSuchKey" || e.$metadata?.httpStatusCode === 404) return false;
+      throw err;
+    }
+  }
+  const baseDir = path.resolve(process.cwd(), STORAGE_LOCAL_DIR);
+  const fullPath = path.resolve(baseDir, cleanKey);
+  if (!fullPath.startsWith(baseDir)) return false;
+  try {
+    const st = await fs.stat(fullPath);
+    return st.isFile() && st.size > 0;
+  } catch {
+    return false;
+  }
 }

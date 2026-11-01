@@ -395,6 +395,28 @@ async function main() {
       });
     }
 
+    // Seed Key Mumbai Area Centroids for Geolocation Matching Fallback
+    const centroids = [
+      { area: "Dharavi", district: "Mumbai", latitude: 19.0434, longitude: 72.8567 },
+      { area: "Dharavi Labour Camp", district: "Mumbai", latitude: 19.0434, longitude: 72.8567 },
+      { area: "Dharavi Matunga Labour Camp", district: "Mumbai", latitude: 19.0434, longitude: 72.8567 },
+      { area: "Kurla West", district: "Mumbai", latitude: 19.0688, longitude: 72.8797 },
+      { area: "Sion West", district: "Mumbai", latitude: 19.0430, longitude: 72.8634 },
+      { area: "Bandra East", district: "Mumbai", latitude: 19.0596, longitude: 72.8450 },
+      { area: "Ghatkopar West", district: "Mumbai", latitude: 19.0860, longitude: 72.9090 },
+      { area: "Andheri East", district: "Mumbai", latitude: 19.1197, longitude: 72.8668 },
+    ];
+
+    for (const c of centroids) {
+      const existing = await prisma.areaCentroid.findFirst({
+        where: { area: c.area, district: c.district },
+      });
+      if (!existing) {
+        await prisma.areaCentroid.create({ data: c });
+      }
+    }
+    console.log(`✓ Seeded ${centroids.length} area centroids for location matching.`);
+
     console.log("✓ Seeded demo recycler, ground prices, test collector (9820000001 / PIN 1234), and dataset card.");
   }
 

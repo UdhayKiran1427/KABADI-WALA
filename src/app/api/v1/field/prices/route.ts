@@ -1,7 +1,8 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
 import { z } from "zod";
 
 const LogPriceSchema = z.object({
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
       return apiError("UNAUTHORIZED", "Field agent or admin authorization required", 401);
     }
 
-    const where: any = {};
+    const where: Prisma.PricePointWhereInput = {};
     if (auth.role === "FIELD_AGENT") {
       where.recordedById = auth.userId;
     }
@@ -52,9 +53,8 @@ export async function GET(req: NextRequest) {
         recordedAt: p.recordedAt,
       })),
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 
@@ -63,16 +63,8 @@ export async function POST(req: NextRequest) {
     const auth = await getAuthUser(req);
     let recordedById: string | null = auth?.userId || null;
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = LogPriceSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, LogPriceSchema);
+    if (bodyError) return bodyError;
 
     const {
       categoryId,
@@ -84,7 +76,7 @@ export async function POST(req: NextRequest) {
       latitude,
       longitude,
       recordedAt,
-    } = parsed.data;
+    } = body;
 
     const pricePoint = await prisma.pricePoint.create({
       data: {
@@ -107,9 +99,8 @@ export async function POST(req: NextRequest) {
       message: "Market price logged successfully",
       pricePoint,
     }, 201);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

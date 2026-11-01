@@ -1,8 +1,9 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPin } from "@/lib/auth/password";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
 import { generateUniqueShortCode } from "@/lib/services/collectorService";
 import { z } from "zod";
 
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
       return apiError("UNAUTHORIZED", "Field agent or admin authorization required", 401);
     }
 
-    const where: any = {};
+    const where: Prisma.CollectorWhereInput = {};
     if (auth.role === "FIELD_AGENT") {
       where.onboardedById = auth.userId;
     }
@@ -50,9 +51,8 @@ export async function GET(req: NextRequest) {
         createdAt: c.createdAt,
       })),
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 
@@ -61,18 +61,10 @@ export async function POST(req: NextRequest) {
     const auth = await getAuthUser(req);
     let agentId: string | null = auth?.userId || null;
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = OnboardCollectorSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, OnboardCollectorSchema);
+    if (bodyError) return bodyError;
 
-    const { phone, pin, preferredLanguage, operatingArea, district } = parsed.data;
+    const { phone, pin, preferredLanguage, operatingArea, district } = body;
 
     const existing = await prisma.user.findUnique({ where: { phone } });
     if (existing) {
@@ -127,9 +119,8 @@ export async function POST(req: NextRequest) {
         operatingArea: created.collector.operatingArea,
       },
     }, 201);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

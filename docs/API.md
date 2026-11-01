@@ -1,5 +1,7 @@
 # Mobile & Web API Contract Specification (Next.js 15 & Drift v3)
 
+> **Offline sync (`/sync/push`, `/sync/pull`), `/reference/bootstrap`, mobile auth, the response envelope and the lot-status mapping are specified in [`sync-contract.md`](sync-contract.md), which is canonical.** Where §3 (sync) or §4.1 (auth) below differ, `sync-contract.md` wins. The rest of this file (matching formulas, estimate, geo, lots, bargaining, notifications, field agent) is unchanged.
+
 This document is the authoritative specification for all REST endpoints, synchronization protocols, scoring formulas, and data exchange conventions between the Flutter collector app and the Next.js backend.
 
 ---

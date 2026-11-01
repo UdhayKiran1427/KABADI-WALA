@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ChevronRight, IndianRupee, Inbox, MapPin, PackagePlus, ShieldAlert, Truck } from "lucide-react";
 import { LotStatusBadge, PageVoice, useTxt, type Txt } from "./ui";
+import { kg } from "@/lib/format";
 
 interface CollectorDashboardClientProps {
   lots: Array<{
@@ -17,6 +18,13 @@ interface CollectorDashboardClientProps {
     _count: { items: number };
   }>;
   hasMore: boolean;
+  campBanner?: {
+    name: string;
+    distanceKm: number;
+    dates: string;
+    address: string;
+  } | null;
+  roleDeniedNotice?: boolean;
 }
 
 const MORE: Array<{ href: string; label: Txt; Icon: typeof Truck }> = [
@@ -26,17 +34,75 @@ const MORE: Array<{ href: string; label: Txt; Icon: typeof Truck }> = [
   { href: "/collector/pickup-requests", label: { hi: "पिकअप", en: "Pickups", mr: "पिकअप" }, Icon: Truck },
 ];
 
-export function CollectorDashboardClient({ lots, hasMore }: CollectorDashboardClientProps) {
+export function CollectorDashboardClient({ lots, hasMore, campBanner, roleDeniedNotice }: CollectorDashboardClientProps) {
   const tx = useTxt();
   const open = lots.filter((l) => ["DRAFT", "READY", "MATCHED"].includes(l.status)).length;
 
   return (
     <div className="c-page">
+      {roleDeniedNotice && (
+        <div
+          role="alert"
+          style={{
+            padding: "0.85rem 1rem",
+            backgroundColor: "#fef2f2",
+            border: "1.5px solid #ef4444",
+            color: "#991b1b",
+            borderRadius: "var(--radius-md, 12px)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            fontWeight: 600,
+            fontSize: "0.9rem",
+          }}
+        >
+          <ShieldAlert size={22} style={{ color: "#dc2626", flexShrink: 0 }} aria-hidden="true" />
+          <div>
+            {tx({
+              hi: "पहुंच अस्वीकृत: कलेक्टर केवल कलेक्टर पृष्ठों तक ही पहुंच सकते हैं।",
+              en: "Access restricted: Collectors can only access collector features.",
+              mr: "प्रवेश नाकारला: कलेक्टर फक्त कलेक्टर स्क्रीन वापरू शकतात.",
+            })}
+          </div>
+        </div>
+      )}
+
       <PageVoice
         en={`You have ${open} open lots. Tap New lot to sell scrap. Tap a lot to see its status.`}
         hi={`आपके ${open} लॉट चालू हैं। कबाड़ बेचने के लिए नया लॉट दबाएं। लॉट की स्थिति देखने के लिए उस पर दबाएं।`}
         mr={`तुमचे ${open} लॉट चालू आहेत. भंगार विकण्यासाठी नवीन लॉट दाबा. लॉटची स्थिती पाहण्यासाठी त्यावर दाबा.`}
       />
+
+      {campBanner && (
+        <Link
+          href="/collector/drop-points"
+          className="card"
+          style={{
+            padding: "0.85rem 1rem",
+            backgroundColor: "var(--primary-50, #f0fdf4)",
+            border: "1.5px solid var(--primary, #16a34a)",
+            borderRadius: "var(--radius-md, 12px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            textDecoration: "none",
+            gap: "0.75rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <span style={{ fontSize: "1.5rem" }}>🏕️</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--primary-900, #14532d)" }}>
+                {campBanner.name} &bull; {campBanner.distanceKm.toFixed(1)} km
+              </div>
+              <div style={{ fontSize: "0.775rem", color: "var(--slate-600)" }}>
+                {campBanner.dates} &bull; {campBanner.address}
+              </div>
+            </div>
+          </div>
+          <ChevronRight size={18} style={{ color: "var(--primary)" }} />
+        </Link>
+      )}
 
       <Link href="/collector/create-lot" className="c-big-action">
         <PackagePlus size={32} aria-hidden="true" />
@@ -62,7 +128,7 @@ export function CollectorDashboardClient({ lots, hasMore }: CollectorDashboardCl
                     {lot._count.items > 1 && <span style={{ color: "var(--slate-500)", fontWeight: 600 }}> +{lot._count.items - 1}</span>}
                   </div>
                   <div style={{ fontSize: "0.85rem", color: "var(--slate-600)" }}>
-                    {(lot.approxWeightGrams / 1000).toFixed(1)} kg &middot; ₹{amount.toLocaleString("en-IN")}
+                    {kg(lot.approxWeightGrams)} kg &middot; ₹{amount.toLocaleString("en-IN")}
                   </div>
                 </div>
                 <LotStatusBadge status={lot.status} />

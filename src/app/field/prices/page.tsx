@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { logMarketPriceAction } from "../actions";
+import { CoordinateInputs } from "../../admin/recyclers/CoordinateInputs";
+import { rupees } from "@/lib/format";
 
 export default async function LogMarketPricePage(props: {
   searchParams: Promise<{ success?: string; error?: string }>;
@@ -135,35 +137,13 @@ export default async function LogMarketPricePage(props: {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div>
-                <label className="form-label" style={{ fontSize: "0.825rem", fontWeight: 600 }}>
-                  GPS Latitude
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  name="latitude"
-                  defaultValue="19.0434"
-                  className="form-control"
-                  style={{ padding: "0.6rem 0.75rem", color: "var(--slate-600)" }}
-                />
-              </div>
-
-              <div>
-                <label className="form-label" style={{ fontSize: "0.825rem", fontWeight: 600 }}>
-                  GPS Longitude
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  name="longitude"
-                  defaultValue="72.8567"
-                  className="form-control"
-                  style={{ padding: "0.6rem 0.75rem", color: "var(--slate-600)" }}
-                />
-              </div>
-            </div>
+            <CoordinateInputs
+              defaultLatitude="19.0434"
+              defaultLongitude="72.8567"
+              label="Spot Observation GPS (Latitude, Longitude)"
+              helpText="Tap 'Use my location' on-site to auto-tag dealer coordinates for accurate valuation analytics."
+              required={false}
+            />
 
             <input type="hidden" name="buyerType" value="SCRAP_DEALER" />
 
@@ -212,7 +192,7 @@ export default async function LogMarketPricePage(props: {
                         </td>
                         <td>
                           <strong style={{ color: "var(--primary-800)", fontSize: "0.95rem" }}>
-                            ₹{(p.buyingPricePaise / 100).toFixed(0)}
+                            ₹{rupees(p.buyingPricePaise)}
                           </strong>
                         </td>
                         <td style={{ fontSize: "0.8rem" }}>{p.area}</td>

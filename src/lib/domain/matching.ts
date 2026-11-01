@@ -15,6 +15,9 @@
  *   - Rate Freshness 10% (10 if <= 7 days old, linear decay to 0 at 30 days)
  * - Returns compass direction, net expected total in paise, "why this is best" text, and debug exclusions.
  */
+import { amountPaise } from "./money";
+import { SEARCH_RADII_KM as CONFIG_SEARCH_RADII_KM } from "./config";
+
 
 export interface CandidateRecycler {
   id: string;
@@ -67,7 +70,7 @@ export interface MatchResult {
   exclusions?: Array<{ recyclerId: string; name: string; reason: string }>;
 }
 
-export const SEARCH_RADII_KM = [5, 10, 25, 50];
+export const SEARCH_RADII_KM: readonly number[] = CONFIG_SEARCH_RADII_KM;
 
 /**
  * Calculates Haversine distance in kilometers between two geo coordinates.
@@ -234,7 +237,7 @@ export function matchRecyclers(
     const totalScore = Math.round((rateScore + distanceScore + pickupScore + ratingScore + freshnessScore) * 10) / 10;
 
     // Expected total net of pickup charge
-    const grossPaise = Math.round((c.ratePerKgPaise * query.approxWeightGrams) / 1000);
+    const grossPaise = amountPaise(query.approxWeightGrams, c.ratePerKgPaise);
     const expectedTotalPaise = Math.max(0, grossPaise - (query.pickupRequired ? c.pickupChargePaise : 0));
 
     // Text reason for ranking

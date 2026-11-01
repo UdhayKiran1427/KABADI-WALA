@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowRight,
+  BellRing,
   Check,
   CircleCheck,
   CircleCheckBig,
@@ -15,10 +16,11 @@ import {
   SearchX,
   Trash,
   TriangleAlert,
+  Truck,
 } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { confirmLotAction, rebroadcastLotAction, selectRecyclerOfferAction, deleteLotAction } from "../../actions";
+import { confirmLotAction, rebroadcastLotAction, selectRecyclerOfferAction, deleteLotAction, submitCoverageRequestAction, createPickupRequestAction } from "../../actions";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { DemoPaymentQr } from "@/components/payment/DemoPaymentQr";
 import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
@@ -26,9 +28,11 @@ import { offerTotalPaise } from "@/lib/services/lotFlowService";
 import { LOT_ITEMS_INCLUDE, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
 import { LotPhotoStrip } from "@/components/LotPhotoStrip";
 import { ConfirmSubmit, LotStatusBadge, PageTitle, PageVoice, T } from "../../ui";
+import { RecyclerDirectionsCard } from "@/components/geo/RecyclerDirectionsCard";
+import { calculateHaversineDistanceKm } from "@/lib/domain/matching";
+import { calculateTravelMinutes } from "@/lib/domain/geoDirections";
+import { inr, kg as kgText } from "@/lib/format";
 
-const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-const spokenRupees = (paise: number) => (paise / 100).toFixed(0);
 
 export default async function CollectorLotDetailPage(props: {
   params: Promise<{ id: string }>;
@@ -176,10 +180,42 @@ export default async function CollectorLotDetailPage(props: {
           {interested.length === 0 ? (
             <div className="card c-empty">
               {lot.offers.length === 0 ? (
-                <>
-                  <SearchX size={32} aria-hidden="true" />
-                  <T hi="पास में कोई खरीदार नहीं" en="No buyer nearby" mr="जवळ खरेदीदार नाही" />
-                </>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem", padding: "1.25rem 0.5rem", textAlign: "center" }}>
+                  <SearchX size={36} aria-hidden="true" style={{ color: "var(--slate-400)" }} />
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--slate-900)" }}>
+                      <T hi="इस इलाके में अभी कोई रीसाइक्लर नहीं है" en="No authorized recycler nearby" mr="या भागात सध्या कोणताही खरेदीदार नाही" />
+                    </div>
+                    <div style={{ fontSize: "0.825rem", color: "var(--slate-500)", marginTop: "0.25rem" }}>
+                      <T
+                        hi="आपके 5 किमी के दायरे में कोई अधिकृत रीसाइक्लर नहीं मिला। जब कोई उपलब्ध होगा हम आपको सूचित करेंगे।"
+                        en="No authorized recycler currently covers your 5 km radius. We can notify you as soon as one covers your area."
+                        mr="तुमच्या 5 किमी परिसरात अधिकृत खरेदीदार उपलब्ध नाही. उपलब्ध होताच आम्ही कळवू."
+                      />
+                    </div>
+                  </div>
+
+                  {/* GEO G6.3: Notify me button (creates CoverageRequest) */}
+                  <form action={submitCoverageRequestAction}>
+                    <input type="hidden" name="lotId" value={lot.id} />
+                    <button type="submit" className="btn btn-primary btn-sm" style={{ padding: "0.4rem 0.85rem" }}>
+                      <BellRing size={16} />
+                      <T hi="उपलब्ध होने पर मुझे बताएं" en="Notify me when available" mr="उपलब्ध झाल्यावर मला कळवा" />
+                    </button>
+                  </form>
+
+                  {/* GEO G6.4: Debug toggle showing reason excluded */}
+                  <details style={{ width: "100%", fontSize: "0.75rem", color: "var(--slate-500)", textAlign: "left", marginTop: "0.5rem", cursor: "pointer" }}>
+                    <summary style={{ fontWeight: 600 }}>
+                      🔍 <T hi="कारण देखें (Debug: Reasons excluded)" en="View excluded reasons (Debug)" mr="वगळण्याचे कारण पहा" />
+                    </summary>
+                    <div style={{ padding: "0.5rem", backgroundColor: "var(--slate-100)", borderRadius: "6px", marginTop: "0.35rem" }}>
+                      &bull; Distance &gt; 5 km from verified facility<br />
+                      &bull; Facility authorization verification required<br />
+                      &bull; Material category active rate check
+                    </div>
+                  </details>
+                </div>
               ) : (
                 <>
                   <LoaderCircle size={32} className="c-spin" aria-hidden="true" />
@@ -198,7 +234,7 @@ export default async function CollectorLotDetailPage(props: {
                       <div className="c-hint">
                         <MapPin size={14} aria-hidden="true" style={{ flexShrink: 0 }} />
                         <span>
-                          {offer.distanceKm.toFixed(1)} km &middot; {offer.recycler.address}
+                          {offer.distanceKm.toFixed(1)} km &middot; ~{calculateTravelMinutes(offer.distanceKm, "bike")} min bike &middot; {offer.recycler.address}
                         </span>
                       </div>
                     </div>
@@ -219,6 +255,44 @@ export default async function CollectorLotDetailPage(props: {
                       <ArrowRight size={20} aria-hidden="true" />
                     </button>
                   </form>
+
+                  {/* GEO G8.1: Doorstep Pickup Request Option */}
+                  {offer.recycler.pickupAvailable && (
+                    <details style={{ marginTop: "0.25rem", borderTop: "1px dashed var(--slate-200)", paddingTop: "0.5rem", fontSize: "0.8rem", color: "var(--primary-800)" }}>
+                      <summary style={{ fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                        <Truck size={14} />
+                        <T hi="घर से पिकअप का अनुरोध करें" en="Request Doorstep Pickup" mr="घरोघरी पिकअपची विनंती करा" />
+                      </summary>
+                      <form action={createPickupRequestAction} style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                        <input type="hidden" name="lotId" value={lot.id} />
+                        <input type="hidden" name="recyclerId" value={offer.recycler.id} />
+                        <input type="hidden" name="latitude" value={lot.collectLat || ""} />
+                        <input type="hidden" name="longitude" value={lot.collectLng || ""} />
+                        
+                        <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--slate-600)" }}>
+                          समय चुनें / Choose Slot:
+                        </label>
+                        <select name="slotTime" className="form-control" style={{ padding: "0.4rem", fontSize: "0.8rem" }}>
+                          <option value="morning">सुबह (Morning 10:00 AM)</option>
+                          <option value="afternoon">दोपहर (Afternoon 02:00 PM)</option>
+                          <option value="evening">शाम (Evening 05:00 PM)</option>
+                        </select>
+
+                        <input
+                          type="text"
+                          name="landmark"
+                          placeholder="लैंडमार्क / Landmark (e.g. Near Ration Shop)"
+                          className="form-control"
+                          style={{ padding: "0.4rem", fontSize: "0.8rem" }}
+                        />
+
+                        <button type="submit" className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start", marginTop: "0.2rem" }}>
+                          <Truck size={14} />
+                          <T hi="पिकअप अनुरोध भेजें" en="Submit Pickup Request" mr="पिकअप विनंती पाठवा" />
+                        </button>
+                      </form>
+                    </details>
+                  )}
                 </div>
               );
             })
@@ -246,7 +320,7 @@ export default async function CollectorLotDetailPage(props: {
         <div className="card" style={{ padding: "1.5rem", textAlign: "center", border: "2px solid var(--primary)" }}>
           <CircleCheckBig size={56} aria-hidden="true" style={{ color: "var(--primary)" }} />
           <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "var(--primary-800)", marginTop: "0.5rem" }}>
-            {rupees(dealTotal)} <T hi="मिले" en="received" mr="मिळाले" />
+            {inr(dealTotal)} <T hi="मिले" en="received" mr="मिळाले" />
           </div>
           {payToken && (
             <Link href={`/invoice/${payToken}`} className="btn btn-secondary btn-block btn-lg" style={{ marginTop: "1rem" }}>
@@ -257,32 +331,35 @@ export default async function CollectorLotDetailPage(props: {
         </div>
       )}
 
-      {/* Buyer details once chosen */}
+      {/* Buyer details & directions once chosen */}
       {recycler && (
-        <div className="card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-          <div className="c-hint" style={{ fontWeight: 700 }}>
-            <T hi="खरीदार" en="Buyer" mr="खरेदीदार" />
-          </div>
-          <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "var(--slate-900)" }}>{recycler.name}</div>
-          <div style={{ fontSize: "0.875rem", color: "var(--slate-600)" }}>
-            {[recycler.address, recycler.area, recycler.district].filter(Boolean).join(", ")}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-            <a href={`tel:${recycler.contactPhone}`} className="btn btn-secondary btn-lg">
-              <Phone size={18} aria-hidden="true" />
-              <T hi="कॉल" en="Call" mr="कॉल" />
-            </a>
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${recycler.latitude},${recycler.longitude}`}
-              target="_blank"
-              rel="noreferrer"
-              className="btn btn-secondary btn-lg"
-            >
-              <Navigation size={18} aria-hidden="true" />
-              <T hi="रास्ता" en="Map" mr="रस्ता" />
-            </a>
-          </div>
-        </div>
+        <section style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <h2 className="c-section-title">
+            <T hi="खरीदार केंद्र व रास्ता" en="Buyer Facility & Directions" mr="खरेदीदार केंद्र व रस्ता" />
+          </h2>
+          <RecyclerDirectionsCard
+            recycler={{
+              id: recycler.id,
+              name: recycler.name,
+              address: [recycler.address, recycler.area, recycler.district].filter(Boolean).join(", "),
+              landmark: recycler.landmark,
+              latitude: recycler.latitude,
+              longitude: recycler.longitude,
+              contactPhone: recycler.contactPhone,
+              whatsappPhone: recycler.whatsappPhone,
+            }}
+            distanceKm={
+              lot.collectLat != null && lot.collectLng != null
+                ? calculateHaversineDistanceKm(lot.collectLat, lot.collectLng, recycler.latitude, recycler.longitude)
+                : 2.0
+            }
+            lotId={lot.id}
+            lotRef={lot.lotRef}
+            userLat={lot.collectLat}
+            userLng={lot.collectLng}
+            showArrivalButton={lot.status === "MATCHED"}
+          />
+        </section>
       )}
 
       {canDelete && (

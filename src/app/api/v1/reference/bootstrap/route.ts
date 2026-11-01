@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 
 export async function GET(req: NextRequest) {
   try {
@@ -58,6 +58,9 @@ export async function GET(req: NextRequest) {
     const recyclerCache = recyclers.map((r) => ({
       id: r.id,
       name: r.name,
+      address: r.address,
+      landmark: r.landmark,
+      whatsappPhone: r.whatsappPhone,
       latitude: r.latitude,
       longitude: r.longitude,
       authorizationStatus: r.authorizationStatus,
@@ -99,9 +102,8 @@ export async function GET(req: NextRequest) {
       collectionPoints,
       areaCentroids,
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

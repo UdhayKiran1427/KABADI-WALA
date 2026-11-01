@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import { apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
 import { setTodayPrices } from "@/lib/services/adminService";
 
 const TodayPricesSchema = z.object({
@@ -19,18 +19,10 @@ export async function POST(req: NextRequest) {
     const { user, response } = await requireApiUser(req, ["ADMIN"]);
     if (response) return response;
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = TodayPricesSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, TodayPricesSchema);
+    if (bodyError) return bodyError;
 
-    const updated = await setTodayPrices(user.userId, parsed.data.prices);
+    const updated = await setTodayPrices(user.userId, body.prices);
     return apiSuccess({ updated });
   } catch (err) {
     return apiErrorFrom(err);

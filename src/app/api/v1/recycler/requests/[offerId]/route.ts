@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
 import { respondToOffer } from "@/lib/services/lotFlowService";
 
 const ItemRateSchema = z.object({ categoryId: z.number().int().positive(), ratePerKgPaise: z.number().int().positive() });
@@ -26,23 +26,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ off
     if (response) return response;
     if (!user.recyclerId) return apiError("NO_FACILITY", "Your account is not linked to a recycler facility", 403);
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = RespondSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, RespondSchema);
+    if (bodyError) return bodyError;
 
     const { offerId } = await params;
     const result = await respondToOffer(
       offerId,
       user.recyclerId,
-      parsed.data.response,
-      parsed.data.response === "INTERESTED" ? { itemRates: parsed.data.itemRates, ratePerKgPaise: parsed.data.ratePerKgPaise } : {}
+      body.response,
+      body.response === "INTERESTED" ? { itemRates: body.itemRates, ratePerKgPaise: body.ratePerKgPaise } : {}
     );
     return apiSuccess({ offerId, ...result });
   } catch (err) {

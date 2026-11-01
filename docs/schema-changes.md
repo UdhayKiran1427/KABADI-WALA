@@ -33,3 +33,15 @@
   - `PlatformFeeConfig`: Platform fee and commission rates.
   - `DatasetCard` & `DataValidationResult`: Anomaly tracking and AI dataset health.
 
+## 3. Phase 2 — sync contract (APPLIED 2026-11-02; MongoDB, no migration files: `npx prisma db push`)
+All changes are additive or relax a constraint; existing documents stay valid.
+- **Handover**: `verificationCode` becomes **optional** (phone handovers no longer store a plain code; it is a LEGACY value for web/REST-created handovers), new `codeHash String?` (sha256 of `"<handoverRef>:<code>"`), `packedSafely Boolean @default(false)`, `acceptedByCollectorAt DateTime?`. `HandoverStatus` += `WEIGHED`, `REJECTED`, `CANCELLED`.
+- **BatchHandover**: `verificationCode` optional (LEGACY), new `codeHash String?`, `collectorId String?`, `totalWeightGrams Int?`, `capturedAt DateTime?`.
+- **Lot**: `expectedValuePaise Int?`, `expiresAt DateTime?`, `soldBy String?`, `cancelReason String?`, `cancelledAt DateTime?`. (`paymentStatus` stays server-derived from `Payment` rows.)
+- **LotImage**: `lotId` optional (TRAINING photos belong to no lot), new `imageHash String?` (64-bit dHash), `angle String?`. `ImageKind` += `DISPUTE`.
+- **Dispute**: `hasEvidence Boolean @default(false)`.
+- **IncidentReport**: `type String?`, `note String?`, `occurredAt DateTime?`, `latitude Float?`, `longitude Float?` (`description`/`severity` are filled by the server from `type`).
+- **New model `DealerComparison`**: client-UUID `id`, `lotId` (unique, one comparison per lot), `collectorId`, `categoryId`, `dealerRatePaise`, `ourRatePaise`, `clientCreatedAt`, timestamps.
+- Not done from the Phase 1 plan: `Dispute.status` (a collector cannot resolve disputes, resolution stays in `resolution`/`resolvedAt`), `Handover.arrivedAt/arrivalDistanceM/disputeId/batchId/weightToleranceStatus/codeVerified` (arrival fields already existed; the rest are not needed by the server flow).
+- **Lot state machine** (`src/lib/domain/lotStateMachine.ts`, code not schema): `MATCHED→REJECTED`, `HANDED_OVER→CANCELLED`, `REJECTED→MATCHED|CANCELLED`, `EXPIRED→MATCHED|CANCELLED`, `DISPUTED→CANCELLED`; only `COMPLETED` and `CANCELLED` are terminal.
+- **Semantics change (no schema change)**: the recycler portal's "confirm" now leaves a lot `HANDED_OVER` + `transactionStatus CONFIRMED` (client state CONFIRMED); `COMPLETED` (client state PAID) is set only when the lot is paid.

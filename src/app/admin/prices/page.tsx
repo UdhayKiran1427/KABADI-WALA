@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronDown, CircleAlert, CircleCheck, Download, Plus, Save, X } from "lucide-react";
 import { addPriceRecordAction, deletePriceRecordAction, setTodayPricesAction } from "../actions";
 import { getTodayRates } from "@/lib/services/lotFlowService";
+import { rupees } from "@/lib/format";
 
 export default async function AdminPricesPage({
   searchParams,
@@ -123,13 +124,13 @@ export default async function AdminPricesPage({
                     min="0.5"
                     step="0.5"
                     inputMode="decimal"
-                    placeholder={current ? (current.ratePerKgPaise / 100).toFixed(2) : "Not set"}
+                    placeholder={current ? rupees(current.ratePerKgPaise, 2) : "Not set"}
                     className="form-control"
                     style={{ fontSize: "1.1rem", padding: "0.65rem 0.75rem" }}
                   />
                   <span style={{ fontSize: "0.75rem", color: isToday ? "var(--primary-800)" : current ? "var(--text-muted)" : "var(--danger)" }}>
                     {current
-                      ? `Now ₹${(current.ratePerKgPaise / 100).toFixed(2)} · ${isToday ? "today" : current.recordedAt.toLocaleDateString("en-IN")}`
+                      ? `Now ₹${rupees(current.ratePerKgPaise, 2)} · ${isToday ? "today" : current.recordedAt.toLocaleDateString("en-IN")}`
                       : "Not set – collectors can't list this"}
                   </span>
                 </label>
@@ -252,7 +253,7 @@ export default async function AdminPricesPage({
                   <tbody>
                     {prices.slice(0, 15).map((p) => (
                       <tr key={p.id}>
-                        <td><strong>₹{(p.buyingPricePaise / 100).toFixed(0)}/kg</strong></td>
+                        <td><strong>₹{rupees(p.buyingPricePaise)}/kg</strong></td>
                         <td>{p.area}</td>
                         <td><span className="badge badge-neutral">{p.source}</span></td>
                         <td>{p.recordedAt.toISOString().split("T")[0]}</td>
@@ -262,7 +263,7 @@ export default async function AdminPricesPage({
                               type="submit"
                               className="btn btn-danger btn-sm"
                               style={{ padding: "0.2rem 0.35rem" }}
-                              aria-label={`Delete record ₹${(p.buyingPricePaise / 100).toFixed(0)}/kg, ${p.area}`}
+                              aria-label={`Delete record ₹${rupees(p.buyingPricePaise)}/kg, ${p.area}`}
                             >
                               <X size={14} aria-hidden="true" />
                             </button>

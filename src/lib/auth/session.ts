@@ -1,11 +1,11 @@
+import { getSecretKey } from "./secrets";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { prisma } from "../prisma";
 import { Role } from "@prisma/client";
 
-const SESSION_SECRET_STRING = process.env.SESSION_SECRET || "super-secret-session-cookie-key-for-recycler-and-admin-32-chars";
-const SECRET_KEY = new TextEncoder().encode(SESSION_SECRET_STRING);
+const getKey = () => getSecretKey("SESSION_SECRET");
 const COOKIE_NAME = "ewaste_session";
 
 import { redirect } from "next/navigation";
@@ -22,7 +22,7 @@ export async function createSessionCookie(payload: SessionPayload) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(SECRET_KEY);
+    .sign(getKey());
 
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {
@@ -67,7 +67,7 @@ export async function getSession(req?: NextRequest): Promise<SessionPayload | nu
   }
 
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY);
+    const { payload } = await jwtVerify(token, getKey());
     return {
       userId: String(payload.userId),
       phone: String(payload.phone),
@@ -114,6 +114,13 @@ export async function requireRole(
   }
 
   if (!allowedRoles.includes(dbUser.role)) {
+    if (dbUser.role === "COLLECTOR") {
+      redirect("/collector?denied=role_forbidden");
+    } else if (dbUser.role === "RECYCLER") {
+      redirect("/recycler?denied=role_forbidden");
+    } else if (dbUser.role === "FIELD_AGENT") {
+      redirect("/field?denied=role_forbidden");
+    }
     redirect(fallbackLogin);
   }
 

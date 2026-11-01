@@ -93,7 +93,10 @@ enum PaymentMethod {
 
 enum HandoverStatus {
   PENDING
+  WEIGHED
   CONFIRMED
+  REJECTED
+  CANCELLED
   DISPUTED
 }
 
@@ -112,6 +115,7 @@ enum PriceSource {
 enum ImageKind {
   COLLECTION
   HANDOVER
+  DISPUTE
   TRAINING
 }
 
@@ -324,6 +328,8 @@ model Recycler {
   authorizationValidTill DateTime?
   authorizationDocKey    String?
   contactPhone           String
+  whatsappPhone          String?
+  landmark               String?
   pickupAvailable        Boolean    @default(false)
   serviceRadiusKm        Float      @default(10)
   minimumWeightGrams     Int        @default(0)
@@ -390,6 +396,10 @@ model CollectionPoint {
   address        String
   operatingHours String?
   operatingDates String?
+  startDate      DateTime?
+  endDate        DateTime?
+  materials      String?
+  landmark       String?
   contactPhone   String?
   createdAt      DateTime  @default(now())
 
@@ -480,25 +490,31 @@ model Lot {
   clientCreatedAt      DateTime          @default(now())
   chosenRecyclerId     String?
   quotedRatePaise      Int?
+  expectedValuePaise   Int?
   finalPricePaise      Int?
+  expiresAt            DateTime?
+  soldBy               String?
+  cancelReason         String?
+  cancelledAt          DateTime?
   transactionStatus    TransactionStatus @default(QUOTED)
   paymentStatus        PaymentStatus     @default(UNPAID)
   syncedAt             DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
-  images          LotImage[]
-  suggestions     MatchSuggestion[]
-  transaction     Transaction?
-  handovers       Handover[]
-  payments        Payment[]
-  batchItems      BatchHandoverItem[]
-  disputes        Dispute[]
-  incidentReports IncidentReport[]
-  pickupRequests  PickupRequest[]
-  flags           AnomalyFlag[]
-  receiptTokens   ReceiptShareToken[]
-  offers          LotOffer[]
-  items           LotItem[]
+  images           LotImage[]
+  suggestions      MatchSuggestion[]
+  transaction      Transaction?
+  handovers        Handover[]
+  payments         Payment[]
+  batchItems       BatchHandoverItem[]
+  disputes         Dispute[]
+  incidentReports  IncidentReport[]
+  pickupRequests   PickupRequest[]
+  flags            AnomalyFlag[]
+  receiptTokens    ReceiptShareToken[]
+  offers           LotOffer[]
+  items            LotItem[]
+  dealerComparison DealerComparison?
 
   @@index([collectorId, collectedAt])
   @@index([status])
@@ -507,12 +523,14 @@ model Lot {
 
 model LotImage {
   id         String    @id @map("_id") // Client UUID
-  lotId      String
-  lot        Lot       @relation(fields: [lotId], references: [id])
+  lotId      String? // null for TRAINING photos
+  lot        Lot?      @relation(fields: [lotId], references: [id])
   kind       ImageKind @default(COLLECTION)
   storageKey String
   localPath  String?
   sha256     String?
+  imageHash  String? // 64-bit perceptual dHash, 16 hex
+  angle      String? // TRAINING: top | side
   takenAt    DateTime
   widthPx    Int?
   heightPx   Int?
@@ -622,7 +640,10 @@ model Handover {
   transaction              Transaction?      @relation(fields: [transactionId], references: [id])
   handoverRef              String            @unique
   qrPayload                String
-  verificationCode         String // 4-digit code
+  verificationCode         String? // LEGACY plain 4-digit code (web/REST flow only). Phone handovers store codeHash instead.
+  codeHash                 String? // sha256("<handoverRef>:<code>") hex, from the phone
+  packedSafely             Boolean           @default(false)
+  acceptedByCollectorAt    DateTime?
   declaredWeightGrams      Int
   confirmedWeightGrams     Int?
   capturedAt               DateTime
@@ -633,6 +654,10 @@ model Handover {
   distanceToRecyclerMeters Float?
   locationClass            String? // MATCH, NEAR, FAR, UNKNOWN
   mockLocationFlag         Boolean           @default(false)
+  arrivedAt                DateTime?
+  arrivalDistanceM         Float?
+  geoFlag                  Boolean           @default(false)
+  spoofReasons             String?
   status                   HandoverStatus    @default(PENDING)
   recyclerConfirmedAt      DateTime?
   confirmedById            String?
@@ -653,7 +678,11 @@ model BatchHandover {
   id               String         @id @default(uuid()) @map("_id")
   batchRef         String         @unique
   qrPayload        String
-  verificationCode String // 4-digit code
+  verificationCode String? // LEGACY plain code
+  codeHash         String? // sha256("<batchRef>:<code>") hex, from the phone
+  collectorId      String?
+  totalWeightGrams Int?
+  capturedAt       DateTime?
   recyclerId       String
   recycler         Recycler       @relation(fields: [recyclerId], references: [id])
   status           HandoverStatus @default(PENDING)
@@ -677,29 +706,35 @@ model BatchHandoverItem {
 }
 
 model Dispute {
-  id         String    @id @default(uuid()) @map("_id")
-  lotId      String
-  lot        Lot       @relation(fields: [lotId], references: [id])
-  handoverId String?
-  handover   Handover? @relation(fields: [handoverId], references: [id])
-  reason     String
-  raisedBy   String // COLLECTOR or RECYCLER
-  resolution String?
-  resolvedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(uuid()) @map("_id")
+  lotId       String
+  lot         Lot       @relation(fields: [lotId], references: [id])
+  handoverId  String?
+  handover    Handover? @relation(fields: [handoverId], references: [id])
+  reason      String
+  raisedBy    String // COLLECTOR or RECYCLER
+  hasEvidence Boolean   @default(false)
+  resolution  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([lotId])
 }
 
 model IncidentReport {
-  id          String   @id @default(uuid()) @map("_id")
+  id          String    @id @default(uuid()) @map("_id")
   reporterId  String
-  reporter    User     @relation(fields: [reporterId], references: [id])
+  reporter    User      @relation(fields: [reporterId], references: [id])
   lotId       String?
-  lot         Lot?     @relation(fields: [lotId], references: [id])
+  lot         Lot?      @relation(fields: [lotId], references: [id])
   description String
-  severity    Int      @default(1)
-  createdAt   DateTime @default(now())
+  severity    Int       @default(1)
+  type        String? // burn | cut | battery_leak | fumes | other
+  note        String?
+  occurredAt  DateTime?
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime  @default(now())
 
   @@index([reporterId])
   @@index([lotId])
@@ -729,18 +764,23 @@ model Payment {
 }
 
 model PickupRequest {
-  id          String   @id @default(uuid()) @map("_id")
-  collectorId String
-  collector   User     @relation(fields: [collectorId], references: [id])
-  recyclerId  String
-  recycler    Recycler @relation(fields: [recyclerId], references: [id])
-  lotId       String
-  lot         Lot      @relation(fields: [lotId], references: [id])
-  slot        DateTime
-  status      String   @default("REQUESTED") // REQUESTED, ACCEPTED, ON_THE_WAY, ARRIVED, COMPLETED, EXPIRED, CANCELLED
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String   @id @default(uuid()) @map("_id")
+  collectorId        String
+  collector          User     @relation(fields: [collectorId], references: [id])
+  recyclerId         String
+  recycler           Recycler @relation(fields: [recyclerId], references: [id])
+  lotId              String
+  lot                Lot      @relation(fields: [lotId], references: [id])
+  slot               DateTime
+  pickupLat          Float?
+  pickupLng          Float?
+  landmark           String?
+  etaMinutes         Int?
+  cancellationReason String?
+  status             String   @default("REQUESTED") // REQUESTED, ACCEPTED, ON_THE_WAY, ARRIVED, COMPLETED, EXPIRED, CANCELLED
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([collectorId])
   @@index([recyclerId])
@@ -915,4 +955,34 @@ model SyncMutation {
 
   @@index([userId, receivedAt])
   @@index([entity, entityId])
+}
+
+model DealerComparison {
+  id              String   @id @map("_id") // Client UUID
+  lotId           String   @unique
+  lot             Lot      @relation(fields: [lotId], references: [id])
+  collectorId     String
+  categoryId      Int
+  dealerRatePaise Int
+  ourRatePaise    Int
+  clientCreatedAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([collectorId])
+}
+
+/// Spec s10: every admin action is recorded here (who, what, on which entity). Append-only.
+model AuditLog {
+  id          String   @id @default(uuid()) @map("_id")
+  actorId     String
+  actorRole   String
+  action      String // e.g. RECYCLER_STATUS_SET, PRICE_ADDED, DISPUTE_RESOLVED
+  entityType  String
+  entityId    String?
+  detailsJson String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
 }

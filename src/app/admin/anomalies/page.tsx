@@ -1,3 +1,4 @@
+import { FlagStatus, Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth/session";
 import { CircleCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
@@ -12,9 +13,10 @@ export default async function AdminAnomaliesPage({
   await requireRole(["ADMIN"]);
   const { status = "OPEN", severity } = await searchParams;
 
-  const where: any = {};
-  if (status) where.status = status;
-  if (severity) where.severity = parseInt(severity, 10);
+  const where: Prisma.AnomalyFlagWhereInput = {};
+  if (status in FlagStatus) where.status = status as FlagStatus;
+  const severityNum = Number.parseInt(severity ?? "", 10);
+  if (Number.isInteger(severityNum)) where.severity = severityNum;
 
   const flags = await prisma.anomalyFlag.findMany({
     where,

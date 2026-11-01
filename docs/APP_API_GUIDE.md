@@ -174,7 +174,7 @@ sequenceDiagram
 | GET | `/collection-points?latitude=&longitude=&radiusKm=30` | Public | Drop-off collection points nearby. |
 | GET | `/receipts/{token}` | Public | Public receipt data (no personal details). |
 | GET | `/health` | Public | Server and database health. |
-| GET / POST | `/sync/pull`, `/sync/push` | Collector | Offline sync (see `docs/API.md`). |
+| GET / POST | `/sync/pull`, `/sync/push` | Collector | Offline sync — specified in [`sync-contract.md`](sync-contract.md). |
 
 ### 4.9 Not part of the new flow – do not use in the app
 

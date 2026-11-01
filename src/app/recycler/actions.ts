@@ -3,11 +3,13 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole, createSessionCookie, clearSessionCookie } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
-import { evaluateWeightTolerance, classifyLocationProof } from "@/lib/domain/handover";
-import { checkWeightAnomalies, checkPriceAnomalies } from "@/lib/domain/anomalies";
+import { evaluateWeightTolerance, classifyLocationProof, verifyEnteredHandoverCode } from "@/lib/domain/handover";
+import { validateLotTransition, type LotStatus } from "@/lib/domain/lotStateMachine";
+import { checkWeightAnomalies, checkPriceAnomalies, checkLocationAnomalies } from "@/lib/domain/anomalies";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { FlowError, respondToOffer } from "@/lib/services/lotFlowService";
+import { amountPaise, firstPositiveRate } from "@/lib/domain/money";
 
 /**
  * Sign in for Recycler Staff.
@@ -57,6 +59,15 @@ export async function acceptLotAction(lotId: string) {
   const { dbUser } = await requireRole(["RECYCLER"]);
   const recyclerId = dbUser.recyclerId;
   if (!recyclerId) throw new Error("No recycler facility assigned");
+
+  // ROLE RB2.2: If facility authorization is EXPIRED or SUSPENDED, block accepting lots
+  const facility = await prisma.recycler.findUnique({
+    where: { id: recyclerId },
+    select: { authorizationStatus: true },
+  });
+  if (facility?.authorizationStatus === "EXPIRED" || facility?.authorizationStatus === "SUSPENDED") {
+    throw new Error("Facility authorization is expired or suspended. Accepting new lots is blocked.");
+  }
 
   // Only the recycler the collector selected may act on the lot
   const lot = await prisma.lot.findUnique({ where: { id: lotId }, select: { chosenRecyclerId: true } });
@@ -154,6 +165,8 @@ export async function dispatchPickupFormAction(formData: FormData) {
 /**
  * Confirm or dispute handover with confirmed weight and mark payment (R2).
  */
+const CODE_ERROR_QUERY = (query: string) => `/recycler/verify?query=${encodeURIComponent(query)}&error=code`;
+
 export async function confirmHandoverAction(formData: FormData) {
   const { dbUser } = await requireRole(["RECYCLER"]);
   const recyclerId = dbUser.recyclerId;
@@ -164,7 +177,7 @@ export async function confirmHandoverAction(formData: FormData) {
   const confirmedWeightKg = parseFloat(formData.get("confirmedWeightKg") as string);
   const actionType = formData.get("actionType") as string; // "CONFIRM" or "DISPUTE"
   const disputeReason = formData.get("disputeReason") as string;
-  const markPaid = formData.get("markPaid") === "true";
+  const markPaidRequested = formData.get("markPaid") === "true";
   const paymentMethod = (formData.get("paymentMethod") as "CASH" | "UPI") || "CASH";
   const upiRef = formData.get("upiRef") as string;
   const downstreamStatus = formData.get("downstreamStatus") as "RECEIVED" | "SENT_TO_PROCESSING" | "PROCESSED";
@@ -181,29 +194,98 @@ export async function confirmHandoverAction(formData: FormData) {
 
   if (!lot || lot.chosenRecyclerId !== recyclerId) throw new Error("Lot not found");
 
-  const ratePerKgPaise = lot.quotedRatePaise || lot.category.recyclerRates[0]?.ratePerKgPaise || 3000;
-  const finalPricePaise = Math.round((ratePerKgPaise * confirmedWeightGrams) / 1000);
+  // The collector's 4-digit code must match the handover: hashed with its ref and compared in constant time
+  // (legacy plain codes only for handovers that have no hash).
+  const queryForRedirect = (formData.get("query") as string) || lot.lotRef;
+  const enteredCode = (formData.get("verificationCode") as string) || "";
+  const handoverToCheck = handoverId
+    ? await prisma.handover.findUnique({ where: { id: handoverId } })
+    : await prisma.handover.findFirst({ where: { lotId }, orderBy: { capturedAt: "desc" } });
+  if (handoverToCheck) {
+    if (handoverToCheck.lotId !== lotId) throw new Error("Lot not found");
+    if (!verifyEnteredHandoverCode(handoverToCheck, enteredCode)) redirect(CODE_ERROR_QUERY(queryForRedirect));
+  }
 
-  // Evaluate weight tolerance
+  // Spec s2: the final amount is the actual weight x the rate locked at selection. Never invent a rate.
+  const ratePerKgPaise = firstPositiveRate(lot.quotedRatePaise, lot.transaction?.quotedRatePerKgPaise);
+  if (ratePerKgPaise === null) redirect(`/recycler/verify?query=${encodeURIComponent(queryForRedirect)}&error=no_rate`);
+  const finalPricePaise = amountPaise(confirmedWeightGrams, ratePerKgPaise);
+
+  // Evaluate weight tolerance (spec s4). Outside tolerance the collector decides (accept / dispute), so the
+  // handover is only WEIGHED and nothing can be paid yet.
   const declaredWeightGrams = lot.approxWeightGrams;
   const tolerance = evaluateWeightTolerance(declaredWeightGrams, confirmedWeightGrams);
+  const awaitingCollector = actionType !== "DISPUTE" && !tolerance.autoAccepted;
+  const markPaid = markPaidRequested && !awaitingCollector;
+
+  const recycler = await prisma.recycler.findUnique({ where: { id: recyclerId } });
+  const existingHandover = handoverId
+    ? await prisma.handover.findUnique({ where: { id: handoverId } })
+    : await prisma.handover.findFirst({ where: { lotId } });
+
+  // Classify location proof: compare lot/handover GPS with recycler facility GPS
+  const locProof = classifyLocationProof(
+    existingHandover?.latitude ?? lot.collectLat,
+    existingHandover?.longitude ?? lot.collectLng,
+    recycler?.latitude,
+    recycler?.longitude,
+    existingHandover?.accuracy,
+    existingHandover?.mockLocationFlag
+  );
+
+  const locAnomalies = checkLocationAnomalies(
+    locProof.locationClass,
+    locProof.distanceToRecyclerMeters,
+    locProof.spoofFlags
+  );
+  const weightAnomaly = checkWeightAnomalies(declaredWeightGrams, confirmedWeightGrams);
+  const priceAnomaly = checkPriceAnomalies(finalPricePaise, lot.estimatedValuePaise);
+
+  const anomaliesToCreate = [
+    ...locAnomalies,
+    ...(weightAnomaly ? [weightAnomaly] : []),
+    ...(priceAnomaly ? [priceAnomaly] : []),
+  ];
 
   await prisma.$transaction(async (tx) => {
     // 1. Update Handover
-    const handoverStatus = actionType === "DISPUTE" ? "DISPUTED" : "CONFIRMED";
-    await tx.handover.update({
-      where: { id: handoverId },
-      data: {
-        confirmedWeightGrams,
-        status: handoverStatus,
-        recyclerConfirmedAt: new Date(),
-        confirmedById: dbUser.id,
-        disputeReason: actionType === "DISPUTE" ? disputeReason : null,
-        downstreamStatus: downstreamStatus || "RECEIVED",
-        downstreamUpdatedAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
+    const handoverStatus = actionType === "DISPUTE" ? "DISPUTED" : awaitingCollector ? "WEIGHED" : "CONFIRMED";
+    if (existingHandover) {
+      await tx.handover.update({
+        where: { id: existingHandover.id },
+        data: {
+          confirmedWeightGrams,
+          status: handoverStatus,
+          recyclerConfirmedAt: new Date(),
+          confirmedById: dbUser.id,
+          locationClass: locProof.locationClass,
+          distanceToRecyclerMeters: locProof.distanceToRecyclerMeters,
+          disputeReason: actionType === "DISPUTE" ? disputeReason : (locProof.spoofFlags.join("; ") || null),
+          downstreamStatus: downstreamStatus || "RECEIVED",
+          downstreamUpdatedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    // 1b. Create anomaly flags if triggered
+    for (const anomaly of anomaliesToCreate) {
+      const existing = await tx.anomalyFlag.findFirst({
+        where: { lotId, ruleCode: anomaly.ruleCode },
+      });
+      if (!existing) {
+        await tx.anomalyFlag.create({
+          data: {
+            lotId,
+            ruleCode: anomaly.ruleCode,
+            type: anomaly.type,
+            severity: anomaly.severity,
+            reason: anomaly.reason,
+            status: "OPEN",
+          },
+        });
+      }
+    }
 
     // 2. If disputed, record Dispute row
     if (actionType === "DISPUTE") {
@@ -217,14 +299,21 @@ export async function confirmHandoverAction(formData: FormData) {
       });
     }
 
-    // 3. Update Lot status to COMPLETED or DISPUTED
-    const lotNewStatus = actionType === "DISPUTE" ? "DISPUTED" : "COMPLETED";
+    // 3. Lot status: weighed + confirmed stays HANDED_OVER (client state CONFIRMED); COMPLETED (= PAID) only once paid.
+    const lotNewStatus = actionType === "DISPUTE" ? "DISPUTED" : markPaid ? "COMPLETED" : "HANDED_OVER";
+    const lotNewTx = actionType === "DISPUTE" ? "DISPUTED" : markPaid ? "PAID" : awaitingCollector ? "HANDED_OVER" : "CONFIRMED";
+    // A lot still MATCHED passes through HANDED_OVER on its way to COMPLETED; every step goes through the state machine.
+    let stepFrom = lot.status as LotStatus;
+    for (const step of (lot.status === "MATCHED" && lotNewStatus !== "HANDED_OVER" ? ["HANDED_OVER", lotNewStatus] : [lotNewStatus]) as LotStatus[]) {
+      if (!validateLotTransition(stepFrom, step, true).valid) throw new Error(`Lot cannot move from ${lot.status} to ${lotNewStatus}`);
+      stepFrom = step;
+    }
     await tx.lot.update({
       where: { id: lotId },
       data: {
         status: lotNewStatus,
-        finalPricePaise,
-        transactionStatus: "CONFIRMED",
+        finalPricePaise: awaitingCollector ? null : finalPricePaise,
+        transactionStatus: lotNewTx,
         paymentStatus: markPaid ? "PAID" : "UNPAID",
         updatedAt: new Date(),
       },
@@ -240,13 +329,13 @@ export async function confirmHandoverAction(formData: FormData) {
         recyclerId,
         quotedRatePerKgPaise: ratePerKgPaise,
         quotedPricePaise: finalPricePaise,
-        finalPricePaise,
-        status: actionType === "DISPUTE" ? "DISPUTED" : (markPaid ? "PAID" : "CONFIRMED"),
+        finalPricePaise: awaitingCollector ? null : finalPricePaise,
+        status: lotNewTx,
         paymentStatus: markPaid ? "PAID" : "UNPAID",
       },
       update: {
-        finalPricePaise,
-        status: actionType === "DISPUTE" ? "DISPUTED" : (markPaid ? "PAID" : "CONFIRMED"),
+        finalPricePaise: awaitingCollector ? null : finalPricePaise,
+        status: lotNewTx,
         paymentStatus: markPaid ? "PAID" : "UNPAID",
         updatedAt: new Date(),
       },
@@ -262,38 +351,9 @@ export async function confirmHandoverAction(formData: FormData) {
           method: paymentMethod,
           upiRef: paymentMethod === "UPI" ? upiRef : null,
           paidAt: new Date(),
-          confirmedByCollector: true,
+          confirmedByCollector: false, // the collector confirms "Money received" (C9); see syncHandlers payment match
           confirmedByRecyclerId: dbUser.id,
           recordedBy: "RECYCLER",
-        },
-      });
-    }
-
-    // 6. Check and log weight or price anomalies
-    const weightAnomaly = checkWeightAnomalies(declaredWeightGrams, confirmedWeightGrams);
-    if (weightAnomaly) {
-      await tx.anomalyFlag.create({
-        data: {
-          type: weightAnomaly.type,
-          severity: weightAnomaly.severity,
-          reason: weightAnomaly.reason,
-          ruleCode: weightAnomaly.ruleCode,
-          lotId,
-          detailsJson: JSON.stringify(weightAnomaly.details),
-        },
-      });
-    }
-
-    const priceAnomaly = checkPriceAnomalies(finalPricePaise, lot.estimatedValuePaise);
-    if (priceAnomaly) {
-      await tx.anomalyFlag.create({
-        data: {
-          type: priceAnomaly.type,
-          severity: priceAnomaly.severity,
-          reason: priceAnomaly.reason,
-          ruleCode: priceAnomaly.ruleCode,
-          lotId,
-          detailsJson: JSON.stringify(priceAnomaly.details),
         },
       });
     }
@@ -393,11 +453,15 @@ export async function updateProfileAction(formData: FormData) {
   const serviceRadiusKm = parseFloat((formData.get("serviceRadiusKm") as string) || "10");
   const authorizationNo = formData.get("authorizationNo") as string;
   const validTillStr = formData.get("validTill") as string;
+  const latStr = formData.get("latitude") as string;
+  const lngStr = formData.get("longitude") as string;
 
   const current = await prisma.recycler.findUnique({ where: { id: recyclerId } });
   if (!current) throw new Error("Recycler not found");
 
   const validTill = validTillStr ? new Date(validTillStr) : current.authorizationValidTill;
+  const latitude = latStr && !isNaN(parseFloat(latStr)) ? parseFloat(latStr) : current.latitude;
+  const longitude = lngStr && !isNaN(parseFloat(lngStr)) ? parseFloat(lngStr) : current.longitude;
 
   // Check if authorization details changed
   const authChanged =
@@ -410,6 +474,8 @@ export async function updateProfileAction(formData: FormData) {
       name,
       contactPhone,
       address,
+      latitude,
+      longitude,
       serviceRadiusKm,
       authorizationNo,
       authorizationValidTill: validTill,
@@ -435,7 +501,7 @@ export async function recyclerAcceptBargainAction(formData: FormData) {
   }
 
   const agreedRatePaise = txRecord.bargainRatePaise;
-  const agreedPricePaise = Math.round((agreedRatePaise * txRecord.lot.approxWeightGrams) / 1000);
+  const agreedPricePaise = amountPaise(txRecord.lot.approxWeightGrams, agreedRatePaise);
 
   await prisma.$transaction(async (tx) => {
     await tx.transaction.update({
@@ -649,6 +715,15 @@ export async function respondToLotOfferAction(formData: FormData) {
   const { dbUser } = await requireRole(["RECYCLER"]);
   if (!dbUser.recyclerId) {
     redirect("/recycler?error=Your account is not linked to a recycler facility");
+  }
+
+  // ROLE RB2.2: Block offering when facility is expired or suspended
+  const facility = await prisma.recycler.findUnique({
+    where: { id: dbUser.recyclerId },
+    select: { authorizationStatus: true },
+  });
+  if (facility?.authorizationStatus === "EXPIRED" || facility?.authorizationStatus === "SUSPENDED") {
+    redirect("/recycler?error=Facility+authorization+is+expired+or+suspended.+Accepting+new+lots+is+blocked.");
   }
 
   const response = formData.get("response") === "DECLINED" ? "DECLINED" : "INTERESTED";

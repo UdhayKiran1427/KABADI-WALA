@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Save } from "lucide-react";
 import { updateProfileAction } from "../actions";
+import { CoordinateInputs } from "../../admin/recyclers/CoordinateInputs";
 
 export default async function RecyclerProfilePage() {
   const { dbUser } = await requireRole(["RECYCLER"]);
@@ -63,6 +64,14 @@ export default async function RecyclerProfilePage() {
           <label className="form-label" htmlFor="address">Address</label>
           <textarea id="address" name="address" rows={2} defaultValue={facility.address} className="form-control" required />
         </div>
+
+        <CoordinateInputs
+          defaultLatitude={facility.latitude}
+          defaultLongitude={facility.longitude}
+          label="Facility GPS Coordinates (Latitude, Longitude)"
+          helpText="Collectors within 5 km of this point receive broadcast notifications when lots are created."
+          required={true}
+        />
 
         <div className="r-grid-2" style={{ gap: "0 1rem" }}>
           <div className="form-group">

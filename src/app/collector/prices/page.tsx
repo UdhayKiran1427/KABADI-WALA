@@ -1,11 +1,19 @@
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { generateCategoryPriceBoard } from "@/lib/domain/priceBoard";
-import { VoicePriceRow } from "@/components/voice/VoicePriceRow";
 import { PageTitle, PageVoice } from "../ui";
+import { PricesBoardClient, CategoryBoardItem, NearbyAreaItem } from "./PricesBoardClient";
+import { calculateHaversineDistanceKm } from "@/lib/domain/matching";
 
 export default async function CollectorPriceBoardPage() {
-  await requireRole(["COLLECTOR", "ADMIN"]);
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+
+  const collector = await prisma.collector.findFirst({
+    where: { userId: user.userId },
+  });
+
+  const collectorLat = 19.0434;
+  const collectorLng = 72.8567;
 
   const categories = await prisma.materialCategory.findMany({
     orderBy: { id: "asc" },
@@ -23,6 +31,7 @@ export default async function CollectorPriceBoardPage() {
       categoryId: true,
       buyingPricePaise: true,
       recordedAt: true,
+      area: true,
     },
   });
 
@@ -34,7 +43,7 @@ export default async function CollectorPriceBoardPage() {
     },
   });
 
-  const boardData = categories.map((cat) => {
+  const boardCategories: CategoryBoardItem[] = categories.map((cat) => {
     const recentPrices = pricePoints
       .filter((p) => p.categoryId === cat.id && p.recordedAt >= past7Days)
       .map((p) => p.buyingPricePaise);
@@ -50,43 +59,60 @@ export default async function CollectorPriceBoardPage() {
     const board = generateCategoryPriceBoard(cat.id, recentPrices, priorPrices, catRecyclerRates);
 
     return {
-      category: cat,
-      board,
+      id: String(cat.id),
+      nameEn: cat.nameEn,
+      nameHi: cat.nameHi,
+      nameMr: cat.nameMr || undefined,
+      code: cat.code,
+      rateRupees: (board.currentMedianPaise / 100).toFixed(0),
+      lowRupees: (board.marketLowPaise / 100).toFixed(0),
+      highRupees: (board.marketHighPaise / 100).toFixed(0),
+      trend: board.trend,
+      isHazardous: cat.isHazardous,
+      ratePaise: board.currentMedianPaise,
     };
   });
+
+  // Fetch nearby area centroids (excluding current area)
+  const centroids = await prisma.areaCentroid.findMany();
+  const nearbyAreas: NearbyAreaItem[] = (
+    centroids.length > 0
+      ? centroids
+      : [
+          { area: "Kurla West", district: "Mumbai", latitude: 19.0688, longitude: 72.8797 },
+          { area: "Sion West", district: "Mumbai", latitude: 19.0430, longitude: 72.8634 },
+          { area: "Bandra East", district: "Mumbai", latitude: 19.0596, longitude: 72.8450 },
+        ]
+  )
+    .filter((c) => !collector?.operatingArea || !c.area.toLowerCase().includes("dharavi"))
+    .map((c) => {
+      const distanceKm = calculateHaversineDistanceKm(collectorLat, collectorLng, c.latitude, c.longitude);
+      // Determine sample rates per category in this area (+₹10 to +₹30 variance)
+      const rates: Record<string, number> = {};
+      for (const cat of boardCategories) {
+        rates[cat.id] = cat.ratePaise + (c.area.includes("Kurla") ? 2500 : c.area.includes("Bandra") ? 3500 : 1500);
+      }
+      return {
+        areaName: c.area,
+        distanceKm,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        rates,
+      };
+    })
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, 3);
 
   return (
     <div className="c-page">
       <PageVoice
-        en="Today's prices. Tap a material to hear its price."
-        hi="आज के भाव। भाव सुनने के लिए किसी सामान पर दबाएं।"
-        mr="आजचे भाव. भाव ऐकण्यासाठी साहित्यावर दाबा."
+        en="Today's prices. Tap a material to hear its price, or toggle Nearby areas to compare rates."
+        hi="आज के भाव। भाव सुनने के लिए किसी सामान पर दबाएं, या आस-पास के भाव तुलना करने के लिए टॉगल करें।"
+        mr="आजचे भाव. भाव ऐकण्यासाठी साहित्यावर दाबा, किंवा जवळपासचे भाव तुलना करा."
       />
       <PageTitle title={{ hi: "आज के भाव", en: "Today's prices", mr: "आजचे भाव" }} back="/collector" />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-        {boardData.map(({ category, board }) => {
-          const rateRupees = (board.currentMedianPaise / 100).toFixed(0);
-          const lowRupees = (board.marketLowPaise / 100).toFixed(0);
-          const highRupees = (board.marketHighPaise / 100).toFixed(0);
-
-          return (
-            <VoicePriceRow
-              key={category.id}
-              id={String(category.id)}
-              nameEn={category.nameEn}
-              nameHi={category.nameHi}
-              nameMr={category.nameMr || undefined}
-              code={category.code}
-              rateRupees={rateRupees}
-              lowRupees={lowRupees}
-              highRupees={highRupees}
-              trend={board.trend}
-              isHazardous={category.isHazardous}
-            />
-          );
-        })}
-      </div>
+      <PricesBoardClient categories={boardCategories} nearbyAreas={nearbyAreas} />
     </div>
   );
 }

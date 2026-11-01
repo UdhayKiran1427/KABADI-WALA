@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthCollector } from "@/lib/auth/getAuthCollector";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 
 export async function GET(req: NextRequest) {
   try {
@@ -68,9 +68,8 @@ export async function GET(req: NextRequest) {
       totalLots: lots.length,
       items,
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

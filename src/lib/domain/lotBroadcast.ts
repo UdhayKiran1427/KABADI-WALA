@@ -1,4 +1,5 @@
 import { calculateHaversineDistanceKm } from "./matching";
+import { amountPaise } from "./money";
 
 export const BROADCAST_RADIUS_KM = 5;
 
@@ -41,7 +42,7 @@ export function selectBroadcastTargets(
  * Lot value in paise for a rate per kg and a weight in grams.
  */
 export function calculateLotValuePaise(ratePerKgPaise: number, weightGrams: number): number {
-  return Math.round((ratePerKgPaise * weightGrams) / 1000);
+  return amountPaise(weightGrams, ratePerKgPaise);
 }
 
 export function isValidCoordinate(lat: number, lng: number): boolean {

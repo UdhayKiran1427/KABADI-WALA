@@ -1,12 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionCookie, clearSessionCookie, requireRole } from "@/lib/auth/session";
 import { FlowError, MAX_LOT_PHOTOS, createLot, confirmLot, rebroadcastLot, selectOffer } from "@/lib/services/lotFlowService";
 import type { LotItemInput } from "@/lib/domain/lotItems";
 import { saveLotImage } from "@/lib/storage";
+import { amountPaise } from "@/lib/domain/money";
 
 export async function collectorLoginAction(formData: FormData) {
   const phone = (formData.get("phone") as string)?.trim();
@@ -234,7 +236,7 @@ export async function collectorAcceptBargainAction(formData: FormData) {
   }
 
   const agreedRatePaise = lot.transaction.bargainRatePaise;
-  const agreedPricePaise = Math.round((agreedRatePaise * lot.approxWeightGrams) / 1000);
+  const agreedPricePaise = amountPaise(lot.approxWeightGrams, agreedRatePaise);
 
   await prisma.$transaction(async (tx) => {
     await tx.transaction.update({
@@ -428,4 +430,118 @@ export async function updateCollectorProfileAction(formData: FormData) {
   });
 
   redirect("/collector/profile?success=Profile saved");
+}
+
+export async function createPickupRequestAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const lotId = formData.get("lotId") as string;
+  const recyclerId = formData.get("recyclerId") as string;
+  const slotTime = (formData.get("slotTime") as string) || "morning"; // morning, afternoon, evening
+  const landmark = (formData.get("landmark") as string)?.trim() || null;
+  const latStr = formData.get("latitude") as string;
+  const lngStr = formData.get("longitude") as string;
+
+  const lot = await prisma.lot.findUnique({
+    where: { id: lotId },
+    include: { collector: true },
+  });
+  if (!lot) redirect("/collector?error=Lot not found");
+
+  const now = new Date();
+  const targetDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // tomorrow
+  if (slotTime === "morning") targetDate.setHours(10, 0, 0, 0);
+  else if (slotTime === "afternoon") targetDate.setHours(14, 0, 0, 0);
+  else targetDate.setHours(17, 0, 0, 0);
+
+  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  await prisma.pickupRequest.create({
+    data: {
+      collectorId: user.userId,
+      recyclerId,
+      lotId,
+      slot: targetDate,
+      pickupLat: latStr ? parseFloat(latStr) : lot.collectLat,
+      pickupLng: lngStr ? parseFloat(lngStr) : lot.collectLng,
+      landmark,
+      status: "REQUESTED",
+      expiresAt,
+    },
+  });
+
+  redirect("/collector/pickup-requests?success=Pickup+request+sent+successfully");
+}
+
+export async function simulateNextPickupStatusAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const requestId = formData.get("requestId") as string;
+
+  const req = await prisma.pickupRequest.findUnique({ where: { id: requestId } });
+  if (!req) return;
+
+  const order = ["REQUESTED", "ACCEPTED", "ON_THE_WAY", "ARRIVED", "COMPLETED"];
+  const currIdx = order.indexOf(req.status);
+  if (currIdx < 0 || currIdx >= order.length - 1) return;
+
+  const nextStatus = order[currIdx + 1];
+  const etaMinutes = nextStatus === "ON_THE_WAY" ? 25 : nextStatus === "ARRIVED" ? 0 : null;
+
+  await prisma.pickupRequest.update({
+    where: { id: requestId },
+    data: {
+      status: nextStatus,
+      etaMinutes,
+      updatedAt: new Date(),
+    },
+  });
+
+  if (nextStatus === "COMPLETED") {
+    await prisma.lot.update({
+      where: { id: req.lotId },
+      data: { status: "MATCHED", chosenRecyclerId: req.recyclerId },
+    });
+  }
+
+  revalidatePath("/collector/pickup-requests");
+}
+
+export async function cancelPickupRequestAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const requestId = formData.get("requestId") as string;
+  const reason = (formData.get("reason") as string)?.trim() || "Collector cancelled request";
+
+  await prisma.pickupRequest.update({
+    where: { id: requestId },
+    data: {
+      status: "CANCELLED",
+      cancellationReason: reason,
+      updatedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/collector/pickup-requests");
+}
+
+export async function submitCoverageRequestAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const lotId = formData.get("lotId") as string;
+
+  const lot = await prisma.lot.findUnique({
+    where: { id: lotId },
+    include: { collector: true },
+  });
+
+  if (!lot) redirect("/collector?error=Lot not found");
+
+  await prisma.coverageRequest.create({
+    data: {
+      collectorId: user.userId,
+      categoryId: lot.categoryId,
+      approxWeightGrams: lot.approxWeightGrams,
+      latitude: lot.collectLat ?? 19.0434,
+      longitude: lot.collectLng ?? 72.8567,
+    },
+  });
+
+  redirect(`/collector/lots/${lotId}?success=${encodeURIComponent("Area demand logged! You will be alerted when an authorized recycler covers this area.")}`);
 }

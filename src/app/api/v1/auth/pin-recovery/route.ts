@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPin } from "@/lib/auth/password";
 import { signMobileToken } from "@/lib/auth/jwt";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
 import { resetRateLimit } from "@/lib/auth/rateLimiter";
 import { z } from "zod";
 
@@ -24,18 +24,10 @@ const RecoverySchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = RecoverySchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, RecoverySchema);
+    if (bodyError) return bodyError;
 
-    const { phone, shortCode, operatingArea, newPin } = parsed.data;
+    const { phone, shortCode, operatingArea, newPin } = body;
 
     const user = await prisma.user.findUnique({
       where: { phone },
@@ -91,9 +83,8 @@ export async function POST(req: NextRequest) {
         operatingArea: user.collector.operatingArea,
       },
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

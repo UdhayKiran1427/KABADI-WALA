@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { saveRatesAction } from "../actions";
+import { kg, rupees } from "@/lib/format";
 
 export default async function RateManagerPage() {
   const { dbUser } = await requireRole(["RECYCLER"]);
@@ -94,7 +95,7 @@ export default async function RateManagerPage() {
                   <tbody>
                     {categories.map((cat) => {
                       const currentPaise = rateMap.get(cat.id) || 0;
-                      const currentRupees = (currentPaise / 100).toFixed(0);
+                      const currentRupees = rupees(currentPaise);
                       return (
                         <tr key={cat.id}>
                           <td>
@@ -170,7 +171,7 @@ export default async function RateManagerPage() {
                     name="minimumWeightKg"
                     type="number"
                     step="0.5"
-                    defaultValue={(facility.minimumWeightGrams / 1000).toFixed(1)}
+                    defaultValue={kg(facility.minimumWeightGrams)}
                     className="form-control"
                     required
                   />
@@ -184,7 +185,7 @@ export default async function RateManagerPage() {
                     name="pickupChargeRupees"
                     type="number"
                     step="1"
-                    defaultValue={(facility.pickupChargePaise / 100).toFixed(0)}
+                    defaultValue={rupees(facility.pickupChargePaise)}
                     className="form-control"
                     required
                   />

@@ -7,9 +7,21 @@ import { MapPin } from "lucide-react";
  * Latitude/longitude inputs for a recycler facility. Collectors are matched to
  * recyclers within 5 km of these coordinates, so they must be accurate.
  */
-export function CoordinateInputs() {
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
+export function CoordinateInputs({
+  defaultLatitude,
+  defaultLongitude,
+  label = "Location (latitude, longitude)",
+  helpText = "Collectors within 5 km will see this recycler.",
+  required = true,
+}: {
+  defaultLatitude?: number | string | null;
+  defaultLongitude?: number | string | null;
+  label?: string;
+  helpText?: string;
+  required?: boolean;
+} = {}) {
+  const [lat, setLat] = useState(defaultLatitude != null ? String(defaultLatitude) : "");
+  const [lng, setLng] = useState(defaultLongitude != null ? String(defaultLongitude) : "");
   const [status, setStatus] = useState("");
 
   function useCurrentLocation() {
@@ -31,7 +43,7 @@ export function CoordinateInputs() {
 
   return (
     <div className="form-group">
-      <label className="form-label" style={{ fontWeight: 700 }}>Location (latitude, longitude)</label>
+      <label className="form-label" style={{ fontWeight: 700 }}>{label}</label>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.5rem" }}>
         <input
           name="latitude"
@@ -39,7 +51,7 @@ export function CoordinateInputs() {
           step="any"
           min="-90"
           max="90"
-          required
+          required={required}
           value={lat}
           onChange={(e) => setLat(e.target.value)}
           placeholder="e.g. 19.0434"
@@ -52,7 +64,7 @@ export function CoordinateInputs() {
           step="any"
           min="-180"
           max="180"
-          required
+          required={required}
           value={lng}
           onChange={(e) => setLng(e.target.value)}
           placeholder="e.g. 72.8567"
@@ -64,7 +76,7 @@ export function CoordinateInputs() {
         </button>
       </div>
       <div style={{ fontSize: "0.75rem", color: "var(--slate-500)", marginTop: "0.25rem" }}>
-        {status || "Collectors within 5 km will see this recycler."}
+        {status || helpText}
       </div>
     </div>
   );

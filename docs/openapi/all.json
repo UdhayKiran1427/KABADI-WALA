@@ -2756,7 +2756,7 @@
         ],
         "operationId": "syncPush",
         "summary": "Push offline mutations (outbox)",
-        "description": "Up to 100 mutations; parents are applied first. Each mutation yields `APPLIED`, `DUPLICATE`, `CONFLICT` or `REJECTED` (with `retryable`).",
+        "description": "Up to 100 mutations; parents are applied first. Each item is validated on its own (a malformed one is a per-item `REJECTED / INVALID_PAYLOAD`). Results come back in request order, each with `clientMutationId`, `status` (`APPLIED`, `DUPLICATE` only for a repeat of an applied mutation, `CONFLICT`, `REJECTED`), `code`, `message`, `retryable`. `REJECTED` + `retryable:true` is not remembered, so the same mutation can be resent. Contract: docs/sync-contract.md.",
         "security": [
           {
             "bearerAuth": []
@@ -2794,10 +2794,11 @@
                     "entityId": "lot-uuid-1",
                     "op": "create",
                     "payload": {
+                      "id": "lot-uuid-1",
                       "lotRef": "LOT-KW01-261101-0001",
                       "categoryId": 1,
                       "approxWeightGrams": 5000,
-                      "status": "DRAFT",
+                      "transactionStatus": "SAVED",
                       "collectedAt": "2026-11-01T10:00:00.000Z"
                     },
                     "clientTimestamp": "2026-11-01T10:00:05.000Z"
@@ -2823,6 +2824,10 @@
                       "properties": {
                         "deviceId": {
                           "type": "string"
+                        },
+                        "serverTimestamp": {
+                          "type": "string",
+                          "format": "date-time"
                         },
                         "totalMutations": {
                           "type": "integer"
@@ -2851,7 +2856,8 @@
           }
         },
         "x-roles": [
-          "COLLECTOR"
+          "COLLECTOR",
+          "FIELD_AGENT"
         ]
       }
     },
@@ -2862,7 +2868,7 @@
         ],
         "operationId": "syncPull",
         "summary": "Pull server-side changes since a cursor",
-        "description": "Lots (page size 500), notifications and pickup requests changed after `since`. Use `nextSince` as the next cursor while `hasMore` is true.",
+        "description": "Lots, notifications and pickup requests changed after `since`, paged as one stream (at most `limit` items in total, default 200, max 500). `since` is an ISO time or a `nextSince` value returned earlier (opaque; send it back unchanged). Loop while `hasMore`. `lotUpdates` announces server-decided lot states (`CONFIRMED`, `PAID`, `REJECTED`, `DISPUTED`) in the client vocabulary. Contract: docs/sync-contract.md §4.",
         "security": [
           {
             "bearerAuth": []
@@ -2873,10 +2879,20 @@
             "name": "since",
             "in": "query",
             "required": false,
-            "description": "Cursor from the previous pull",
+            "description": "ISO time, or `nextSince` from the previous pull",
             "schema": {
-              "type": "string",
-              "format": "date-time"
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per response across all collections",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
             }
           }
         ],
@@ -2894,17 +2910,67 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "hasMore": {
-                          "type": "boolean"
+                        "serverTimestamp": {
+                          "type": "string",
+                          "format": "date-time"
                         },
                         "nextSince": {
                           "type": "string",
-                          "format": "date-time"
+                          "description": "Opaque cursor: `<ISO>|<kind>|<id>`"
+                        },
+                        "hasMore": {
+                          "type": "boolean"
                         },
                         "lots": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/Lot"
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "lotUpdates": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "lotId": {
+                                "type": "string"
+                              },
+                              "transactionStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "CONFIRMED",
+                                  "PAID",
+                                  "REJECTED",
+                                  "DISPUTED"
+                                ]
+                              },
+                              "finalPricePaise": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "confirmedWeightGrams": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "paymentStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "UNPAID",
+                                  "PARTIAL",
+                                  "PAID"
+                                ]
+                              },
+                              "confirmedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true
+                              },
+                              "updatedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
                           }
                         },
                         "notifications": {
@@ -2926,6 +2992,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -2934,7 +3003,8 @@
           }
         },
         "x-roles": [
-          "COLLECTOR"
+          "COLLECTOR",
+          "FIELD_AGENT"
         ]
       }
     },
@@ -6788,15 +6858,15 @@
         "properties": {
           "clientMutationId": {
             "type": "string",
-            "description": "Idempotency key (UUID)"
+            "description": "Idempotency key (UUID v4), reused unchanged on every retry"
           },
           "entity": {
             "type": "string",
             "enum": [
               "lot",
               "lot_image",
-              "transaction",
               "handover",
+              "batch_handover",
               "payment",
               "price_point",
               "pickup_request",
@@ -6805,7 +6875,9 @@
               "dispute",
               "incident",
               "quiz_result",
-              "rating"
+              "rating",
+              "profile",
+              "dealer_comparison"
             ]
           },
           "entityId": {
@@ -6816,7 +6888,8 @@
             "enum": [
               "create",
               "update"
-            ]
+            ],
+            "description": "Which ops an entity allows: docs/sync-contract.md §7"
           },
           "payload": {
             "type": "object",
@@ -6830,6 +6903,13 @@
       },
       "SyncResult": {
         "type": "object",
+        "required": [
+          "clientMutationId",
+          "status",
+          "code",
+          "message",
+          "retryable"
+        ],
         "properties": {
           "clientMutationId": {
             "type": "string"
@@ -6843,17 +6923,26 @@
               "REJECTED"
             ]
           },
-          "retryable": {
-            "type": "boolean"
-          },
-          "serverState": {
-            "description": "Present on CONFLICT"
+          "code": {
+            "type": "string",
+            "description": "Machine code, `OK` when applied"
           },
           "message": {
             "type": "string"
+          },
+          "retryable": {
+            "type": "boolean",
+            "description": "Only `REJECTED` may be true; such an outcome is not remembered and can be resent"
+          },
+          "canonicalId": {
+            "type": "string"
+          },
+          "serverState": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Present on CONFLICT"
           }
-        },
-        "additionalProperties": true
+        }
       }
     },
     "responses": {

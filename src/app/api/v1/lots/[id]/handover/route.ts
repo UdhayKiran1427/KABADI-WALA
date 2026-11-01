@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { evaluateWeightTolerance, classifyLocationProof } from "@/lib/domain/handover";
 import { sendNotification } from "@/lib/services/notificationService";
 import { PaymentMethod, TransactionStatus } from "@prisma/client";
 import { z } from "zod";
+import { amountPaise } from "@/lib/domain/money";
 
 const SubmitHandoverSchema = z.object({
   verificationCode: z.string().optional(),
@@ -79,9 +80,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       } : null,
       latestHandover: lot.handovers[0] || null,
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Calculate final payout: use agreed rate if negotiated, otherwise transaction rate
     const effectiveRatePaise = tx.agreedRatePaise || tx.quotedRatePerKgPaise || 4000;
-    const finalAmountPaise = Math.round((effectiveRatePaise * scaleWeightGrams) / 1000);
+    const finalAmountPaise = amountPaise(scaleWeightGrams, effectiveRatePaise);
 
     const handoverId = `HO-${lot.id.slice(0, 8)}-${Date.now().toString().slice(-4)}`;
     const paymentId = `PAY-${lot.id.slice(0, 8)}-${Date.now().toString().slice(-4)}`;
@@ -294,8 +294,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       handoverId: result.handover.id,
     }, 201);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }

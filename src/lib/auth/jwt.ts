@@ -1,7 +1,7 @@
+import { getSecretKey } from "./secrets";
 import { SignJWT, jwtVerify } from "jose";
 
-const JWT_SECRET_STRING = process.env.JWT_SECRET || "super-secret-jwt-key-minimum-32-chars-long-collector-token";
-const SECRET_KEY = new TextEncoder().encode(JWT_SECRET_STRING);
+const getKey = () => getSecretKey("JWT_SECRET");
 
 export interface MobileTokenPayload {
   userId: string;
@@ -15,12 +15,12 @@ export async function signMobileToken(payload: MobileTokenPayload): Promise<stri
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d") // 30 days
-    .sign(SECRET_KEY);
+    .sign(getKey());
 }
 
 export async function verifyMobileToken(token: string): Promise<MobileTokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY);
+    const { payload } = await jwtVerify(token, getKey());
     return {
       userId: String(payload.userId),
       phone: String(payload.phone),

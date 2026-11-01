@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { sendNotification } from "@/lib/services/notificationService";
+import { amountPaise } from "@/lib/domain/money";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const agreedRatePaise = tx.bargainRatePaise;
-    const agreedPricePaise = Math.round((agreedRatePaise * lot.approxWeightGrams) / 1000);
+    const agreedPricePaise = amountPaise(lot.approxWeightGrams, agreedRatePaise);
 
     await prisma.$transaction(async (db) => {
       await db.transaction.update({
@@ -108,8 +109,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         bargainStatus: "AGREED",
       },
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }

@@ -1,61 +1,68 @@
 import { NextRequest } from "next/server";
-import { getAuthCollector } from "@/lib/auth/getAuthCollector";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
-import { sortMutations, processMutation, SyncMutationInput } from "@/lib/services/syncEngine";
 import { z } from "zod";
+import { getAuthSyncActor } from "@/lib/auth/getAuthSyncActor";
+import { apiError, apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
+import { processMutation, sortMutations, type SyncActorContext, type SyncMutationInput, type SyncMutationResult } from "@/lib/services/syncEngine";
+import { PushMutationSchema } from "@/lib/contract/syncContract";
 
-const PushMutationSchema = z.object({
-  clientMutationId: z.string().min(1),
-  entity: z.string().min(1),
-  entityId: z.string().min(1),
-  op: z.enum(["create", "update"]),
-  payload: z.record(z.any()),
-  clientTimestamp: z.string(),
-});
-
-const PushPayloadSchema = z.object({
+/** The envelope is validated here; each mutation is validated on its own so one bad row cannot fail the batch. */
+const PushEnvelopeSchema = z.object({
   deviceId: z.string().min(1),
-  mutations: z.array(PushMutationSchema).max(100),
+  mutations: z.array(z.unknown()).max(100),
 });
+
+function clientMutationIdOf(item: unknown): string {
+  if (item && typeof item === "object" && typeof (item as { clientMutationId?: unknown }).clientMutationId === "string") {
+    return (item as { clientMutationId: string }).clientMutationId;
+  }
+  return "";
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await getAuthCollector(req);
-    if (!auth) {
+    const actor = await getAuthSyncActor(req);
+    if (!actor) {
       return apiError("UNAUTHORIZED", "Missing or invalid bearer authorization", 401);
     }
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = PushPayloadSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, PushEnvelopeSchema);
+    if (bodyError) return bodyError;
+    const { deviceId, mutations: rawItems } = body;
 
-    const { deviceId, mutations } = parsed.data;
+    const ctx: SyncActorContext = { userId: actor.userId, role: actor.role, collector: actor.collector, deviceId };
 
-    // 1. Sort mutations: parents first, creates before updates, clientTimestamp ascending
-    const sorted = sortMutations(mutations as SyncMutationInput[]);
+    // Per-item validation: a malformed item becomes a non-retryable REJECTED result in its own slot.
+    const resultsByIndex: Array<SyncMutationResult | undefined> = new Array(rawItems.length).fill(undefined);
+    const valid: Array<{ index: number; mutation: SyncMutationInput }> = [];
+    rawItems.forEach((item, index) => {
+      const parsed = PushMutationSchema.safeParse(item);
+      if (parsed.success) {
+        valid.push({ index, mutation: parsed.data as SyncMutationInput });
+      } else {
+        const issue = parsed.error.issues[0];
+        resultsByIndex[index] = {
+          clientMutationId: clientMutationIdOf(item),
+          status: "REJECTED",
+          code: "INVALID_PAYLOAD",
+          message: `${issue.path.join(".") || "mutation"}: ${issue.message}`,
+          retryable: false,
+        };
+      }
+    });
 
-    // 2. Process each mutation in its own transaction
-    const results = [];
-    for (const mutation of sorted) {
-      const res = await processMutation(mutation, auth.user.userId, deviceId);
-      results.push(res);
+    // Parents first, creates before updates, then by clientTimestamp; answers go back in request order.
+    const indexOf = new Map(valid.map((v) => [v.mutation, v.index]));
+    for (const mutation of sortMutations(valid.map((v) => v.mutation))) {
+      resultsByIndex[indexOf.get(mutation) as number] = await processMutation(mutation, ctx);
     }
 
     return apiSuccess({
       deviceId,
-      totalMutations: mutations.length,
-      results,
+      serverTimestamp: new Date().toISOString(),
+      totalMutations: rawItems.length,
+      results: resultsByIndex as SyncMutationResult[],
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
-

@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { ScanLine } from "lucide-react";
+import { rupeesIN } from "@/lib/format";
 
 /**
  * DEMO payment QR. Scanning it (or tapping the link) opens /pay/[token],
@@ -17,7 +18,7 @@ export async function DemoPaymentQr({ token, amountPaise, caption }: { token: st
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem", textAlign: "center" }}>
       <div style={{ fontSize: "1.75rem", fontWeight: 900, color: "var(--primary-800)", lineHeight: 1.1 }}>
-        ₹{(amountPaise / 100).toLocaleString("en-IN")}
+        ₹{rupeesIN(amountPaise)}
       </div>
       <div style={{ fontSize: "0.9rem", color: "var(--slate-600)" }}>{caption}</div>
       <div

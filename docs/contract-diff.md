@@ -1,5 +1,7 @@
 # Contract Diff: Drift Schema (v3) vs Prisma MongoDB Server Schema
 
+> Column-level mapping only. The wire format (push/pull/bootstrap/auth, entity names, lot-status mapping) is in [`sync-contract.md`](sync-contract.md); it supersedes anything here that speaks about request/response shapes or lot statuses.
+
 This document details every table and column in the Flutter mobile Drift database (`local_db.dart` v3) compared with the server Prisma model and fields, noting units, mappings, and reconciliations.
 
 ## Summary of Conventions & Reconciliation Rules

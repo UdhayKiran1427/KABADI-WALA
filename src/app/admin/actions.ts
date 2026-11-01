@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireRole, createSessionCookie, clearSessionCookie } from "@/lib/auth/session";
+import { writeAudit } from "@/lib/services/auditService";
+import { resolveDispute, type DisputeOutcome } from "@/lib/services/disputeService";
 import { verifyPassword, hashPassword, hashPin } from "@/lib/auth/password";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -53,6 +55,7 @@ export async function updateRecyclerStatusAction(recyclerId: string, status: "VE
   const { dbUser } = await requireRole(["ADMIN"]);
 
   await setRecyclerStatus(dbUser.id, recyclerId, status, notes);
+  await writeAudit({ actorId: dbUser.id, action: "RECYCLER_STATUS_SET", entityType: "Recycler", entityId: recyclerId, details: { status, notes } });
 
   revalidatePath("/admin/recyclers");
   revalidatePath("/admin");
@@ -71,7 +74,7 @@ export async function updateRecyclerStatusFormAction(formData: FormData): Promis
  * M1: Add new recycler facility and staff login credentials.
  */
 export async function createRecyclerAction(formData: FormData) {
-  await requireRole(["ADMIN"]);
+  const { dbUser } = await requireRole(["ADMIN"]);
 
   const get = (key: string) => ((formData.get(key) as string) || "").trim();
   const validTill = get("validTill");
@@ -101,6 +104,7 @@ export async function createRecyclerAction(formData: FormData) {
     throw err;
   }
 
+  await writeAudit({ actorId: dbUser.id, action: "RECYCLER_CREATED", entityType: "Recycler", details: { name } });
   revalidatePath("/admin/recyclers");
   redirect(`/admin/recyclers?success=${encodeURIComponent(`${name} added. Staff can sign in with ${staffPhone}.`)}`);
 }
@@ -128,6 +132,7 @@ export async function setTodayPricesAction(formData: FormData) {
     throw err;
   }
 
+  await writeAudit({ actorId: dbUser.id, action: "TODAY_PRICES_SET", entityType: "PricePoint", details: { categories: updated } });
   revalidatePath("/admin/prices");
   revalidatePath("/collector/create-lot");
   redirect(`/admin/prices?success=${encodeURIComponent(`Today's price updated for ${updated} categories`)}`);
@@ -145,9 +150,10 @@ export async function addPriceRecordAction(formData: FormData) {
   const district = (formData.get("district") as string) || "Mumbai";
   const buyerType = (formData.get("buyerType") as string) || "SCRAP_DEALER";
 
+  const priceId = `PRICE-ADM-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
   await prisma.pricePoint.create({
     data: {
-      id: `PRICE-ADM-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: priceId,
       categoryId,
       buyingPricePaise: Math.round(buyingPriceRupees * 100),
       area,
@@ -159,6 +165,7 @@ export async function addPriceRecordAction(formData: FormData) {
     },
   });
 
+  await writeAudit({ actorId: dbUser.id, action: "PRICE_ADDED", entityType: "PricePoint", entityId: priceId, details: { categoryId, area, district, buyerType } });
   revalidatePath("/admin/prices");
 }
 
@@ -166,8 +173,10 @@ export async function addPriceRecordAction(formData: FormData) {
  * M2: Delete / clean price record.
  */
 export async function deletePriceRecordAction(priceId: string) {
-  await requireRole(["ADMIN"]);
+  const { dbUser } = await requireRole(["ADMIN"]);
+  const before = await prisma.pricePoint.findUnique({ where: { id: priceId } });
   await prisma.pricePoint.delete({ where: { id: priceId } });
+  await writeAudit({ actorId: dbUser.id, action: "PRICE_DELETED", entityType: "PricePoint", entityId: priceId, details: before ? { categoryId: before.categoryId, buyingPricePaise: before.buyingPricePaise, source: before.source } : undefined });
   revalidatePath("/admin/prices");
 }
 
@@ -186,6 +195,7 @@ export async function reviewAnomalyAction(flagId: string, status: "REVIEWED" | "
     },
   });
 
+  await writeAudit({ actorId: dbUser.id, action: "ANOMALY_REVIEWED", entityType: "AnomalyFlag", entityId: flagId, details: { status } });
   revalidatePath("/admin/anomalies");
   revalidatePath("/admin");
 }
@@ -202,7 +212,7 @@ export async function reviewAnomalyFormAction(formData: FormData): Promise<void>
  * Team Page: Create ADMIN or FIELD_AGENT user.
  */
 export async function createTeamUserAction(formData: FormData) {
-  await requireRole(["ADMIN"]);
+  const { dbUser } = await requireRole(["ADMIN"]);
 
   const phone = formData.get("phone") as string;
   const pin = formData.get("pin") as string;
@@ -210,7 +220,7 @@ export async function createTeamUserAction(formData: FormData) {
 
   const pinHash = await hashPassword(pin);
 
-  await prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       phone,
       pinHash,
@@ -218,7 +228,31 @@ export async function createTeamUserAction(formData: FormData) {
       language: "EN",
     },
   });
+  await writeAudit({ actorId: dbUser.id, action: "TEAM_USER_CREATED", entityType: "User", entityId: created.id, details: { role } });
 
   revalidatePath("/admin/team");
 }
 
+/**
+ * M6: Resolve a disputed lot (confirm the agreed amount or cancel). Note is required.
+ */
+export async function resolveDisputeFormAction(formData: FormData): Promise<void> {
+  const { dbUser } = await requireRole(["ADMIN"]);
+  const disputeId = (formData.get("disputeId") as string) || "";
+  const outcome = formData.get("outcome") as DisputeOutcome;
+  const note = (formData.get("note") as string) || "";
+  if (!disputeId || (outcome !== "CONFIRM" && outcome !== "CANCEL")) return;
+
+  try {
+    await resolveDispute({ adminId: dbUser.id, disputeId, outcome, note });
+  } catch (err) {
+    if (err instanceof FlowError) {
+      redirect(`/admin/disputes?error=${encodeURIComponent(err.message)}`);
+    }
+    throw err;
+  }
+
+  revalidatePath("/admin/disputes");
+  revalidatePath("/admin");
+  redirect(`/admin/disputes?success=${encodeURIComponent("Dispute resolved")}`);
+}

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { matchRecyclers, CandidateRecycler } from "@/lib/domain/matching";
 
 export async function GET(req: NextRequest) {
@@ -81,9 +81,8 @@ export async function GET(req: NextRequest) {
       recyclers: result.recyclers,
       exclusions: result.exclusions,
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

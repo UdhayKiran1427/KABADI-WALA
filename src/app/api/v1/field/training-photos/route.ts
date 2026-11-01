@@ -1,7 +1,8 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { z } from "zod";
 
 const TrainingPhotoSchema = z.object({
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
       return apiError("UNAUTHORIZED", "Field agent or admin authorization required", 401);
     }
 
-    const where: any = {};
+    const where: Prisma.TrainingSampleWhereInput = {};
     if (auth.role === "FIELD_AGENT") {
       where.capturedById = auth.userId;
     }
@@ -44,9 +45,8 @@ export async function GET(req: NextRequest) {
         createdAt: s.createdAt,
       })),
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 
@@ -133,9 +133,8 @@ export async function POST(req: NextRequest) {
       sampleId: sample.id,
       imageId,
     }, 201);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

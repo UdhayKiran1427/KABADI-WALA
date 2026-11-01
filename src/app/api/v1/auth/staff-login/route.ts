@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { signMobileToken } from "@/lib/auth/jwt";
-import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
 import { checkRateLimit, recordFailedAttempt, resetRateLimit } from "@/lib/auth/rateLimiter";
 import { z } from "zod";
 
@@ -16,18 +16,10 @@ const StaffLoginSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = StaffLoginSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, StaffLoginSchema);
+    if (bodyError) return bodyError;
 
-    const { phone, password } = parsed.data;
+    const { phone, password } = body;
     const rateLimitKey = `auth_staff:${phone}`;
     if (!checkRateLimit(rateLimitKey).allowed) {
       return apiError("ACCOUNT_LOCKED", "Too many failed attempts. Try again in 15 minutes.", 429);

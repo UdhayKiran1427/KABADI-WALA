@@ -1,20 +1,49 @@
+/**
+ * Offline sync engine: processes one pushed mutation at a time (docs/sync-contract.md §3).
+ *
+ * Guarantees (each covered by tests/integration/syncEngine.test.ts):
+ *  - Every result carries the real `clientMutationId` (set here, never by a handler) plus code, message, retryable.
+ *  - A `SyncMutation` row is written, in the same transaction as the change, only for APPLIED. CONFLICT and
+ *    REJECTED/retryable:false are remembered too (nothing else was written). REJECTED/retryable:true and
+ *    PROCESSING_ERROR are NEVER remembered, so the retry runs again instead of coming back as DUPLICATE.
+ *  - A remembered mutation answers with its ORIGINAL status and code. Only a stored APPLIED becomes DUPLICATE.
+ *  - Anything but APPLIED rolls the handler's writes back.
+ *  - Idempotency is per user: someone else's clientMutationId is rejected, never echoed.
+ */
+
+import { Prisma, type SyncMutation } from "@prisma/client";
 import { prisma } from "../prisma";
-import { validateLotTransition, checkServerOwnedFields, LotStatus } from "../domain/lotStateMachine";
-import { validateLotRef } from "../domain/lotRef";
-import { classifyLocationProof, evaluateWeightTolerance, generateVerificationCode } from "../domain/handover";
 import {
-  checkPriceAnomalies,
-  checkWeightAnomalies,
-  checkLocationAnomalies,
-  checkOverpaymentAnomaly,
-  checkDuplicatePhotoAnomaly,
-} from "../domain/anomalies";
-import { validateStorageKey } from "../storage";
-import { Prisma } from "@prisma/client";
+  ENTITY_CONTRACT,
+  isPushEntity,
+  type EntityContract,
+  type PushEntity,
+} from "../contract/syncContract";
+import { isClientLotState, isClientPushableLotState } from "../domain/lotStatusMapping";
+import type { SyncRole } from "../auth/getAuthSyncActor";
+import {
+  handleBatchHandover,
+  handleConsent,
+  handleCoverageRequest,
+  handleDealerComparison,
+  handleDispute,
+  handleHandover,
+  handleIncident,
+  handleLot,
+  handleLotImage,
+  handlePayment,
+  handlePickupRequest,
+  handlePricePoint,
+  handleProfile,
+  handleQuizResult,
+  handleRating,
+  type HandlerContext,
+  type HandlerResult,
+} from "./syncHandlers";
 
 export interface SyncMutationInput {
   clientMutationId: string;
-  entity: string; // lot, lot_image, transaction, handover, payment, price_point, dispute, incident, consent, pickup_request, coverage_request, price_alert, quiz_result, rating
+  entity: string;
   entityId: string;
   op: "create" | "update";
   payload: Record<string, any>;
@@ -24,17 +53,28 @@ export interface SyncMutationInput {
 export interface SyncMutationResult {
   clientMutationId: string;
   status: "APPLIED" | "DUPLICATE" | "CONFLICT" | "REJECTED";
-  code?: string;
-  message?: string;
-  retryable?: boolean;
+  code: string;
+  message: string;
+  retryable: boolean;
   canonicalId?: string;
-  serverState?: any;
+  serverState?: Record<string, unknown>;
 }
 
+export interface SyncActorContext {
+  userId: string;
+  role: SyncRole;
+  collector: { id: string; shortCode: string; operatingArea: string } | null;
+  deviceId: string;
+}
+
+/** REJECTED codes that mean "try again later". Also how legacy rows persisted by the old engine are recognised. */
+export const RETRYABLE_REJECT_CODES: ReadonlySet<string> = new Set(["PARENT_LOT_NOT_FOUND", "PROCESSING_ERROR"]);
+
 const ENTITY_PRIORITY: Record<string, number> = {
+  profile: 0,
   lot: 1,
   lot_image: 2,
-  transaction: 3,
+  dealer_comparison: 3,
   handover: 4,
   batch_handover: 5,
   payment: 6,
@@ -44,7 +84,6 @@ const ENTITY_PRIORITY: Record<string, number> = {
   coverage_request: 10,
   dispute: 11,
   incident: 12,
-  price_alert: 13,
   quiz_result: 14,
   rating: 15,
 };
@@ -57,8 +96,8 @@ const ENTITY_PRIORITY: Record<string, number> = {
  */
 export function sortMutations(mutations: SyncMutationInput[]): SyncMutationInput[] {
   return [...mutations].sort((a, b) => {
-    const prioA = ENTITY_PRIORITY[a.entity.toLowerCase()] || 99;
-    const prioB = ENTITY_PRIORITY[b.entity.toLowerCase()] || 99;
+    const prioA = ENTITY_PRIORITY[a.entity.toLowerCase()] ?? 99;
+    const prioB = ENTITY_PRIORITY[b.entity.toLowerCase()] ?? 99;
     if (prioA !== prioB) return prioA - prioB;
 
     if (a.op !== b.op) {
@@ -71,874 +110,277 @@ export function sortMutations(mutations: SyncMutationInput[]): SyncMutationInput
   });
 }
 
-/**
- * Process a single mutation inside a DB interactive transaction.
- */
-export async function processMutation(
-  mutation: SyncMutationInput,
-  userId: string,
-  deviceId: string
-): Promise<SyncMutationResult> {
-  const { clientMutationId, entity, entityId, op, payload, clientTimestamp } = mutation;
-  const clientTime = new Date(clientTimestamp);
+// ---------- result helpers ----------
 
-  // 1. Idempotency check: Did we already process this clientMutationId?
-  const existing = await prisma.syncMutation.findUnique({
-    where: { id: clientMutationId },
-  });
+export function isPersistable(r: { status: string; retryable: boolean }): boolean {
+  if (r.status === "APPLIED" || r.status === "CONFLICT") return true;
+  return r.status === "REJECTED" && r.retryable === false;
+}
 
-  if (existing) {
-    return {
-      clientMutationId,
-      status: "DUPLICATE",
-      code: existing.resultCode || "ALREADY_PROCESSED",
-      message: existing.resultMessage || "Mutation was previously processed",
-      retryable: false,
-      canonicalId: existing.canonicalId || undefined,
-    };
+function finalize(clientMutationId: string, h: HandlerResult): SyncMutationResult {
+  const retryable = h.status === "REJECTED" ? h.retryable === true : false;
+  return {
+    clientMutationId,
+    status: h.status,
+    code: h.code ?? (h.status === "APPLIED" ? "OK" : h.status === "CONFLICT" ? "CONFLICT" : "REJECTED"),
+    message: h.message ?? (h.status === "APPLIED" ? "Applied" : "Not applied"),
+    retryable,
+    ...(h.canonicalId ? { canonicalId: h.canonicalId } : {}),
+    ...(h.serverState ? { serverState: h.serverState } : {}),
+  };
+}
+
+const reject = (code: string, message: string, retryable = false): HandlerResult => ({ status: "REJECTED", code, message, retryable });
+
+/** Rebuilds the answer for a mutation we already processed. Only a stored APPLIED turns into DUPLICATE. */
+function replayStored(stored: SyncMutation): SyncMutationResult {
+  const id = stored.id;
+  if (stored.status === "REJECTED") {
+    return finalize(id, reject(stored.resultCode ?? "REJECTED", stored.resultMessage ?? "Rejected", false));
   }
-
-  // 2. Process based on entity
-  try {
-    return await prisma.$transaction(async (tx) => {
-      let result: SyncMutationResult;
-
-      switch (entity.toLowerCase()) {
-        case "lot":
-          result = await handleLotMutation(tx, op, entityId, payload, userId, clientTime);
-          break;
-        case "lot_image":
-          result = await handleLotImageMutation(tx, op, entityId, payload, userId, clientTime);
-          break;
-        case "transaction":
-          result = await handleTransactionMutation(tx, op, entityId, payload, userId, clientTime);
-          break;
-        case "handover":
-          result = await handleHandoverMutation(tx, op, entityId, payload, userId, clientTime);
-          break;
-        case "payment":
-          result = await handlePaymentMutation(tx, op, entityId, payload, userId, clientTime);
-          break;
-        case "price_point":
-          result = await handlePricePointMutation(tx, op, entityId, payload, userId, clientTime);
-          break;
-        case "pickup_request":
-          result = await handlePickupRequestMutation(tx, op, entityId, payload, userId);
-          break;
-        case "coverage_request":
-          result = await handleCoverageRequestMutation(tx, op, entityId, payload, userId);
-          break;
-        case "consent":
-          result = await handleConsentMutation(tx, entityId, payload, userId);
-          break;
-        case "dispute":
-          result = await handleDisputeMutation(tx, entityId, payload, userId);
-          break;
-        case "incident":
-          result = await handleIncidentMutation(tx, entityId, payload, userId);
-          break;
-        case "quiz_result":
-          result = await handleQuizResultMutation(tx, entityId, payload, userId);
-          break;
-        case "rating":
-          result = await handleRatingMutation(tx, entityId, payload, userId);
-          break;
-        default:
-          result = {
-            clientMutationId,
-            status: "REJECTED",
-            code: "UNKNOWN_ENTITY",
-            message: `Entity '${entity}' is not supported`,
-            retryable: false,
-          };
+  if (stored.status === "CONFLICT") {
+    let serverState: Record<string, unknown> | undefined;
+    if (stored.error) {
+      try {
+        serverState = JSON.parse(stored.error);
+      } catch {
+        serverState = undefined;
       }
-
-      // Record SyncMutation row
-      await tx.syncMutation.create({
-        data: {
-          id: clientMutationId,
-          deviceId,
-          userId,
-          entity,
-          entityId,
-          op,
-          payload: payload as unknown as Prisma.InputJsonValue,
-          clientTimestamp: clientTime,
-          status: result.status,
-          resultCode: result.code,
-          resultMessage: result.message,
-          canonicalId: result.canonicalId,
-        },
-      });
-
-      return result;
-    });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return {
-      clientMutationId,
-      status: "REJECTED",
-      code: "PROCESSING_ERROR",
-      message: errorMsg,
-      retryable: true,
-    };
-  }
-}
-
-// ----------------- Entity Mutation Handlers -----------------
-
-async function handleLotMutation(
-  tx: Prisma.TransactionClient,
-  op: "create" | "update",
-  lotId: string,
-  payload: Record<string, any>,
-  userId: string,
-  clientTime: Date
-): Promise<SyncMutationResult> {
-  // Check collector profile
-  const collector = await tx.collector.findUnique({
-    where: { userId },
-  });
-
-  if (!collector) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "COLLECTOR_PROFILE_MISSING",
-      message: "User does not have an active collector profile",
-      retryable: false,
-    };
-  }
-
-  // Check forbidden client server-owned fields
-  const forbiddenCheck = checkServerOwnedFields(payload);
-  if (forbiddenCheck.forbidden) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "FORBIDDEN_FIELD",
-      message: `Client cannot set server-owned field '${forbiddenCheck.field}'`,
-      retryable: false,
-    };
-  }
-
-  if (op === "create") {
-    // Validate lotRef format with collector shortCode
-    const lotRef = payload.lotRef || "";
-    const refValidation = validateLotRef(lotRef, collector.shortCode);
-    if (!refValidation.valid) {
-      return {
-        clientMutationId: "",
-        status: "REJECTED",
-        code: "INVALID_LOT_REF",
-        message: refValidation.reason || "Invalid lotRef",
-        retryable: false,
-      };
     }
-
-    // Check duplicate lotRef
-    const existingRef = await tx.lot.findUnique({ where: { lotRef } });
-    if (existingRef) {
-      return {
-        clientMutationId: "",
-        status: "CONFLICT",
-        code: "DUPLICATE_LOT_REF",
-        message: "Lot reference already exists",
-        serverState: existingRef,
-      };
-    }
-
-    const categoryExists = await tx.materialCategory.findUnique({
-      where: { id: Number(payload.categoryId) },
-    });
-    if (!categoryExists) {
-      return {
-        clientMutationId: "",
-        status: "REJECTED",
-        code: "CATEGORY_NOT_FOUND",
-        message: `Material category #${payload.categoryId} does not exist`,
-        retryable: false,
-      };
-    }
-
-    const createdLot = await tx.lot.create({
-      data: {
-        id: lotId,
-        lotRef,
-        collectorId: collector.id,
-        categoryId: Number(payload.categoryId),
-        subCategory: payload.subCategory || null,
-        description: payload.description || null,
-        condition: payload.condition || "UNKNOWN",
-        sourceType: payload.sourceType || "OTHER",
-        approxWeightGrams: Number(payload.approxWeightGrams || 0),
-        estimatedValuePaise: payload.estimatedValuePaise ? Number(payload.estimatedValuePaise) : null,
-        estimatedMinPaise: payload.estimatedMinPaise ? Number(payload.estimatedMinPaise) : null,
-        estimatedMaxPaise: payload.estimatedMaxPaise ? Number(payload.estimatedMaxPaise) : null,
-        aiCategoryId: payload.aiCategoryId ? Number(payload.aiCategoryId) : null,
-        aiConfidence: payload.aiConfidence ? Number(payload.aiConfidence) : null,
-        status: payload.status || "DRAFT",
-        collectedAt: payload.collectedAt ? new Date(payload.collectedAt) : clientTime,
-        collectLat: payload.collectLat !== undefined ? Number(payload.collectLat) : null,
-        collectLng: payload.collectLng !== undefined ? Number(payload.collectLng) : null,
-        clientCreatedAt: clientTime,
-        chosenRecyclerId: payload.chosenRecyclerId || null,
-        quotedRatePaise: payload.quotedRatePaise ? Number(payload.quotedRatePaise) : null,
-        transactionStatus: payload.transactionStatus || "QUOTED",
-      },
-    });
-
-    return {
-      clientMutationId: "",
-      status: "APPLIED",
-      canonicalId: createdLot.id,
-    };
-  }
-
-  // Update operation
-  const existingLot = await tx.lot.findUnique({ where: { id: lotId } });
-  if (!existingLot) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "PARENT_LOT_NOT_FOUND",
-      message: `Lot ${lotId} not found`,
-      retryable: true,
-    };
-  }
-
-  // Verify ownership
-  if (existingLot.collectorId !== collector.id) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "FORBIDDEN",
-      message: "You do not own this lot",
-      retryable: false,
-    };
-  }
-
-  // Validate state machine transition if status is being updated
-  if (payload.status && payload.status !== existingLot.status) {
-    const transitionCheck = validateLotTransition(existingLot.status as LotStatus, payload.status as LotStatus, false);
-    if (!transitionCheck.valid) {
-      return {
-        clientMutationId: "",
-        status: transitionCheck.isConflict ? "CONFLICT" : "REJECTED",
-        code: "INVALID_STATE_TRANSITION",
-        message: transitionCheck.reason,
-        serverState: existingLot,
-      };
-    }
-  }
-
-  const updatedLot = await tx.lot.update({
-    where: { id: lotId },
-    data: {
-      status: payload.status || undefined,
-      description: payload.description !== undefined ? payload.description : undefined,
-      approxWeightGrams: payload.approxWeightGrams !== undefined ? Number(payload.approxWeightGrams) : undefined,
-      chosenRecyclerId: payload.chosenRecyclerId !== undefined ? payload.chosenRecyclerId : undefined,
-      quotedRatePaise: payload.quotedRatePaise !== undefined ? Number(payload.quotedRatePaise) : undefined,
-      updatedAt: new Date(),
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: updatedLot.id,
-  };
-}
-
-async function handleLotImageMutation(
-  tx: Prisma.TransactionClient,
-  op: "create" | "update",
-  imageId: string,
-  payload: Record<string, any>,
-  userId: string,
-  clientTime: Date
-): Promise<SyncMutationResult> {
-  const lotId = payload.lotId;
-  const lot = await tx.lot.findUnique({ where: { id: lotId } });
-  if (!lot) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "PARENT_LOT_NOT_FOUND",
-      message: `Lot ${lotId} does not exist yet`,
-      retryable: true,
-    };
-  }
-
-  const storageKey = payload.storageKey || payload.remoteKey;
-  if (!storageKey || !validateStorageKey(storageKey, userId)) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "INVALID_STORAGE_KEY",
-      message: `storageKey must start with images/${userId}/`,
-      retryable: false,
-    };
-  }
-
-  const kind = payload.kind || "COLLECTION";
-  const sha256 = payload.sha256 || null;
-
-  // Duplicate photo check
-  if (sha256) {
-    const existingPhoto = await tx.lotImage.findFirst({
-      where: { sha256, lotId: { not: lotId } },
-    });
-    if (existingPhoto) {
-      const anomaly = checkDuplicatePhotoAnomaly(existingPhoto.lotId, sha256);
-      await tx.anomalyFlag.create({
-        data: {
-          type: anomaly.type,
-          severity: anomaly.severity,
-          reason: anomaly.reason,
-          ruleCode: anomaly.ruleCode,
-          lotId,
-          detailsJson: JSON.stringify(anomaly.details),
-        },
-      });
-    }
-  }
-
-  const createdImage = await tx.lotImage.create({
-    data: {
-      id: imageId,
-      lotId,
-      kind,
-      storageKey,
-      localPath: payload.localPath || null,
-      sha256,
-      takenAt: payload.takenAt ? new Date(payload.takenAt) : clientTime,
-    },
-  });
-
-  // If TRAINING image, create TrainingSample row
-  if (kind === "TRAINING") {
-    await tx.trainingSample.create({
-      data: {
-        imageId: createdImage.id,
-        categoryId: lot.categoryId,
-        labelSource: "FIELD_AGENT",
-        labelConfidence: 1.0,
-        capturedById: userId,
-      },
-    });
-  }
-
-  // Update lot timestamp for pull
-  await tx.lot.update({ where: { id: lotId }, data: { updatedAt: new Date() } });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: createdImage.id,
-  };
-}
-
-async function handleTransactionMutation(
-  tx: Prisma.TransactionClient,
-  op: "create" | "update",
-  transactionId: string,
-  payload: Record<string, any>,
-  userId: string,
-  clientTime: Date
-): Promise<SyncMutationResult> {
-  const lotId = payload.lotId;
-  const lot = await tx.lot.findUnique({ where: { id: lotId } });
-  if (!lot) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "PARENT_LOT_NOT_FOUND",
-      message: `Lot ${lotId} not found`,
-      retryable: true,
-    };
-  }
-
-  const recyclerId = payload.recyclerId || lot.chosenRecyclerId;
-  const recycler = await tx.recycler.findUnique({
-    where: { id: recyclerId },
-    include: { rates: { where: { isCurrent: true, categoryId: lot.categoryId } } },
-  });
-
-  if (!recycler || recycler.authorizationStatus !== "VERIFIED") {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "RECYCLER_NOT_AUTHORIZED",
-      message: "Recycler is not verified or does not exist",
-      retryable: false,
-    };
-  }
-
-  if (recycler.authorizationValidTill && new Date(recycler.authorizationValidTill) <= new Date()) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "RECYCLER_AUTHORIZATION_EXPIRED",
-      message: "Recycler authorization has expired",
-      retryable: false,
-    };
-  }
-
-  const currentRate = recycler.rates[0];
-  if (!currentRate) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "MATERIAL_NOT_ACCEPTED",
-      message: "Recycler does not accept this material category",
-      retryable: false,
-    };
-  }
-
-  // Check rate freshness: Stale beyond 7 days = CONFLICT with current rate
-  const rateAgeDays = (Date.now() - new Date(currentRate.effectiveFrom).getTime()) / (24 * 60 * 60 * 1000);
-  const quotedRate = Number(payload.quotedRatePerKgPaise || currentRate.ratePerKgPaise);
-
-  if (quotedRate !== currentRate.ratePerKgPaise && rateAgeDays > 7) {
-    return {
-      clientMutationId: "",
+    return finalize(id, {
       status: "CONFLICT",
-      code: "STALE_QUOTED_RATE",
-      message: `Quoted rate ₹${(quotedRate / 100).toFixed(2)}/kg is outdated. Current rate is ₹${(currentRate.ratePerKgPaise / 100).toFixed(2)}/kg.`,
-      serverState: { currentRatePerKgPaise: currentRate.ratePerKgPaise },
-    };
+      code: stored.resultCode ?? "CONFLICT",
+      message: stored.resultMessage ?? "Conflict",
+      serverState,
+    });
   }
-
-  // Server recomputes quoted price
-  const computedQuotedPrice = Math.round((currentRate.ratePerKgPaise * lot.approxWeightGrams) / 1000);
-
-  const collector = await tx.collector.findUnique({ where: { userId } });
-  if (!collector) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "COLLECTOR_NOT_FOUND",
-      message: "Collector profile not found",
-      retryable: false,
-    };
-  }
-
-  const createdTx = await tx.transaction.upsert({
-    where: { lotId },
-    create: {
-      id: transactionId,
-      lotId,
-      collectorId: collector.id,
-      recyclerId: recycler.id,
-      quotedRatePerKgPaise: currentRate.ratePerKgPaise,
-      quotedPricePaise: computedQuotedPrice,
-      status: "QUOTED",
-      paymentStatus: "UNPAID",
-    },
-    update: {
-      quotedRatePerKgPaise: currentRate.ratePerKgPaise,
-      quotedPricePaise: computedQuotedPrice,
-      updatedAt: new Date(),
-    },
+  return finalize(id, {
+    status: "DUPLICATE",
+    code: "ALREADY_PROCESSED",
+    message: "Mutation was previously processed",
+    canonicalId: stored.canonicalId ?? undefined,
   });
-
-  // Touch lot
-  await tx.lot.update({
-    where: { id: lotId },
-    data: {
-      status: "MATCHED",
-      chosenRecyclerId: recycler.id,
-      quotedRatePaise: currentRate.ratePerKgPaise,
-      updatedAt: new Date(),
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: createdTx.id,
-  };
 }
 
-async function handleHandoverMutation(
-  tx: Prisma.TransactionClient,
+// ---------- payload normalisation & validation ----------
+
+const PAYMENT_STATUS_WARNING = "paymentStatus";
+
+/**
+ * Tolerates what older app builds send, before strict validation:
+ *  - redundant ids (`id`, and `lotId` on lot/handover updates) equal to entityId are dropped;
+ *  - lot `paymentStatus` is ignored with a warning (the server derives it from Payment rows);
+ *  - handover `handoverLat/handoverLng/accuracyM` become `latitude/longitude/accuracy`; `spoofingFlags` containing
+ *    a mock-location marker becomes `mockLocationFlag`; `geoFlag` and `spoofingFlags` are dropped (the server
+ *    computes its own location proof);
+ *  - `localPath` / `imagePath` (phone-only file paths) are dropped.
+ */
+export function normalizePayload(
+  entity: string,
   op: "create" | "update",
-  handoverId: string,
-  payload: Record<string, any>,
-  userId: string,
-  clientTime: Date
-): Promise<SyncMutationResult> {
-  const lotId = payload.lotId;
-  const lot = await tx.lot.findUnique({
-    where: { id: lotId },
-    include: { transaction: { include: { recycler: true } } },
-  });
+  entityId: string,
+  input: Record<string, any>
+): { payload: Record<string, any>; warnings: string[] } {
+  const payload: Record<string, any> = { ...input };
+  const warnings: string[] = [];
 
-  if (!lot) {
-    return {
-      clientMutationId: "",
-      status: "REJECTED",
-      code: "PARENT_LOT_NOT_FOUND",
-      message: `Lot ${lotId} not found`,
-      retryable: true,
-    };
+  if (op === "update" && payload.id === entityId) delete payload.id;
+  if (entity === "lot" && op === "update" && payload.lotId === entityId) delete payload.lotId;
+  if (entity === "handover" && op === "update") delete payload.lotId;
+  if (entity === "lot" && payload.paymentStatus !== undefined) {
+    delete payload.paymentStatus;
+    warnings.push(PAYMENT_STATUS_WARNING);
+  }
+  if (entity === "handover") {
+    if (payload.handoverLat !== undefined) payload.latitude ??= payload.handoverLat;
+    if (payload.handoverLng !== undefined) payload.longitude ??= payload.handoverLng;
+    if (payload.accuracyM !== undefined) payload.accuracy ??= payload.accuracyM;
+    if (payload.spoofingFlags !== undefined && payload.mockLocationFlag === undefined) {
+      const raw = typeof payload.spoofingFlags === "string" ? payload.spoofingFlags : JSON.stringify(payload.spoofingFlags);
+      if (/mock/i.test(raw)) payload.mockLocationFlag = true;
+    }
+    for (const k of ["handoverLat", "handoverLng", "accuracyM", "geoFlag", "spoofingFlags"]) delete payload[k];
+  }
+  if (entity === "lot_image") delete payload.localPath;
+  return { payload, warnings };
+}
+
+type Validated = { ok: true; payload: Record<string, any>; warnings: string[] } | { ok: false; result: HandlerResult };
+
+function validateMutation(m: SyncMutationInput): Validated {
+  if (!isPushEntity(m.entity)) {
+    return { ok: false, result: reject("UNKNOWN_ENTITY", `Entity '${m.entity}' is not supported`) };
+  }
+  const contract: EntityContract = ENTITY_CONTRACT[m.entity as PushEntity];
+  if (!contract.ops.includes(m.op)) {
+    return { ok: false, result: reject("INVALID_OP", `'${m.op}' is not allowed for entity '${m.entity}'`) };
   }
 
-  // Generate 4-digit verification code if not provided
-  const verificationCode = payload.verificationCode || generateVerificationCode();
-  const handoverRef = payload.handoverRef || `HO-${lot.lotRef.replace("LOT-", "")}`;
+  const { payload, warnings } = normalizePayload(m.entity, m.op, m.entityId, m.payload);
 
-  // Evaluate location proof
-  let facility: any = lot.transaction?.recycler;
-  if (!facility && lot.chosenRecyclerId) {
-    facility = await tx.recycler.findUnique({ where: { id: lot.chosenRecyclerId } });
-  }
-  const locProof = classifyLocationProof(
-    payload.latitude,
-    payload.longitude,
-    facility?.latitude,
-    facility?.longitude,
-    payload.accuracy,
-    payload.mockLocationFlag
-  );
-
-  const declaredWeightGrams = Number(payload.declaredWeightGrams || lot.approxWeightGrams);
-
-  const createdHandover = await tx.handover.create({
-    data: {
-      id: handoverId,
-      lotId,
-      transactionId: lot.transaction?.id || null,
-      handoverRef,
-      qrPayload: payload.qrPayload || `KABADI:${lot.lotRef}:${verificationCode}`,
-      verificationCode,
-      declaredWeightGrams,
-      capturedAt: payload.capturedAt ? new Date(payload.capturedAt) : clientTime,
-      latitude: payload.latitude !== undefined ? Number(payload.latitude) : null,
-      longitude: payload.longitude !== undefined ? Number(payload.longitude) : null,
-      accuracy: payload.accuracy !== undefined ? Number(payload.accuracy) : null,
-      locationSource: payload.locationSource || "GPS",
-      distanceToRecyclerMeters: locProof.distanceToRecyclerMeters,
-      locationClass: locProof.locationClass,
-      mockLocationFlag: payload.mockLocationFlag || false,
-      status: "PENDING", // PENDING until recycler confirms
-    },
-  });
-
-  // Raise location anomaly flags if needed
-  if (locProof.isFlagged) {
-    const locAnomalies = checkLocationAnomalies(
-      locProof.locationClass,
-      locProof.distanceToRecyclerMeters,
-      locProof.spoofFlags
-    );
-    for (const anom of locAnomalies) {
-      await tx.anomalyFlag.create({
-        data: {
-          type: anom.type,
-          severity: anom.severity,
-          reason: anom.reason,
-          ruleCode: anom.ruleCode,
-          lotId,
-          detailsJson: JSON.stringify(anom.details),
-        },
-      });
+  for (const field of contract.serverOwned) {
+    if (payload[field] !== undefined && payload[field] !== null) {
+      return { ok: false, result: reject("FORBIDDEN_FIELD", `Client cannot set server-owned field '${field}'`) };
     }
   }
-
-  // Update lot status to HANDED_OVER
-  await tx.lot.update({
-    where: { id: lotId },
-    data: {
-      status: "HANDED_OVER",
-      updatedAt: new Date(),
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: createdHandover.id,
-  };
-}
-
-async function handlePaymentMutation(
-  tx: Prisma.TransactionClient,
-  op: "create" | "update",
-  paymentId: string,
-  payload: Record<string, any>,
-  userId: string,
-  clientTime: Date
-): Promise<SyncMutationResult> {
-  const lotId = payload.lotId;
-  const amountPaise = Number(payload.amountPaise);
-  const method = payload.method || "CASH";
-
-  // Check if a matching recycler-recorded payment already exists to merge and avoid double-counting
-  const matchingRecyclerPayment = await tx.payment.findFirst({
-    where: {
-      lotId,
-      amountPaise,
-      method,
-      recordedBy: "RECYCLER",
-    },
-  });
-
-  if (matchingRecyclerPayment) {
-    // Merge: mark confirmedByCollector and point canonicalId to recycler payment
-    await tx.payment.update({
-      where: { id: matchingRecyclerPayment.id },
-      data: {
-        confirmedByCollector: true,
-        collectorPaymentId: paymentId,
-      },
-    });
-
-    return {
-      clientMutationId: "",
-      status: "APPLIED",
-      canonicalId: matchingRecyclerPayment.id,
-      message: "Merged with matching recycler-recorded payment",
-    };
+  if (m.entity === "lot" && isClientLotState(payload.transactionStatus) && !isClientPushableLotState(payload.transactionStatus)) {
+    return { ok: false, result: reject("FORBIDDEN_FIELD", `transactionStatus '${payload.transactionStatus}' is set by the server`) };
+  }
+  if (m.entity === "handover" && m.op === "update" && ["CONFIRMED", "WEIGHED", "REJECTED"].includes(payload.status)) {
+    return { ok: false, result: reject("FORBIDDEN_FIELD", `Handover status '${payload.status}' is set by the server`) };
   }
 
-  // Create payment row
-  const createdPayment = await tx.payment.create({
-    data: {
-      id: paymentId,
-      lotId,
-      amountPaise,
-      method,
-      upiRef: payload.upiRef || null,
-      paidAt: payload.paidAt ? new Date(payload.paidAt) : clientTime,
-      confirmedByCollector: true,
-      recordedBy: "COLLECTOR",
-      canonicalId: paymentId,
-    },
-  });
+  const schema = m.op === "create" ? contract.create : contract.update;
+  if (!schema) return { ok: false, result: reject("INVALID_OP", `'${m.op}' is not allowed for entity '${m.entity}'`) };
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const where = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+    return { ok: false, result: reject("INVALID_PAYLOAD", `${where}${issue.message}`) };
+  }
+  if (typeof payload.id === "string" && payload.id !== m.entityId) {
+    return { ok: false, result: reject("INVALID_PAYLOAD", "payload.id must equal entityId") };
+  }
+  return { ok: true, payload: parsed.data as Record<string, any>, warnings };
+}
 
-  // Touch lot
-  await tx.lot.update({
-    where: { id: lotId },
-    data: { updatedAt: new Date() },
-  });
+const HANDLERS: Record<PushEntity, (c: HandlerContext) => Promise<HandlerResult>> = {
+  lot: handleLot,
+  lot_image: handleLotImage,
+  handover: handleHandover,
+  batch_handover: handleBatchHandover,
+  payment: handlePayment,
+  price_point: handlePricePoint,
+  consent: handleConsent,
+  pickup_request: handlePickupRequest,
+  coverage_request: handleCoverageRequest,
+  dispute: handleDispute,
+  incident: handleIncident,
+  quiz_result: handleQuizResult,
+  rating: handleRating,
+  profile: handleProfile,
+  dealer_comparison: handleDealerComparison,
+};
 
+// ---------- persistence ----------
+
+/** Thrown inside the transaction to roll back a non-APPLIED handler outcome while keeping its result. */
+class RollbackWithResult extends Error {
+  constructor(public readonly result: HandlerResult) {
+    super("rollback");
+  }
+}
+
+function syncMutationData(m: SyncMutationInput, ctx: SyncActorContext, clientTime: Date, r: SyncMutationResult): Prisma.SyncMutationUncheckedCreateInput {
   return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: createdPayment.id,
+    id: m.clientMutationId,
+    deviceId: ctx.deviceId,
+    userId: ctx.userId,
+    entity: m.entity,
+    entityId: m.entityId,
+    op: m.op,
+    payload: (m.payload ?? {}) as Prisma.InputJsonValue,
+    clientTimestamp: clientTime,
+    status: r.status,
+    resultCode: r.code,
+    resultMessage: r.message,
+    canonicalId: r.canonicalId,
+    error: r.serverState ? JSON.stringify(r.serverState) : undefined,
   };
 }
 
-async function handlePricePointMutation(
-  tx: Prisma.TransactionClient,
-  op: "create" | "update",
-  priceId: string,
-  payload: Record<string, any>,
-  userId: string,
-  clientTime: Date
-): Promise<SyncMutationResult> {
-  const created = await tx.pricePoint.create({
-    data: {
-      id: priceId,
-      categoryId: Number(payload.categoryId),
-      subCategory: payload.subCategory || null,
-      area: payload.area || "General",
-      district: payload.district || "Mumbai",
-      latitude: payload.latitude !== undefined ? Number(payload.latitude) : null,
-      longitude: payload.longitude !== undefined ? Number(payload.longitude) : null,
-      recordedAt: payload.recordedAt ? new Date(payload.recordedAt) : clientTime,
-      buyingPricePaise: Number(payload.buyingPricePaise),
-      source: "FIELD_AGENT",
-      buyerType: payload.buyerType || "SCRAP_DEALER",
-      recordedById: userId,
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: created.id,
-  };
+async function findStored(id: string): Promise<SyncMutation | null> {
+  return prisma.syncMutation.findUnique({ where: { id } });
 }
 
-async function handlePickupRequestMutation(
-  tx: Prisma.TransactionClient,
-  op: "create" | "update",
-  requestId: string,
-  payload: Record<string, any>,
-  userId: string
-): Promise<SyncMutationResult> {
-  const lotId = payload.lotId;
-  const recyclerId = payload.recyclerId;
-  const slot = new Date(payload.slot);
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hour expiry
-
-  const created = await tx.pickupRequest.create({
-    data: {
-      id: requestId,
-      collectorId: userId,
-      recyclerId,
-      lotId,
-      slot,
-      status: "REQUESTED",
-      expiresAt,
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: created.id,
-  };
+function isUniqueViolation(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
 
-async function handleCoverageRequestMutation(
-  tx: Prisma.TransactionClient,
-  op: "create" | "update",
-  coverageId: string,
-  payload: Record<string, any>,
-  userId: string
-): Promise<SyncMutationResult> {
-  const created = await tx.coverageRequest.create({
-    data: {
-      id: coverageId,
-      collectorId: userId,
-      latitude: Number(payload.latitude),
-      longitude: Number(payload.longitude),
-      categoryId: Number(payload.categoryId),
-      approxWeightGrams: Number(payload.approxWeightGrams),
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: created.id,
-  };
+/** Persist a non-APPLIED, remember-worthy outcome (its handler writes were rolled back). */
+async function rememberOutcome(m: SyncMutationInput, ctx: SyncActorContext, clientTime: Date, r: SyncMutationResult): Promise<void> {
+  try {
+    await prisma.syncMutation.create({ data: syncMutationData(m, ctx, clientTime, r) });
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    // A concurrent request stored it first; both outcomes are the same decision.
+  }
 }
 
-async function handleConsentMutation(
-  tx: Prisma.TransactionClient,
-  consentId: string,
-  payload: Record<string, any>,
-  userId: string
-): Promise<SyncMutationResult> {
-  const created = await tx.consentRecord.create({
-    data: {
-      id: consentId,
-      userId,
-      version: payload.version || "1.0",
-      language: payload.language || "HI",
-      locationConsent: payload.locationConsent !== false,
-      timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date(),
-    },
-  });
+/**
+ * Process a single mutation. The returned result always has the real `clientMutationId`.
+ */
+export async function processMutation(mutation: SyncMutationInput, ctx: SyncActorContext): Promise<SyncMutationResult> {
+  const id = mutation.clientMutationId;
+  const clientTime = new Date(mutation.clientTimestamp);
+  const safeTime = Number.isNaN(clientTime.getTime()) ? new Date() : clientTime;
 
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: created.id,
-  };
+  try {
+    // 1. Already processed?
+    let stored = await findStored(id);
+    if (stored && stored.userId !== ctx.userId) {
+      return finalize(id, reject("MUTATION_ID_IN_USE", "This clientMutationId belongs to another account"));
+    }
+    if (stored && stored.status === "REJECTED" && RETRYABLE_REJECT_CODES.has(stored.resultCode ?? "")) {
+      // Persisted by the old engine although it was retryable: that outcome was never final. Forget it and run again.
+      await prisma.syncMutation.delete({ where: { id } });
+      stored = null;
+    }
+    if (stored) return replayStored(stored);
+
+    // 2. Validate entity / op / payload
+    const validated = validateMutation(mutation);
+    if (!validated.ok) {
+      const r = finalize(id, validated.result);
+      if (isPersistable(r)) await rememberOutcome(mutation, ctx, safeTime, r);
+      return r;
+    }
+
+    // 3. Run the handler in one transaction
+    const handler = HANDLERS[mutation.entity as PushEntity];
+    let result: SyncMutationResult;
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        const handled = await handler({
+          tx,
+          userId: ctx.userId,
+          role: ctx.role,
+          collector: ctx.collector,
+          entityId: mutation.entityId,
+          op: mutation.op,
+          payload: validated.payload,
+          clientTime: safeTime,
+        });
+        if (handled.status !== "APPLIED") throw new RollbackWithResult(handled);
+
+        const r = finalize(id, validated.warnings.length > 0 ? withWarnings(handled, validated.warnings) : handled);
+        await tx.syncMutation.create({ data: syncMutationData(mutation, ctx, safeTime, r) });
+        return r;
+      });
+    } catch (err) {
+      if (err instanceof RollbackWithResult) {
+        const r = finalize(id, err.result);
+        if (isPersistable(r)) await rememberOutcome(mutation, ctx, safeTime, r);
+        return r;
+      }
+      if (isUniqueViolation(err)) {
+        // Same clientMutationId raced us (or another unique key collided): answer from what is stored now.
+        const raced = await findStored(id);
+        if (raced && raced.userId === ctx.userId) return replayStored(raced);
+      }
+      throw err;
+    }
+    return result;
+  } catch (err) {
+    console.error(`sync: processing ${mutation.entity}.${mutation.op} ${id} failed`, err);
+    return finalize(id, reject("PROCESSING_ERROR", "Could not process this change right now; it will be retried", true));
+  }
 }
 
-async function handleDisputeMutation(
-  tx: Prisma.TransactionClient,
-  disputeId: string,
-  payload: Record<string, any>,
-  userId: string
-): Promise<SyncMutationResult> {
-  const created = await tx.dispute.create({
-    data: {
-      id: disputeId,
-      lotId: payload.lotId,
-      handoverId: payload.handoverId || null,
-      reason: payload.reason || "Dispute raised",
-      raisedBy: "COLLECTOR",
-    },
-  });
-
-  await tx.lot.update({
-    where: { id: payload.lotId },
-    data: { status: "DISPUTED", updatedAt: new Date() },
-  });
-
+function withWarnings(h: HandlerResult, warnings: string[]): HandlerResult {
   return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: created.id,
+    ...h,
+    code: "IGNORED_SERVER_OWNED_FIELD",
+    message: `Applied; ignored server-owned field(s): ${warnings.join(", ")}`,
   };
 }
-
-async function handleIncidentMutation(
-  tx: Prisma.TransactionClient,
-  incidentId: string,
-  payload: Record<string, any>,
-  userId: string
-): Promise<SyncMutationResult> {
-  const created = await tx.incidentReport.create({
-    data: {
-      id: incidentId,
-      reporterId: userId,
-      lotId: payload.lotId || null,
-      description: payload.description || "Incident reported",
-      severity: Number(payload.severity || 1),
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: created.id,
-  };
-}
-
-async function handleQuizResultMutation(
-  tx: Prisma.TransactionClient,
-  quizResultId: string,
-  payload: Record<string, any>,
-  userId: string
-): Promise<SyncMutationResult> {
-  const created = await tx.safetyQuizResult.create({
-    data: {
-      id: quizResultId,
-      userId,
-      topicId: payload.topicId,
-      score: Number(payload.score || 0),
-      passed: payload.passed !== false,
-      completedAt: payload.completedAt ? new Date(payload.completedAt) : new Date(),
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: created.id,
-  };
-}
-
-async function handleRatingMutation(
-  tx: Prisma.TransactionClient,
-  ratingId: string,
-  payload: Record<string, any>,
-  userId: string
-): Promise<SyncMutationResult> {
-  const created = await tx.recyclerRating.create({
-    data: {
-      id: ratingId,
-      recyclerId: payload.recyclerId,
-      collectorId: userId,
-      rating: Number(payload.rating || 5),
-      comment: payload.comment || null,
-    },
-  });
-
-  return {
-    clientMutationId: "",
-    status: "APPLIED",
-    canonicalId: created.id,
-  };
-}
-

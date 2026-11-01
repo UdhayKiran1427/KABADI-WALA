@@ -6,8 +6,8 @@ import { parseHistoryQuery } from "@/lib/historyFilters";
 import { COLLECTOR_HISTORY_STATUSES, collectorHistoryWhere } from "@/lib/services/historyQuery";
 import { LotStatusBadge, PageTitle, PageVoice, T } from "../ui";
 import { CollectorHistoryFilters } from "./CollectorHistoryFilters";
+import { kg, rupees, inr } from "@/lib/format";
 
-const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 
 export default async function CollectorHistoryPage(props: {
   searchParams: Promise<{ q?: string; status?: string; material?: string; period?: string }>;
@@ -46,8 +46,8 @@ export default async function CollectorHistoryPage(props: {
     }
   }
 
-  const received = (totalReceivedPaise / 100).toFixed(0);
-  const pending = (totalPendingPaise / 100).toFixed(0);
+  const received = rupees(totalReceivedPaise);
+  const pending = rupees(totalPendingPaise);
 
   return (
     <div className="c-page">
@@ -94,7 +94,7 @@ export default async function CollectorHistoryPage(props: {
                   {lot._count.items > 1 && <span style={{ color: "var(--slate-500)", fontWeight: 600 }}> +{lot._count.items - 1}</span>}
                 </div>
                 <div style={{ fontSize: "0.85rem", color: "var(--slate-600)" }}>
-                  {(lot.approxWeightGrams / 1000).toFixed(1)} kg &middot;{" "}
+                  {kg(lot.approxWeightGrams)} kg &middot;{" "}
                   <strong style={{ color: "var(--slate-900)" }}>{inr(lot.finalPricePaise || lot.estimatedValuePaise || 0)}</strong>
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>

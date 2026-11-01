@@ -1,90 +1,90 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthCollector } from "@/lib/auth/getAuthCollector";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { getAuthSyncActor } from "@/lib/auth/getAuthSyncActor";
+import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import {
+  afterCursorWhere,
+  encodePullCursor,
+  mergePullPage,
+  parsePullCursor,
+  type PullItem,
+} from "@/lib/contract/pullCursor";
+import {
+  serializeLotUpdate,
+  serializePullLot,
+  serializePullNotification,
+  serializePullPickupRequest,
+} from "@/lib/contract/serializers";
 
-const PAGE_SIZE = 500;
+/** Items per response across all collections together. `?limit=` may lower or raise it within [1, MAX]. */
+const DEFAULT_PAGE_SIZE = 200;
+const MAX_PAGE_SIZE = 500;
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await getAuthCollector(req);
-    if (!auth) {
+    // Taken BEFORE any query: a row committed while we read can only have a later timestamp.
+    const serverTimestamp = new Date();
+
+    const actor = await getAuthSyncActor(req);
+    if (!actor) {
       return apiError("UNAUTHORIZED", "Missing or invalid bearer authorization", 401);
     }
 
     const url = new URL(req.url);
-    const sinceParam = url.searchParams.get("since");
-    const sinceDate = sinceParam ? new Date(sinceParam) : new Date(0);
-
-    // Pull changed lots for this collector
-    const lots = await prisma.lot.findMany({
-      where: {
-        collectorId: auth.collector.id,
-        updatedAt: { gt: sinceDate },
-      },
-      orderBy: { updatedAt: "asc" },
-      take: PAGE_SIZE + 1,
-      include: {
-        images: true,
-        transaction: true,
-        handovers: true,
-        payments: true,
-      },
-    });
-
-    const hasMore = lots.length > PAGE_SIZE;
-    const paginatedLots = hasMore ? lots.slice(0, PAGE_SIZE) : lots;
-
-    // Pull notifications
-    const notifications = await prisma.notification.findMany({
-      where: {
-        userId: auth.user.userId,
-        createdAt: { gt: sinceDate },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 100,
-    });
-
-    // Pull pickup requests
-    const pickupRequests = await prisma.pickupRequest.findMany({
-      where: {
-        collectorId: auth.user.userId,
-        updatedAt: { gt: sinceDate },
-      },
-      orderBy: { updatedAt: "asc" },
-      take: 100,
-    });
-
-    // Determine latest timestamp for nextSince cursor
-    let maxTimestamp = sinceDate.getTime();
-    for (const lot of paginatedLots) {
-      if (lot.updatedAt.getTime() > maxTimestamp) {
-        maxTimestamp = lot.updatedAt.getTime();
-      }
+    const parsedCursor = parsePullCursor(url.searchParams.get("since"));
+    if (parsedCursor === "invalid") {
+      return apiError("VALIDATION_ERROR", "since must be an ISO-8601 time or a nextSince value from a previous pull", 400);
     }
-    for (const n of notifications) {
-      if (n.createdAt.getTime() > maxTimestamp) {
-        maxTimestamp = n.createdAt.getTime();
-      }
-    }
-    for (const pr of pickupRequests) {
-      if (pr.updatedAt.getTime() > maxTimestamp) {
-        maxTimestamp = pr.updatedAt.getTime();
-      }
-    }
+    const cursor = parsedCursor ?? { ts: new Date(0), rank: 3, id: "" };
 
-    const nextSince = new Date(maxTimestamp).toISOString();
+    const limitParam = Number(url.searchParams.get("limit"));
+    const limit = Number.isInteger(limitParam) && limitParam >= 1 ? Math.min(limitParam, MAX_PAGE_SIZE) : DEFAULT_PAGE_SIZE;
 
+    // Each collection is read in (timestamp, id) order, one past the limit, then merged into one ordered page.
+    const [lots, notifications, pickups] = await Promise.all([
+      actor.collector
+        ? prisma.lot.findMany({
+            where: { collectorId: actor.collector.id, ...afterCursorWhere("lot", "updatedAt", cursor) },
+            orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+            take: limit + 1,
+            include: { handovers: true, payments: true },
+          })
+        : Promise.resolve([]),
+      prisma.notification.findMany({
+        where: { userId: actor.userId, ...afterCursorWhere("notification", "createdAt", cursor) },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: limit + 1,
+      }),
+      // PickupRequest.collectorId stores the owning USER id (the sync handler and the web portal write the same).
+      prisma.pickupRequest.findMany({
+        where: { collectorId: actor.userId, ...afterCursorWhere("pickup", "updatedAt", cursor) },
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+        take: limit + 1,
+      }),
+    ]);
+
+    type Row = (typeof lots)[number] | (typeof notifications)[number] | (typeof pickups)[number];
+    const candidates: PullItem<Row>[] = [
+      ...lots.map((row) => ({ kind: "lot" as const, ts: row.updatedAt, id: row.id, row })),
+      ...notifications.map((row) => ({ kind: "notification" as const, ts: row.createdAt, id: row.id, row })),
+      ...pickups.map((row) => ({ kind: "pickup" as const, ts: row.updatedAt, id: row.id, row })),
+    ];
+    const { page, hasMore } = mergePullPage(candidates, limit);
+
+    const last = page[page.length - 1];
+    const nextSince = last ? encodePullCursor(last) : url.searchParams.get("since")?.trim() || new Date(0).toISOString();
+
+    const pageLots = page.filter((i) => i.kind === "lot").map((i) => i.row as (typeof lots)[number]);
     return apiSuccess({
-      hasMore,
+      serverTimestamp: serverTimestamp.toISOString(),
       nextSince,
-      lots: paginatedLots,
-      notifications,
-      pickupRequests,
+      hasMore,
+      lots: pageLots.map(serializePullLot),
+      lotUpdates: pageLots.map(serializeLotUpdate).filter((u) => u !== null),
+      notifications: page.filter((i) => i.kind === "notification").map((i) => serializePullNotification(i.row as (typeof notifications)[number])),
+      pickupRequests: page.filter((i) => i.kind === "pickup").map((i) => serializePullPickupRequest(i.row as (typeof pickups)[number])),
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
-

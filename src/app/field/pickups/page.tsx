@@ -3,6 +3,8 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { agentUpdatePickupStatusAction, agentCompleteDoorstepHandoverAction } from "../actions";
 import { VoiceSpeaker } from "@/components/voice/VoiceSpeaker";
+import { kg, rupees } from "@/lib/format";
+import { firstPositiveRate } from "@/lib/domain/money";
 
 export default async function FieldPickupsPage(props: {
   searchParams: Promise<{ success?: string; error?: string }>;
@@ -120,8 +122,8 @@ export default async function FieldPickupsPage(props: {
           <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
             {activePickups.map((p) => {
               const lot = p.lot;
-              const ratePaise = lot.transaction?.agreedRatePaise || lot.transaction?.quotedRatePerKgPaise || lot.quotedRatePaise || 4000;
-              const rateRupees = (ratePaise / 100).toFixed(0);
+              const ratePaise = firstPositiveRate(lot.transaction?.agreedRatePaise, lot.transaction?.quotedRatePerKgPaise, lot.quotedRatePaise);
+              const rateRupees = ratePaise === null ? "not available" : rupees(ratePaise);
 
               return (
                 <div
@@ -156,7 +158,7 @@ export default async function FieldPickupsPage(props: {
                         </span>
                       </div>
                       <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: "0.2rem" }}>
-                        <strong>Material:</strong> {lot.category.nameEn} &bull; <strong>Est. Weight:</strong> {(lot.approxWeightGrams / 1000).toFixed(1)} kg &bull; <strong>Rate:</strong> ₹{rateRupees}/kg
+                        <strong>Material:</strong> {lot.category.nameEn} &bull; <strong>Est. Weight:</strong> {kg(lot.approxWeightGrams)} kg &bull; <strong>Rate:</strong> {ratePaise === null ? "price not available" : `₹${rateRupees}/kg`}
                       </div>
                     </div>
 
@@ -242,7 +244,7 @@ export default async function FieldPickupsPage(props: {
                               type="number"
                               step="0.05"
                               name="scaleWeightKg"
-                              defaultValue={(lot.approxWeightGrams / 1000).toFixed(1)}
+                              defaultValue={kg(lot.approxWeightGrams)}
                               required
                               className="input"
                               style={{ padding: "0.5rem", fontSize: "0.95rem", fontWeight: 700 }}
@@ -319,7 +321,7 @@ export default async function FieldPickupsPage(props: {
                 }}
               >
                 <div>
-                  <strong>{p.lot.lotRef}</strong> &bull; {p.lot.category.nameEn} ({(p.lot.approxWeightGrams / 1000).toFixed(1)} kg)
+                  <strong>{p.lot.lotRef}</strong> &bull; {p.lot.category.nameEn} ({kg(p.lot.approxWeightGrams)} kg)
                 </div>
                 <div style={{ color: "#059669", fontWeight: 700 }}>
                   ✓ Paid &amp; Delivered to {p.recycler.name}

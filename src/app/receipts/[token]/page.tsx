@@ -124,6 +124,22 @@ export default async function PublicReceiptPage({
             <span className="badge badge-neutral">#{lot.collector.shortCode}</span>
           </div>
 
+          {/* GEO G5.5: Location Proof Section */}
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.5rem" }}>
+            <span style={{ color: "var(--slate-500)" }}>Location Proof</span>
+            <div style={{ textAlign: "right" }}>
+              <span className={`badge ${handover?.locationClass === "MATCH" ? "badge-success" : handover?.locationClass === "NEAR" ? "badge-warning" : "badge-neutral"}`} style={{ fontSize: "0.75rem" }}>
+                📍 {handover?.locationClass || "GATE_VERIFIED"}
+                {handover?.distanceToRecyclerMeters != null ? ` (${Math.round(handover.distanceToRecyclerMeters)}m)` : ""}
+              </span>
+              {recycler?.latitude && recycler?.longitude && (
+                <div style={{ fontSize: "0.7rem", color: "var(--slate-500)", marginTop: "0.15rem" }}>
+                  Co-ords: {recycler.latitude.toFixed(4)}°N, {recycler.longitude.toFixed(4)}°E
+                </div>
+              )}
+            </div>
+          </div>
+
           <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "0.25rem" }}>
             <span style={{ color: "var(--slate-500)" }}>Verification Timestamp</span>
             <span style={{ color: "var(--slate-700)", fontSize: "0.825rem" }}>

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, CircleUserRound, House, PackagePlus, Recycle, ReceiptText } from "lucide-react";
+import { Bell, CircleUserRound, House, PackagePlus, Recycle, ReceiptText, Settings } from "lucide-react";
 import { useTxt, VoiceControls, type Txt } from "./ui";
 
 interface CollectorNavbarClientProps {
@@ -16,6 +16,7 @@ const NAV: Array<{ href: string; label: Txt; Icon: typeof House; exact?: boolean
   { href: "/collector/create-lot", label: { hi: "नया लॉट", en: "New lot", mr: "नवीन लॉट" }, Icon: PackagePlus },
   { href: "/collector/ledger", label: { hi: "इतिहास", en: "History", mr: "इतिहास" }, Icon: ReceiptText },
   { href: "/collector/notifications", label: { hi: "सूचना", en: "Alerts", mr: "सूचना" }, Icon: Bell, alerts: true },
+  { href: "/collector/settings", label: { hi: "सेटिंग्स", en: "Settings", mr: "सेटिंग्ज" }, Icon: Settings },
 ];
 
 function useIsActive() {
@@ -41,6 +42,22 @@ export function CollectorNavbarClient({ unreadNotifications = 0, name }: Collect
           <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {tx({ hi: "कबाड़ीवाला", en: "Kabadi Wala", mr: "कबाडीवाला" })}
           </span>
+          <span
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              padding: "0.15rem 0.5rem",
+              backgroundColor: "#dcfce7",
+              color: "#166534",
+              borderRadius: "999px",
+              marginLeft: "0.25rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.03em",
+              flexShrink: 0,
+            }}
+          >
+            {tx({ hi: "कलेक्टर", en: "Collector", mr: "कलेक्टर" })}
+          </span>
         </Link>
 
         <nav className="c-desktop-nav" aria-label="Main">
@@ -56,6 +73,14 @@ export function CollectorNavbarClient({ unreadNotifications = 0, name }: Collect
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
         <VoiceControls />
+        <Link
+          href="/collector/settings"
+          className="c-icon-btn"
+          aria-label={tx({ hi: "सेटिंग्स", en: "Settings", mr: "सेटिंग्ज" })}
+          title={tx({ hi: "सेटिंग्स", en: "Settings", mr: "सेटिंग्ज" })}
+        >
+          <Settings size={18} aria-hidden="true" />
+        </Link>
         <Link
           href="/collector/profile"
           className={`c-icon-btn ${name ? "c-avatar-btn" : ""}`}

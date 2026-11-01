@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import { apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
 import { createRecycler } from "@/lib/services/adminService";
 
 const CreateRecyclerSchema = z.object({
@@ -65,18 +65,10 @@ export async function POST(req: NextRequest) {
     const { response } = await requireApiUser(req, ["ADMIN"]);
     if (response) return response;
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = CreateRecyclerSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, CreateRecyclerSchema);
+    if (bodyError) return bodyError;
 
-    const { authorizationValidTill, ...rest } = parsed.data;
+    const { authorizationValidTill, ...rest } = body;
     const recycler = await createRecycler({
       ...rest,
       authorizationValidTill: authorizationValidTill ? new Date(authorizationValidTill) : undefined,

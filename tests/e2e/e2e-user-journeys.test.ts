@@ -33,7 +33,11 @@ describe("E2E: Complete Real-World User Journeys", () => {
 
     // 3. Create Lot (PCB, approx 5000g = 5kg)
     const lotCount = await prisma.lot.count({ where: { collectorId: collector.id } });
-    const lotRef = generateLotRef(collector.shortCode, new Date(), lotCount + 1);
+    let seq = lotCount + 1;
+    let lotRef = generateLotRef(collector.shortCode, new Date(), seq);
+    while (await prisma.lot.findUnique({ where: { lotRef } })) {
+      lotRef = generateLotRef(collector.shortCode, new Date(), ++seq);
+    }
     assert.ok(validateLotRef(lotRef, collector.shortCode).valid);
 
     // Calculate estimate from price points / recycler rates

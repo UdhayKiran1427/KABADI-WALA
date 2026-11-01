@@ -6,6 +6,8 @@ import { verifyPassword, hashPassword } from "@/lib/auth/password";
 import { createSessionCookie, clearSessionCookie, requireRole } from "@/lib/auth/session";
 import { Language, Condition, DataSplit } from "@prisma/client";
 import { randomUUID } from "crypto";
+import { amountPaise, firstPositiveRate } from "@/lib/domain/money";
+import { verifyEnteredHandoverCode } from "@/lib/domain/handover";
 
 export async function fieldLoginAction(formData: FormData) {
   const phone = (formData.get("phone") as string)?.trim();
@@ -356,13 +358,26 @@ export async function agentCompleteDoorstepHandoverAction(formData: FormData) {
   const tx = lot.transaction;
   const scaleWeightGrams = Math.round(scaleWeightKg * 1000);
 
-  // Rate: agreed rate from bargaining, or transaction quoted rate, or 4000
-  const ratePaise = tx?.agreedRatePaise || tx?.quotedRatePerKgPaise || lot.quotedRatePaise || 4000;
-  const finalAmountPaise = Math.round((ratePaise * scaleWeightGrams) / 1000);
+  // Rate: agreed rate from bargaining, else the rate locked at selection. Never invent one (spec s2).
+  const ratePaise = firstPositiveRate(tx?.agreedRatePaise, tx?.quotedRatePerKgPaise, lot.quotedRatePaise);
+  if (ratePaise === null) {
+    redirect("/field/pickups?error=No rate is locked for this lot, so the amount cannot be calculated");
+  }
+  const finalAmountPaise = amountPaise(scaleWeightGrams, ratePaise);
 
   const handoverId = `HO-PICKUP-${lot.id.slice(0, 8)}-${Date.now().toString().slice(-4)}`;
   const paymentId = `PAY-PICKUP-${lot.id.slice(0, 8)}-${Date.now().toString().slice(-4)}`;
   const handoverRef = `HO-DOORSTEP-${Date.now().toString().slice(-6)}`;
+
+  // Spec s4: when the collector's handover already exists, its 4-digit code must match. No default code.
+  const priorHandover = await prisma.handover.findFirst({
+    where: { OR: [...(tx?.id ? [{ transactionId: tx.id }] : []), { lotId: lot.id }] },
+  });
+  if (priorHandover && (priorHandover.codeHash || priorHandover.verificationCode)) {
+    if (!verifyEnteredHandoverCode(priorHandover, verificationCode ?? "")) {
+      redirect("/field/pickups?error=That code does not match this handover. Ask the collector to read it again");
+    }
+  }
 
   await prisma.$transaction(async (db) => {
     // 1. Upsert Handover record (handles pre-existing handover records gracefully)
@@ -392,8 +407,8 @@ export async function agentCompleteDoorstepHandoverAction(formData: FormData) {
           lotId: lot.id,
           transactionId: tx?.id || null,
           handoverRef,
-          qrPayload: `EWASTE:${lot.id}:${verificationCode || "1234"}:${scaleWeightGrams}`,
-          verificationCode: verificationCode || "1234",
+          qrPayload: `EWASTE:${lot.id}:${scaleWeightGrams}`, // never embeds the code
+          verificationCode: null,
           declaredWeightGrams: lot.approxWeightGrams,
           confirmedWeightGrams: scaleWeightGrams,
           capturedAt: new Date(),

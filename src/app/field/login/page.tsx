@@ -182,8 +182,24 @@ export default async function FieldAgentLoginPage(props: {
             <p style={{ color: "var(--slate-500)", fontSize: "0.9rem", marginTop: "0.35rem" }}>
               फील्ड साथी लॉगिन &bull; Operations F1–F3
             </p>
-            <div style={{ marginTop: "0.75rem" }}>
-              <span className="badge badge-neutral">Ground Operations Team</span>
+            <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "center" }}>
+              <span
+                style={{
+                  backgroundColor: "#e0e7ff",
+                  color: "#3730a3",
+                  padding: "0.35rem 0.85rem",
+                  borderRadius: "999px",
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                }}
+              >
+                <span>Pilot Agent</span>
+                <span>&bull;</span>
+                <span>Green Saathi Foundation</span>
+              </span>
             </div>
 
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.75rem", marginTop: "1rem" }}>
@@ -225,14 +241,33 @@ export default async function FieldAgentLoginPage(props: {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontWeight: 700 }}>
-                  Password *
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label className="form-label" style={{ fontWeight: 700 }}>
+                    PIN / Password *
+                  </label>
+                  <span style={{ fontSize: "0.75rem", color: "var(--slate-500)" }}>4-digit PIN</span>
+                </div>
                 <input
                   type="password"
                   name="password"
                   required
-                  placeholder="••••••••"
+                  placeholder="4-digit PIN or password"
+                  className="form-control"
+                  style={{ fontSize: "1rem", padding: "0.75rem 0.9rem" }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label className="form-label" style={{ fontWeight: 700 }}>
+                    Field Agent Code
+                  </label>
+                  <span style={{ fontSize: "0.75rem", color: "var(--slate-500)" }}>Optional (e.g. AGT001)</span>
+                </div>
+                <input
+                  type="text"
+                  name="agentCode"
+                  placeholder="Assigned Agent Code"
                   className="form-control"
                   style={{ fontSize: "1rem", padding: "0.75rem 0.9rem" }}
                 />

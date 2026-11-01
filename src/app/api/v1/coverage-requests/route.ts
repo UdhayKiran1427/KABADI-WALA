@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthCollector } from "@/lib/auth/getAuthCollector";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
 import { z } from "zod";
 
 const CoverageSchema = z.object({
@@ -18,18 +18,10 @@ export async function POST(req: NextRequest) {
       return apiError("UNAUTHORIZED", "Sign-in required", 401);
     }
 
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
-    }
-    const parsed = CoverageSchema.safeParse(body);
-    if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
-    }
+    const { body, response: bodyError } = await parseBody(req, CoverageSchema);
+    if (bodyError) return bodyError;
 
-    const { latitude, longitude, categoryId, approxWeightGrams } = parsed.data;
+    const { latitude, longitude, categoryId, approxWeightGrams } = body;
 
     const record = await prisma.coverageRequest.create({
       data: {
@@ -45,9 +37,8 @@ export async function POST(req: NextRequest) {
       message: "Coverage request recorded. We will alert you when a verified recycler covers your area.",
       id: record.id,
     }, 201);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 

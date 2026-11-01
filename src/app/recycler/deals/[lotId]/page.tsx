@@ -7,6 +7,7 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { DemoPaymentQr } from "@/components/payment/DemoPaymentQr";
 import { LOT_ITEMS_INCLUDE, dealLines, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
 import { LotPhotoStrip } from "@/components/LotPhotoStrip";
+import { rupeesIN } from "@/lib/format";
 
 export default async function RecyclerDealPage(props: { params: Promise<{ lotId: string }> }) {
   const { dbUser } = await requireRole(["RECYCLER"]);
@@ -56,7 +57,7 @@ export default async function RecyclerDealPage(props: { params: Promise<{ lotId:
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", textAlign: "center" }}>
               <CircleCheckBig size={44} color="var(--primary)" aria-hidden="true" />
               <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-800)" }}>Payment successful</div>
-              <div style={{ fontSize: "1.6rem", fontWeight: 900 }}>₹{(amountPaise / 100).toLocaleString("en-IN")}</div>
+              <div style={{ fontSize: "1.6rem", fontWeight: 900 }}>₹{rupeesIN(amountPaise)}</div>
               {token && (
                 <Link href={`/invoice/${token}`} className="btn btn-secondary btn-block" style={{ marginTop: "0.5rem" }}>
                   <Receipt size={16} aria-hidden="true" /> View invoice
@@ -100,7 +101,7 @@ export default async function RecyclerDealPage(props: { params: Promise<{ lotId:
           ))}
           <div className="r-kv" style={{ borderBottom: "none", fontSize: "1.05rem" }}>
             <span>Total</span>
-            <span style={{ fontWeight: 800 }}>₹{(amountPaise / 100).toLocaleString("en-IN")}</span>
+            <span style={{ fontWeight: 800 }}>₹{rupeesIN(amountPaise)}</span>
           </div>
 
           {photos.length > 0 && (

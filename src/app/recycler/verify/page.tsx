@@ -2,41 +2,50 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { confirmHandoverAction } from "../actions";
+import { kg } from "@/lib/format";
+import { verifyEnteredHandoverCode } from "@/lib/domain/handover";
 
 export default async function VerifyHandoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ query?: string }>;
+  searchParams: Promise<{ query?: string; error?: string }>;
 }) {
   const { dbUser } = await requireRole(["RECYCLER"]);
   const recyclerId = dbUser.recyclerId;
-  const { query } = await searchParams;
+  const { query, error } = await searchParams;
 
   let lot: any = null;
   let handover: any = null;
 
   if (query) {
     const cleanQuery = query.trim();
+    const include = { category: true, images: true, handovers: true, collector: true, transaction: true } as const;
+    // A recycler only ever sees lots that were handed to its own facility.
     lot = await prisma.lot.findFirst({
       where: {
-        OR: [
-          { id: cleanQuery },
-          { lotRef: cleanQuery },
-          { handovers: { some: { handoverRef: cleanQuery } } },
-          { handovers: { some: { verificationCode: cleanQuery } } },
-        ],
+        chosenRecyclerId: recyclerId,
+        OR: [{ id: cleanQuery }, { lotRef: cleanQuery }, { handovers: { some: { handoverRef: cleanQuery } } }],
       },
-      include: {
-        category: true,
-        images: true,
-        handovers: true,
-        collector: true,
-        transaction: true,
-      },
+      include,
     });
 
-    if (lot && lot.handovers.length > 0) {
-      handover = lot.handovers[0];
+    if (!lot && /^\d{4}$/.test(cleanQuery)) {
+      // Phone handovers store only a salted hash of the code, so a bare 4-digit code is matched by hashing it
+      // against this facility's open handovers (legacy plain codes are still honoured).
+      const open = await prisma.handover.findMany({
+        where: { status: "PENDING", lot: { chosenRecyclerId: recyclerId } },
+        orderBy: { capturedAt: "desc" },
+        take: 200,
+      });
+      const match = open.find((h) => verifyEnteredHandoverCode(h, cleanQuery));
+      if (match) {
+        lot = await prisma.lot.findFirst({ where: { id: match.lotId, chosenRecyclerId: recyclerId }, include });
+        handover = lot?.handovers.find((h: any) => h.id === match.id) ?? null;
+      }
+    }
+
+    if (lot && !handover && lot.handovers.length > 0) {
+      handover = lot.handovers.find((h: any) => h.handoverRef === cleanQuery) ?? lot.handovers[0];
     }
   }
 
@@ -155,22 +164,8 @@ export default async function VerifyHandoverPage({
                 </div>
 
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>4-Digit Verification PIN</div>
-                  <div
-                    style={{
-                      fontSize: "1.6rem",
-                      fontWeight: 900,
-                      color: "var(--primary-800)",
-                      letterSpacing: "0.25rem",
-                      backgroundColor: "var(--primary-50)",
-                      padding: "0.2rem 0.75rem",
-                      borderRadius: "var(--radius-sm)",
-                      border: "1px solid var(--primary-border)",
-                      display: "inline-block",
-                      marginTop: "0.25rem",
-                    }}
-                  >
-                    {handover?.verificationCode || "----"}
+                  <div style={{ fontSize: "0.8rem", color: "var(--slate-500)", maxWidth: "14rem" }}>
+                    Ask the collector to read out the 4-digit code. It is checked when you confirm.
                   </div>
                   <div style={{ marginTop: "0.35rem" }}>
                     <span className={`badge ${handover?.locationClass === "MATCH" ? "badge-success" : handover?.locationClass === "NEAR" ? "badge-warning" : "badge-neutral"}`} style={{ fontSize: "0.7rem" }}>
@@ -225,6 +220,31 @@ export default async function VerifyHandoverPage({
               <form action={confirmHandoverAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
                 <input type="hidden" name="lotId" value={lot.id} />
                 <input type="hidden" name="handoverId" value={handover?.id || ""} />
+                <input type="hidden" name="query" value={query || ""} />
+
+                {error === "no_rate" && (
+                  <div className="alert alert-danger">No rate was locked for this lot, so the amount cannot be calculated. Ask the collector to choose the recycler again.</div>
+                )}
+                {error === "code" && (
+                  <div className="alert alert-danger">That code does not match this handover. Ask the collector to read it again.</div>
+                )}
+                <div className="form-group">
+                  <label className="form-label" htmlFor="verificationCode" style={{ fontWeight: 700 }}>
+                    Collector&apos;s 4-digit code
+                  </label>
+                  <input
+                    id="verificationCode"
+                    name="verificationCode"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{4}"
+                    maxLength={4}
+                    autoComplete="off"
+                    className="form-control"
+                    placeholder="4821"
+                    required
+                  />
+                </div>
 
                 <div
                   style={{
@@ -237,7 +257,7 @@ export default async function VerifyHandoverPage({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                     <span style={{ fontSize: "0.85rem", color: "var(--slate-600)" }}>Collector Declared Weight:</span>
                     <strong style={{ fontSize: "1rem", color: "var(--slate-800)" }}>
-                      {(lot.approxWeightGrams / 1000).toFixed(2)} kg
+                      {kg(lot.approxWeightGrams, 2)} kg
                     </strong>
                   </div>
 
@@ -250,7 +270,7 @@ export default async function VerifyHandoverPage({
                       name="confirmedWeightKg"
                       type="number"
                       step="0.01"
-                      defaultValue={(lot.approxWeightGrams / 1000).toFixed(2)}
+                      defaultValue={kg(lot.approxWeightGrams, 2)}
                       className="form-control"
                       style={{ fontSize: "1.35rem", fontWeight: 800, padding: "0.6rem 0.85rem", color: "var(--slate-900)" }}
                       required
