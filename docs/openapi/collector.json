@@ -1,0 +1,4953 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Kabadi-Wala API — Collector",
+    "version": "1.0.0",
+    "description": "Informal e-waste collectors using the mobile app. Flow: check today's price → create a lot → confirm (broadcast to recyclers within 5 km) → see interested recyclers → select one → pay via QR. Also ledger, pickup requests and offline sync.\n\n**Conventions** — money is integer **paise**, weight is integer **grams**, timestamps are ISO-8601 UTC.\n\nSuccess: `{ \"data\": ... }` · Failure: `{ \"error\": { \"code\", \"message\", \"details?\" } }`.\n\n**Auth** — mobile clients send `Authorization: Bearer <JWT>` (from `POST /api/v1/auth/login`); the web portal uses the `ewaste_session` cookie.\n\nEndpoints marked `x-roles` containing `PUBLIC` need no sign-in; the rest require the **COLLECTOR** role."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "Health checks"
+    },
+    {
+      "name": "Auth",
+      "description": "Phone + 4-digit PIN authentication"
+    },
+    {
+      "name": "Reference & Pricing",
+      "description": "Categories, price board / history, estimates and public receipts"
+    },
+    {
+      "name": "Matching",
+      "description": "Recycler matching and nearby search"
+    },
+    {
+      "name": "Lots",
+      "description": "E-waste lot lifecycle"
+    },
+    {
+      "name": "Bargaining",
+      "description": "Price negotiation between collector and recycler"
+    },
+    {
+      "name": "Handover",
+      "description": "Verification code, scale weighing, location proof and payment"
+    },
+    {
+      "name": "Collector Services",
+      "description": "Ledger, pickup requests and coverage-gap requests"
+    },
+    {
+      "name": "Sync",
+      "description": "Offline-first push / pull protocol"
+    },
+    {
+      "name": "Uploads",
+      "description": "Photo upload helpers"
+    },
+    {
+      "name": "Notifications",
+      "description": "In-app notifications (all roles)"
+    },
+    {
+      "name": "Lot Flow",
+      "description": "Confirm → recycler offers → select → deal → demo payment"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getHealth",
+        "summary": "Service and database replica-set health",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "example": "UP"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "database": {
+                          "type": "string"
+                        },
+                        "environment": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database health check failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "registerCollector",
+        "summary": "Self-register a new collector",
+        "description": "Creates a `COLLECTOR` user + profile with minimal PII (phone, 4-digit PIN, language, area, consent) and returns a 30-day JWT.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "phone",
+                  "pin",
+                  "operatingArea"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2
+                  },
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\d{10}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  },
+                  "preferredLanguage": {
+                    "$ref": "#/components/schemas/Language",
+                    "default": "HI"
+                  },
+                  "operatingArea": {
+                    "type": "string",
+                    "minLength": 2
+                  },
+                  "district": {
+                    "type": "string"
+                  },
+                  "consent": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "string",
+                        "default": "1.0"
+                      },
+                      "locationConsent": {
+                        "type": "boolean",
+                        "default": true
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "name": "Ramesh Kumar",
+                "phone": "9820000001",
+                "pin": "1234",
+                "preferredLanguage": "HI",
+                "operatingArea": "Dharavi Matunga Labour Camp",
+                "district": "Mumbai",
+                "consent": {
+                  "version": "1.0",
+                  "locationConsent": true
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Collector created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AuthResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "login",
+        "summary": "Collector sign-in with phone + 4-digit PIN",
+        "description": "Collectors use a PIN here; recycler staff and admins sign in with a password via `POST /api/v1/auth/staff-login`. The JWT carries the user's `role`. Locked for 15 minutes after 5 failed attempts.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "pin"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\d{10}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  }
+                }
+              },
+              "example": {
+                "phone": "9820000001",
+                "pin": "1234"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AuthResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/auth/pin-recovery": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "recoverPin",
+        "summary": "OTP-free PIN recovery (collectors)",
+        "description": "Verifies phone + collector `shortCode` + operating area, then sets a new PIN, clears the lockout and returns a fresh token.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "shortCode",
+                  "operatingArea",
+                  "newPin"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\d{10}$"
+                  },
+                  "shortCode": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 6
+                  },
+                  "operatingArea": {
+                    "type": "string",
+                    "minLength": 2
+                  },
+                  "newPin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  }
+                }
+              },
+              "example": {
+                "phone": "9820000001",
+                "shortCode": "KW01",
+                "operatingArea": "Dharavi",
+                "newPin": "5678"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PIN updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/AuthResult"
+                        },
+                        {
+                          "$ref": "#/components/schemas/Message"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/auth/restore-on-new-phone": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "restoreOnNewPhone",
+        "summary": "Restore a collector session on a new device",
+        "description": "Returns the profile plus `lotCounter` so the app can resume offline lot numbering.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "pin",
+                  "deviceId"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\d{10}$"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  },
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 4
+                  }
+                }
+              },
+              "example": {
+                "phone": "9820000001",
+                "pin": "1234",
+                "deviceId": "new-device-id"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AuthResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "getMe",
+        "summary": "Profile of the signed-in user",
+        "description": "`collector` is set for collectors, `recycler` for recycler staff; both are `null` otherwise. The flat collector fields are kept for older app builds.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "userId": {
+                          "type": "string"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "$ref": "#/components/schemas/Role"
+                        },
+                        "language": {
+                          "$ref": "#/components/schemas/Language"
+                        },
+                        "collectorId": {
+                          "type": "string",
+                          "description": "Legacy top-level field (collectors)"
+                        },
+                        "shortCode": {
+                          "type": "string",
+                          "description": "Legacy top-level field (collectors)"
+                        },
+                        "preferredLanguage": {
+                          "$ref": "#/components/schemas/Language"
+                        },
+                        "operatingArea": {
+                          "type": "string"
+                        },
+                        "district": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "collector": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "shortCode": {
+                              "type": "string"
+                            },
+                            "preferredLanguage": {
+                              "$ref": "#/components/schemas/Language"
+                            },
+                            "operatingArea": {
+                              "type": "string"
+                            },
+                            "district": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "recycler": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "address": {
+                              "type": "string"
+                            },
+                            "contactPhone": {
+                              "type": "string"
+                            },
+                            "authorizationStatus": {
+                              "type": "string",
+                              "enum": [
+                                "PENDING",
+                                "VERIFIED",
+                                "EXPIRED",
+                                "SUSPENDED"
+                              ]
+                            },
+                            "latitude": {
+                              "type": "number"
+                            },
+                            "longitude": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN",
+          "FIELD_AGENT"
+        ]
+      }
+    },
+    "/api/v1/auth/change-pin": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "changePin",
+        "summary": "Change the signed-in collector's PIN",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "oldPin",
+                  "newPin"
+                ],
+                "properties": {
+                  "oldPin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  },
+                  "newPin": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PIN changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Message"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/reference/bootstrap": {
+      "get": {
+        "tags": [
+          "Reference & Pricing"
+        ],
+        "operationId": "getReferenceBootstrap",
+        "summary": "Full reference snapshot for the mobile cache",
+        "description": "Categories, safety topics, recent prices (max 200), VERIFIED recyclers + current rates, collection points and area centroids.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Only return prices recorded after this ISO timestamp",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "categories": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "safetyTopics": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "prices": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "recyclers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "recyclerRates": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "recyclerId": {
+                                "type": "string"
+                              },
+                              "categoryId": {
+                                "type": "integer"
+                              },
+                              "ratePerKgPaise": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        },
+                        "collectionPoints": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "areaCentroids": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/prices/board": {
+      "get": {
+        "tags": [
+          "Reference & Pricing"
+        ],
+        "operationId": "getPriceBoard",
+        "summary": "Daily rate board with trend arrows",
+        "description": "Median rate per kg for every active category with a ±3% trend (`UP` / `DOWN` / `FLAT`) vs the previous week.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Price board",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "board": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PriceBoardItem"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/prices/history": {
+      "get": {
+        "tags": [
+          "Reference & Pricing"
+        ],
+        "operationId": "getPriceHistory",
+        "summary": "Price history",
+        "security": [],
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by material category",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "Look-back window (clamped to 7–90)",
+            "schema": {
+              "type": "integer",
+              "minimum": 7,
+              "maximum": 90,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": "integer"
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "history": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PricePoint"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/estimate": {
+      "post": {
+        "tags": [
+          "Reference & Pricing"
+        ],
+        "operationId": "estimateValue",
+        "summary": "Instant value estimate with ±10% band",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "categoryId",
+                  "approxWeightGrams"
+                ],
+                "properties": {
+                  "categoryId": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "approxWeightGrams": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              },
+              "example": {
+                "categoryId": 1,
+                "approxWeightGrams": 5000
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estimate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "categoryId": {
+                          "type": "integer"
+                        },
+                        "approxWeightGrams": {
+                          "type": "integer"
+                        },
+                        "medianRatePaisePerKg": {
+                          "type": "integer"
+                        },
+                        "minRatePaisePerKg": {
+                          "type": "integer"
+                        },
+                        "maxRatePaisePerKg": {
+                          "type": "integer"
+                        },
+                        "estimatedValuePaise": {
+                          "type": "integer"
+                        },
+                        "estimatedMinPaise": {
+                          "type": "integer"
+                        },
+                        "estimatedMaxPaise": {
+                          "type": "integer"
+                        },
+                        "source": {
+                          "type": "string",
+                          "example": "PRICE_HISTORY"
+                        },
+                        "formatted": {
+                          "type": "object",
+                          "properties": {
+                            "ratePerKg": {
+                              "type": "string",
+                              "example": "₹340.00/kg"
+                            },
+                            "estimate": {
+                              "type": "string",
+                              "example": "₹1700"
+                            },
+                            "range": {
+                              "type": "string",
+                              "example": "₹1530 – ₹1870"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/recyclers/match": {
+      "get": {
+        "tags": [
+          "Matching"
+        ],
+        "operationId": "matchRecyclers",
+        "summary": "Ranked authorized recyclers",
+        "description": "Expanding radius (5→10→25→50 km) until ≥3 candidates; scored out of 100 (rate 40, distance 30, pickup 10, rating 10, freshness 10).",
+        "security": [],
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "query",
+            "required": true,
+            "description": "Material category",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "approxWeightGrams",
+            "in": "query",
+            "required": true,
+            "description": "Approximate weight in grams",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "description": "Collector latitude",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "description": "Collector longitude",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "pickupRequired",
+            "in": "query",
+            "required": false,
+            "description": "Only recyclers offering doorstep pickup",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranking",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "searchRadiusKm": {
+                          "type": "number"
+                        },
+                        "totalFound": {
+                          "type": "integer"
+                        },
+                        "recyclers": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/RankedRecycler"
+                          }
+                        },
+                        "exclusions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "recyclerId": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/recyclers/nearby": {
+      "get": {
+        "tags": [
+          "Matching"
+        ],
+        "operationId": "getNearbyRecyclers",
+        "summary": "VERIFIED recyclers within a radius",
+        "security": [],
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "description": "Latitude",
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "description": "Longitude",
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          },
+          {
+            "name": "radiusKm",
+            "in": "query",
+            "required": false,
+            "description": "Search radius in km",
+            "schema": {
+              "type": "number",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Nearby recyclers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer"
+                        },
+                        "radiusKm": {
+                          "type": "number"
+                        },
+                        "recyclers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/collection-points": {
+      "get": {
+        "tags": [
+          "Matching"
+        ],
+        "operationId": "getCollectionPoints",
+        "summary": "Collection / drop points",
+        "description": "Pass both `latitude` and `longitude` to filter by `radiusKm` and sort by distance; otherwise returns all points.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": false,
+            "description": "Latitude (requires longitude)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": false,
+            "description": "Longitude (requires latitude)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "radiusKm",
+            "in": "query",
+            "required": false,
+            "description": "Radius in km",
+            "schema": {
+              "type": "number",
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Points",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/receipts/{token}": {
+      "get": {
+        "tags": [
+          "Reference & Pricing"
+        ],
+        "operationId": "getPublicReceipt",
+        "summary": "Anonymised public receipt by share token",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "Receipt share token",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "receipt": {
+                          "type": "object",
+                          "properties": {
+                            "lotRef": {
+                              "type": "string"
+                            },
+                            "categoryName": {
+                              "type": "string"
+                            },
+                            "weightKg": {
+                              "type": "string"
+                            },
+                            "finalPriceRupees": {
+                              "type": "string"
+                            },
+                            "confirmedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "recyclerName": {
+                              "type": "string"
+                            },
+                            "authorizationNo": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "description": "Receipt link expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/lots": {
+      "get": {
+        "tags": [
+          "Lots"
+        ],
+        "operationId": "listMyLots",
+        "summary": "List the signed-in collector's lots",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by lot status",
+            "schema": {
+              "$ref": "#/components/schemas/LotStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer"
+                        },
+                        "lots": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Lot"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Lots"
+        ],
+        "operationId": "createLot",
+        "summary": "Create a DRAFT lot valued at today's price",
+        "description": "Step 1 of the lot flow. The lot is priced from the admin-set rate (`GET /api/v1/prices/today`); creation fails with `PRICE_NOT_SET` if the admin has not set one, and `LOCATION_REQUIRED` if no coordinates are given. Next step: `POST /api/v1/lots/{id}/confirm`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "categoryId",
+                  "approxWeightGrams"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Optional client-generated UUID"
+                  },
+                  "categoryId": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "approxWeightGrams": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "latitude": {
+                    "type": "number",
+                    "description": "Used to find recyclers within 5 km"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "deviceLat": {
+                    "type": "number",
+                    "deprecated": true,
+                    "description": "Older app builds; use `latitude`"
+                  },
+                  "deviceLng": {
+                    "type": "number",
+                    "deprecated": true,
+                    "description": "Older app builds; use `longitude`"
+                  },
+                  "photos": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Storage keys obtained from /uploads/presign (validated against the caller)"
+                  }
+                }
+              },
+              "example": {
+                "categoryId": 1,
+                "approxWeightGrams": 5000,
+                "latitude": 19.0434,
+                "longitude": 72.8567,
+                "photos": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Lot created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lot": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "lotRef": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "$ref": "#/components/schemas/LotStatus"
+                            },
+                            "categoryId": {
+                              "type": "integer"
+                            },
+                            "categoryName": {
+                              "type": "string"
+                            },
+                            "approxWeightGrams": {
+                              "type": "integer"
+                            },
+                            "listedRatePerKgPaise": {
+                              "type": "integer",
+                              "nullable": true,
+                              "description": "Admin's today's price at creation"
+                            },
+                            "estimatedValuePaise": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "latitude": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "longitude": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "collectedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}": {
+      "get": {
+        "tags": [
+          "Lots"
+        ],
+        "operationId": "getLot",
+        "summary": "Lot detail",
+        "description": "Collectors may only read their own lots; `ADMIN` can read any lot.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lot": {
+                          "$ref": "#/components/schemas/Lot"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "ADMIN"
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Lots"
+        ],
+        "operationId": "deleteLot",
+        "summary": "Delete a lot and its dependent rows",
+        "description": "Owner collector or `ADMIN`. Rejected with `INVALID_STATE` once the lot is `HANDED_OVER` or `COMPLETED`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "deletedLotId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/match-recycler": {
+      "post": {
+        "tags": [
+          "Lots"
+        ],
+        "operationId": "matchRecyclerToLot",
+        "deprecated": true,
+        "summary": "RETIRED — always returns 410",
+        "description": "Collectors no longer pick a recycler directly. Use `POST /api/v1/lots/{id}/confirm`, then `GET /api/v1/lots/{id}/offers` and `POST /api/v1/lots/{id}/select`.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "410": {
+            "description": "Endpoint retired (`ENDPOINT_RETIRED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/bargain": {
+      "get": {
+        "tags": [
+          "Bargaining"
+        ],
+        "operationId": "getBargainState",
+        "summary": "Current negotiation state",
+        "description": "Only participants of the lot's transaction (owner collector, matched recycler staff) or `ADMIN`. `callerRole`, `canAccept` and `canCounter` are computed for the caller.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bargain state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BargainState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/bargain/offer": {
+      "post": {
+        "tags": [
+          "Bargaining"
+        ],
+        "operationId": "submitBargainOffer",
+        "summary": "Submit an offer / counter-offer",
+        "description": "Provide `offerRatePaise` or `offerRateRupees`. Notifies the other party. Not allowed once the transaction is `PAID` or `CANCELLED`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "offerRatePaise": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "offerRateRupees": {
+                    "type": "number",
+                    "exclusiveMinimum": true,
+                    "minimum": 0
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "description": "At least one of offerRatePaise / offerRateRupees is required"
+              },
+              "example": {
+                "offerRateRupees": 48,
+                "note": "Can meet at ₹48/kg if delivered before 4 PM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Offer recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "bargain": {
+                          "type": "object",
+                          "properties": {
+                            "lotId": {
+                              "type": "string"
+                            },
+                            "transactionId": {
+                              "type": "string"
+                            },
+                            "bargainRatePaise": {
+                              "type": "integer"
+                            },
+                            "bargainRateRupees": {
+                              "type": "number"
+                            },
+                            "bargainBy": {
+                              "type": "string",
+                              "enum": [
+                                "COLLECTOR",
+                                "RECYCLER"
+                              ]
+                            },
+                            "bargainStatus": {
+                              "$ref": "#/components/schemas/BargainStatus"
+                            },
+                            "bargainNote": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/bargain/accept": {
+      "post": {
+        "tags": [
+          "Bargaining"
+        ],
+        "operationId": "acceptBargainOffer",
+        "summary": "Accept the other party's pending offer",
+        "description": "Locks `agreedRatePaise`, recomputes the price and notifies the other party. A party cannot accept its own offer (`ADMIN` may accept either).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agreed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "agreedDeal": {
+                          "type": "object",
+                          "properties": {
+                            "lotId": {
+                              "type": "string"
+                            },
+                            "transactionId": {
+                              "type": "string"
+                            },
+                            "agreedRatePaise": {
+                              "type": "integer"
+                            },
+                            "agreedRateRupees": {
+                              "type": "number"
+                            },
+                            "agreedPricePaise": {
+                              "type": "integer"
+                            },
+                            "agreedPriceRupees": {
+                              "type": "number"
+                            },
+                            "bargainStatus": {
+                              "type": "string",
+                              "example": "AGREED"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/handover": {
+      "get": {
+        "tags": [
+          "Handover"
+        ],
+        "operationId": "getHandoverInfo",
+        "summary": "Verification code + QR payload for a lot",
+        "description": "Used by the collector to show the 4-digit code / QR, and by the recycler to read it. ⚠ The route only checks that the caller is signed in — it does not verify participation in the lot.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Handover info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lotId": {
+                          "type": "string"
+                        },
+                        "lotRef": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "declaredWeightGrams": {
+                          "type": "integer"
+                        },
+                        "declaredWeightKg": {
+                          "type": "string"
+                        },
+                        "verificationCode": {
+                          "type": "string",
+                          "example": "4921"
+                        },
+                        "qrPayload": {
+                          "type": "string",
+                          "example": "EWASTE:<lotId>:4921:5000"
+                        },
+                        "status": {
+                          "$ref": "#/components/schemas/LotStatus"
+                        },
+                        "transaction": {
+                          "type": "object",
+                          "nullable": true,
+                          "additionalProperties": true
+                        },
+                        "latestHandover": {
+                          "type": "object",
+                          "nullable": true,
+                          "additionalProperties": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/ledger": {
+      "get": {
+        "tags": [
+          "Collector Services"
+        ],
+        "operationId": "getLedger",
+        "summary": "Earnings ledger (received vs pending)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ledger",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "receivedPaise": {
+                          "type": "integer"
+                        },
+                        "receivedRupees": {
+                          "type": "string"
+                        },
+                        "pendingPaise": {
+                          "type": "integer"
+                        },
+                        "pendingRupees": {
+                          "type": "string"
+                        },
+                        "totalLots": {
+                          "type": "integer"
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "lotId": {
+                                "type": "string"
+                              },
+                              "lotRef": {
+                                "type": "string"
+                              },
+                              "categoryName": {
+                                "type": "string"
+                              },
+                              "categoryNameHi": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "$ref": "#/components/schemas/LotStatus"
+                              },
+                              "approxWeightGrams": {
+                                "type": "integer"
+                              },
+                              "finalPricePaise": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "paidPaise": {
+                                "type": "integer"
+                              },
+                              "pendingPaise": {
+                                "type": "integer"
+                              },
+                              "paymentStatus": {
+                                "type": "string"
+                              },
+                              "recyclerName": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "payments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": true
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/pickup-requests": {
+      "get": {
+        "tags": [
+          "Collector Services"
+        ],
+        "operationId": "listPickupRequests",
+        "summary": "List my doorstep pickup requests",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "requests": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PickupRequest"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Collector Services"
+        ],
+        "operationId": "createPickupRequest",
+        "summary": "Request a doorstep pickup (expires in 24 h)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "lotId",
+                  "recyclerId",
+                  "slot"
+                ],
+                "properties": {
+                  "lotId": {
+                    "type": "string"
+                  },
+                  "recyclerId": {
+                    "type": "string"
+                  },
+                  "slot": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              },
+              "example": {
+                "lotId": "c7a84091-6453-48b4-934d-17688dbba142",
+                "recyclerId": "rec-mumbai-01",
+                "slot": "2026-11-02T10:00:00.000Z"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "pickupRequest": {
+                          "$ref": "#/components/schemas/PickupRequest"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/coverage-requests": {
+      "post": {
+        "tags": [
+          "Collector Services"
+        ],
+        "operationId": "createCoverageRequest",
+        "summary": "Record unserviced-area demand",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "latitude",
+                  "longitude",
+                  "categoryId",
+                  "approxWeightGrams"
+                ],
+                "properties": {
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "categoryId": {
+                    "type": "integer"
+                  },
+                  "approxWeightGrams": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              },
+              "example": {
+                "latitude": 19.043,
+                "longitude": 72.856,
+                "categoryId": 1,
+                "approxWeightGrams": 5000
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/sync/push": {
+      "post": {
+        "tags": [
+          "Sync"
+        ],
+        "operationId": "syncPush",
+        "summary": "Push offline mutations (outbox)",
+        "description": "Up to 100 mutations; parents are applied first. Each mutation yields `APPLIED`, `DUPLICATE`, `CONFLICT` or `REJECTED` (with `retryable`).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "deviceId",
+                  "mutations"
+                ],
+                "properties": {
+                  "deviceId": {
+                    "type": "string"
+                  },
+                  "mutations": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "$ref": "#/components/schemas/SyncMutation"
+                    }
+                  }
+                }
+              },
+              "example": {
+                "deviceId": "android-device-uuid",
+                "mutations": [
+                  {
+                    "clientMutationId": "mutation-uuid-1",
+                    "entity": "lot",
+                    "entityId": "lot-uuid-1",
+                    "op": "create",
+                    "payload": {
+                      "lotRef": "LOT-KW01-261101-0001",
+                      "categoryId": 1,
+                      "approxWeightGrams": 5000,
+                      "status": "DRAFT",
+                      "collectedAt": "2026-11-01T10:00:00.000Z"
+                    },
+                    "clientTimestamp": "2026-11-01T10:00:05.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-mutation results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deviceId": {
+                          "type": "string"
+                        },
+                        "totalMutations": {
+                          "type": "integer"
+                        },
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/SyncResult"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/sync/pull": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "operationId": "syncPull",
+        "summary": "Pull server-side changes since a cursor",
+        "description": "Lots (page size 500), notifications and pickup requests changed after `since`. Use `nextSince` as the next cursor while `hasMore` is true.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Cursor from the previous pull",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "hasMore": {
+                          "type": "boolean"
+                        },
+                        "nextSince": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "lots": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Lot"
+                          }
+                        },
+                        "notifications": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Notification"
+                          }
+                        },
+                        "pickupRequests": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PickupRequest"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/uploads/presign": {
+      "post": {
+        "tags": [
+          "Uploads"
+        ],
+        "operationId": "presignUpload",
+        "summary": "Get an upload URL + storage key",
+        "description": "Returned `storageKey` is prefixed `images/{userId}/` and must be used in lot `photos` / `lot_image` mutations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "filename"
+                ],
+                "properties": {
+                  "filename": {
+                    "type": "string"
+                  },
+                  "contentType": {
+                    "type": "string",
+                    "default": "image/jpeg"
+                  }
+                }
+              },
+              "example": {
+                "filename": "pcb_lot_1.jpg",
+                "contentType": "image/jpeg"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Presigned upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "uploadUrl": {
+                          "type": "string"
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "expiresInSeconds": {
+                          "type": "integer",
+                          "example": 3600
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR"
+        ]
+      }
+    },
+    "/api/v1/uploads/local": {
+      "put": {
+        "tags": [
+          "Uploads"
+        ],
+        "operationId": "uploadLocalFile",
+        "summary": "Upload raw bytes to local storage (dev driver)",
+        "description": "Target of the `uploadUrl` returned by `/uploads/presign` when `STORAGE_DRIVER=local`. ⚠ No authentication is enforced by this route.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "description": "Sanitised storage key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "bytes": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Uploads"
+        ],
+        "operationId": "downloadLocalFile",
+        "summary": "Read a locally stored file",
+        "security": [],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "description": "Storage key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File bytes (served as image/jpeg)",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "listNotifications",
+        "summary": "My latest 50 notifications + unread count",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "unreadCount": {
+                          "type": "integer"
+                        },
+                        "notifications": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Notification"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN",
+          "FIELD_AGENT"
+        ]
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "markAllNotificationsRead",
+        "summary": "Mark all my notifications as read",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "count": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN",
+          "FIELD_AGENT"
+        ]
+      }
+    },
+    "/api/v1/notifications/{id}/read": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "markNotificationRead",
+        "summary": "Mark one notification as read",
+        "description": "Also available as `PATCH`. Only the owner (or `ADMIN`) may mark it read.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Notification id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "notification": {
+                          "$ref": "#/components/schemas/Notification"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN",
+          "FIELD_AGENT"
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "patchNotificationRead",
+        "summary": "Mark one notification as read (PATCH alias)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Notification id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "notification": {
+                          "$ref": "#/components/schemas/Notification"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN",
+          "FIELD_AGENT"
+        ]
+      }
+    },
+    "/api/v1/prices/today": {
+      "get": {
+        "tags": [
+          "Reference & Pricing"
+        ],
+        "operationId": "getTodayPrices",
+        "summary": "Admin-set price for today, per material",
+        "description": "`ratePerKgPaise` is `null` when the admin has not set a price; such materials cannot be listed.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Today's prices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "categories": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "categoryId": {
+                                "type": "integer"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "nameEn": {
+                                "type": "string"
+                              },
+                              "nameHi": {
+                                "type": "string"
+                              },
+                              "nameMr": {
+                                "type": "string"
+                              },
+                              "iconKey": {
+                                "type": "string"
+                              },
+                              "isHazardous": {
+                                "type": "boolean"
+                              },
+                              "ratePerKgPaise": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "updatedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Lot Flow"
+        ],
+        "operationId": "confirmLot",
+        "summary": "Confirm a DRAFT lot and broadcast it to recyclers within 5 km",
+        "description": "Lot becomes `READY`. Notified recyclers see material, weight, price, distance and area — never the collector's name or phone.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Confirmed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lotId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "READY"
+                        },
+                        "recyclersNotified": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Lot is not in DRAFT state (`INVALID_STATE`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/offers": {
+      "get": {
+        "tags": [
+          "Lot Flow"
+        ],
+        "operationId": "getLotOffers",
+        "summary": "Recyclers ready to buy this lot (poll while READY)",
+        "description": "Returns only `INTERESTED` / `SELECTED` offers, plus broadcast counters.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Offers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lotId": {
+                          "type": "string"
+                        },
+                        "lotStatus": {
+                          "$ref": "#/components/schemas/LotStatus"
+                        },
+                        "summary": {
+                          "type": "object",
+                          "properties": {
+                            "notified": {
+                              "type": "integer"
+                            },
+                            "interested": {
+                              "type": "integer"
+                            },
+                            "waiting": {
+                              "type": "integer"
+                            },
+                            "declined": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        "offers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "offerId": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "$ref": "#/components/schemas/LotOfferStatus"
+                              },
+                              "distanceKm": {
+                                "type": "number"
+                              },
+                              "ratePerKgPaise": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "totalPaise": {
+                                "type": "integer"
+                              },
+                              "respondedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true
+                              },
+                              "recycler": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "address": {
+                                    "type": "string"
+                                  },
+                                  "area": {
+                                    "type": "string"
+                                  },
+                                  "latitude": {
+                                    "type": "number"
+                                  },
+                                  "longitude": {
+                                    "type": "number"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/search-again": {
+      "post": {
+        "tags": [
+          "Lot Flow"
+        ],
+        "operationId": "searchAgain",
+        "summary": "Re-run the 5 km broadcast for a READY lot",
+        "description": "Notifies only recyclers that were not notified before.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rebroadcast",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lotId": {
+                          "type": "string"
+                        },
+                        "newlyNotified": {
+                          "type": "integer"
+                        },
+                        "totalNotified": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Lot is not READY (`INVALID_STATE`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/select": {
+      "post": {
+        "tags": [
+          "Lot Flow"
+        ],
+        "operationId": "selectOffer",
+        "summary": "Sell the lot to one INTERESTED recycler",
+        "description": "Both sides can then see each other's details. Returns the deal with its payment link.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "offerId"
+                ],
+                "properties": {
+                  "offerId": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "offerId": "offer-uuid"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deal created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deal": {
+                          "$ref": "#/components/schemas/DealView"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`OFFER_NOT_AVAILABLE` or `ALREADY_SELECTED`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/lots/{id}/deal": {
+      "get": {
+        "tags": [
+          "Lot Flow"
+        ],
+        "operationId": "getDeal",
+        "summary": "Full deal view (both parties, amount, payment link)",
+        "description": "Only the lot's collector, the selected recycler or an admin; otherwise `NOT_FOUND`. `NO_DEAL` (404) until a recycler has been selected.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Lot id (client UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deal": {
+                          "$ref": "#/components/schemas/DealView"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/payments/{token}/demo-pay": {
+      "post": {
+        "tags": [
+          "Lot Flow"
+        ],
+        "operationId": "demoPay",
+        "summary": "DEMO payment: mark the deal PAID from the scanned QR token",
+        "description": "No real money moves. The QR encodes `{origin}/pay/{token}`; the app takes the token and calls this. Calling it again is safe and returns the same paid deal.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "Payment token from the deal's `paymentToken` / QR",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "string"
+                        },
+                        "deal": {
+                          "$ref": "#/components/schemas/DealView"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Lot cannot be paid in its current state (`NOT_PAYABLE`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/auth/staff-login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "staffLogin",
+        "summary": "Recycler staff / admin sign-in with phone + password",
+        "description": "Collectors use `POST /api/v1/auth/login` with a PIN. Locked for 15 minutes after repeated failures.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "password"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\d{10}$"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "phone": "9876543210",
+                "password": "secret123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string"
+                        },
+                        "profile": {
+                          "type": "object",
+                          "properties": {
+                            "userId": {
+                              "type": "string"
+                            },
+                            "phone": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "$ref": "#/components/schemas/Role"
+                            },
+                            "recyclerId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "recyclerName": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-roles": [
+          "PUBLIC"
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Mobile JWT returned by `POST /api/v1/auth/login` (or register / pin-recovery / restore-on-new-phone). Valid for 30 days. The token carries the user's `role`."
+      },
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "ewaste_session",
+        "description": "httpOnly web-portal session cookie (7 days) set when a Recycler / Admin / Field Agent / Collector signs in on the web portal."
+      },
+      "cronAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Static `CRON_SECRET` sent as `Authorization: Bearer <CRON_SECRET>`."
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "description": "Optional extra context (e.g. zod error tree)"
+              }
+            }
+          }
+        }
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "COLLECTOR",
+          "RECYCLER",
+          "ADMIN",
+          "FIELD_AGENT"
+        ]
+      },
+      "Language": {
+        "type": "string",
+        "enum": [
+          "HI",
+          "MR",
+          "EN"
+        ]
+      },
+      "LotStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "READY",
+          "MATCHED",
+          "HANDED_OVER",
+          "COMPLETED",
+          "CANCELLED",
+          "REJECTED",
+          "EXPIRED",
+          "DISPUTED"
+        ]
+      },
+      "TransactionStatus": {
+        "type": "string",
+        "enum": [
+          "QUOTED",
+          "ACCEPTED",
+          "HANDED_OVER",
+          "CONFIRMED",
+          "PAID",
+          "CANCELLED",
+          "DISPUTED"
+        ]
+      },
+      "BargainStatus": {
+        "type": "string",
+        "enum": [
+          "NONE",
+          "OFFER_BY_COLLECTOR",
+          "OFFER_BY_RECYCLER",
+          "AGREED"
+        ]
+      },
+      "PaymentMethod": {
+        "type": "string",
+        "enum": [
+          "CASH",
+          "UPI"
+        ]
+      },
+      "PickupStatus": {
+        "type": "string",
+        "enum": [
+          "REQUESTED",
+          "ACCEPTED",
+          "ON_THE_WAY",
+          "ARRIVED",
+          "COMPLETED",
+          "EXPIRED",
+          "CANCELLED"
+        ]
+      },
+      "CollectorProfile": {
+        "type": "object",
+        "properties": {
+          "collectorId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "shortCode": {
+            "type": "string",
+            "example": "KW01"
+          },
+          "preferredLanguage": {
+            "$ref": "#/components/schemas/Language"
+          },
+          "operatingArea": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "example": "9820000001"
+          }
+        }
+      },
+      "AuthResult": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT, valid 30 days"
+          },
+          "profile": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CollectorProfile"
+              }
+            ],
+            "nullable": true,
+            "description": "null for non-collector roles"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "MaterialCategoryRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameHi": {
+            "type": "string"
+          },
+          "nameMr": {
+            "type": "string"
+          },
+          "iconKey": {
+            "type": "string"
+          }
+        }
+      },
+      "RecyclerContact": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        }
+      },
+      "Lot": {
+        "type": "object",
+        "description": "Lot row with related category / images / transaction / handovers / payments (relations vary per endpoint).",
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lotRef": {
+            "type": "string",
+            "example": "LOT-261101-4921"
+          },
+          "collectorId": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "integer"
+          },
+          "approxWeightGrams": {
+            "type": "integer"
+          },
+          "estimatedValuePaise": {
+            "type": "integer",
+            "nullable": true
+          },
+          "listedRatePerKgPaise": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Admin's today's price at lot creation"
+          },
+          "quotedRatePaise": {
+            "type": "integer",
+            "nullable": true
+          },
+          "finalPricePaise": {
+            "type": "integer",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/LotStatus"
+          },
+          "transactionStatus": {
+            "$ref": "#/components/schemas/TransactionStatus"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PARTIAL",
+              "PAID"
+            ]
+          },
+          "collectedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "category": {
+            "$ref": "#/components/schemas/MaterialCategoryRef"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "transaction": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true
+          },
+          "handovers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "isRead": {
+            "type": "boolean"
+          },
+          "dataJson": {
+            "type": "string",
+            "nullable": true,
+            "description": "JSON-encoded string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PricePoint": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "integer"
+          },
+          "subCategory": {
+            "type": "string",
+            "nullable": true
+          },
+          "buyingPricePaise": {
+            "type": "integer"
+          },
+          "buyerType": {
+            "type": "string",
+            "enum": [
+              "SCRAP_DEALER",
+              "RECYCLER"
+            ]
+          },
+          "area": {
+            "type": "string"
+          },
+          "district": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "FIELD_AGENT",
+              "RECYCLER",
+              "ADMIN"
+            ]
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PriceBoardItem": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameHi": {
+            "type": "string"
+          },
+          "nameMr": {
+            "type": "string"
+          },
+          "iconKey": {
+            "type": "string"
+          },
+          "currentMedianPaise": {
+            "type": "integer"
+          },
+          "currentMedianRupees": {
+            "type": "string",
+            "example": "340.00"
+          },
+          "trend": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN",
+              "FLAT"
+            ]
+          },
+          "marketLowPaise": {
+            "type": "integer"
+          },
+          "marketHighPaise": {
+            "type": "integer"
+          },
+          "recyclerMinRatePaise": {
+            "type": "integer"
+          },
+          "recyclerMaxRatePaise": {
+            "type": "integer"
+          }
+        }
+      },
+      "RankedRecycler": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "contactPhone": {
+            "type": "string"
+          },
+          "distanceKm": {
+            "type": "number"
+          },
+          "compassDirection": {
+            "type": "string"
+          },
+          "ratePerKgPaise": {
+            "type": "integer"
+          },
+          "pickupAvailable": {
+            "type": "boolean"
+          },
+          "pickupChargePaise": {
+            "type": "integer"
+          },
+          "expectedTotalPaise": {
+            "type": "integer"
+          },
+          "rating": {
+            "type": "number"
+          },
+          "score": {
+            "type": "number",
+            "description": "0–100 weighted score"
+          },
+          "whyThisIsBest": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer"
+          }
+        }
+      },
+      "BargainState": {
+        "type": "object",
+        "properties": {
+          "lotId": {
+            "type": "string"
+          },
+          "lotRef": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "approxWeightGrams": {
+            "type": "integer"
+          },
+          "weightKg": {
+            "type": "string"
+          },
+          "transactionId": {
+            "type": "string"
+          },
+          "transactionStatus": {
+            "$ref": "#/components/schemas/TransactionStatus"
+          },
+          "quotedRatePerKgPaise": {
+            "type": "integer"
+          },
+          "quotedRatePerKgRupees": {
+            "type": "number"
+          },
+          "quotedPricePaise": {
+            "type": "integer"
+          },
+          "quotedPriceRupees": {
+            "type": "number"
+          },
+          "bargainStatus": {
+            "$ref": "#/components/schemas/BargainStatus"
+          },
+          "bargainRatePaise": {
+            "type": "integer",
+            "nullable": true
+          },
+          "bargainRateRupees": {
+            "type": "number",
+            "nullable": true
+          },
+          "bargainBy": {
+            "type": "string",
+            "enum": [
+              "COLLECTOR",
+              "RECYCLER"
+            ],
+            "nullable": true
+          },
+          "bargainNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "agreedRatePaise": {
+            "type": "integer",
+            "nullable": true
+          },
+          "agreedRateRupees": {
+            "type": "number",
+            "nullable": true
+          },
+          "callerRole": {
+            "type": "string",
+            "enum": [
+              "COLLECTOR",
+              "RECYCLER",
+              "ADMIN"
+            ]
+          },
+          "canAccept": {
+            "type": "boolean"
+          },
+          "canCounter": {
+            "type": "boolean"
+          },
+          "recycler": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecyclerContact"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "DealView": {
+        "type": "object",
+        "description": "Full deal after the collector selected a recycler. Visible to the lot's collector, the selected recycler and admins.",
+        "properties": {
+          "lotId": {
+            "type": "string"
+          },
+          "lotRef": {
+            "type": "string"
+          },
+          "lotStatus": {
+            "$ref": "#/components/schemas/LotStatus"
+          },
+          "material": {
+            "type": "object",
+            "properties": {
+              "categoryId": {
+                "type": "integer"
+              },
+              "nameEn": {
+                "type": "string"
+              },
+              "nameHi": {
+                "type": "string"
+              },
+              "nameMr": {
+                "type": "string"
+              }
+            }
+          },
+          "approxWeightGrams": {
+            "type": "integer"
+          },
+          "ratePerKgPaise": {
+            "type": "integer"
+          },
+          "amountPaise": {
+            "type": "integer"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PARTIAL",
+              "PAID"
+            ]
+          },
+          "paymentToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "payUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "DEMO: opening/scanning this marks the deal paid"
+          },
+          "invoiceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "payment": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "method": {
+                "$ref": "#/components/schemas/PaymentMethod"
+              },
+              "reference": {
+                "type": "string",
+                "nullable": true
+              },
+              "amountPaise": {
+                "type": "integer"
+              },
+              "paidAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "collector": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              },
+              "shortCode": {
+                "type": "string"
+              },
+              "area": {
+                "type": "string"
+              },
+              "district": {
+                "type": "string",
+                "nullable": true
+              },
+              "lotLatitude": {
+                "type": "number",
+                "nullable": true
+              },
+              "lotLongitude": {
+                "type": "number",
+                "nullable": true
+              }
+            }
+          },
+          "recycler": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              },
+              "area": {
+                "type": "string"
+              },
+              "district": {
+                "type": "string",
+                "nullable": true
+              },
+              "authorizationNo": {
+                "type": "string"
+              },
+              "latitude": {
+                "type": "number"
+              },
+              "longitude": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "LotOfferStatus": {
+        "type": "string",
+        "enum": [
+          "NOTIFIED",
+          "INTERESTED",
+          "DECLINED",
+          "SELECTED",
+          "NOT_SELECTED"
+        ]
+      },
+      "PickupRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "collectorId": {
+            "type": "string"
+          },
+          "recyclerId": {
+            "type": "string"
+          },
+          "lotId": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PickupStatus"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SyncMutation": {
+        "type": "object",
+        "required": [
+          "clientMutationId",
+          "entity",
+          "entityId",
+          "op",
+          "payload",
+          "clientTimestamp"
+        ],
+        "properties": {
+          "clientMutationId": {
+            "type": "string",
+            "description": "Idempotency key (UUID)"
+          },
+          "entity": {
+            "type": "string",
+            "enum": [
+              "lot",
+              "lot_image",
+              "transaction",
+              "handover",
+              "payment",
+              "price_point",
+              "pickup_request",
+              "coverage_request",
+              "consent",
+              "dispute",
+              "incident",
+              "quiz_result",
+              "rating"
+            ]
+          },
+          "entityId": {
+            "type": "string"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "clientTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SyncResult": {
+        "type": "object",
+        "properties": {
+          "clientMutationId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "APPLIED",
+              "DUPLICATE",
+              "CONFLICT",
+              "REJECTED"
+            ]
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "serverState": {
+            "description": "Present on CONFLICT"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Validation failed or malformed JSON",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Validation failed or malformed JSON"
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid authentication",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "Missing or invalid authentication"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Authenticated but not allowed to access this resource",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Authenticated but not allowed to access this resource"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Resource not found"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Resource already exists",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "PHONE_ALREADY_EXISTS",
+                "message": "Resource already exists"
+              }
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Account temporarily locked after repeated failed logins",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "ACCOUNT_LOCKED",
+                "message": "Account temporarily locked after repeated failed logins"
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Unexpected server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Unexpected server error"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-role": "COLLECTOR"
+}
