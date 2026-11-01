@@ -659,9 +659,9 @@ export const operations: OperationDef[] = [
     operation: {
       tags: ["Handover"],
       operationId: "getHandoverInfo",
-      summary: "Verification code + QR payload for a lot",
+      summary: "Handover status for a lot",
       description:
-        "Used by the collector to show the 4-digit code / QR, and by the recycler to read it. ⚠ The route only checks that the caller is signed in — it does not verify participation in the lot.",
+        "Visible to the lot's collector, the chosen recycler and admins (404 for anyone else). Never returns the 4-digit code or its hash: the code lives only on the collector's phone.",
       security: bearerOrCookie,
       parameters: [LOT_ID],
       responses: {
@@ -673,8 +673,6 @@ export const operations: OperationDef[] = [
             category: { type: "string" },
             declaredWeightGrams: { type: "integer" },
             declaredWeightKg: { type: "string" },
-            verificationCode: { type: "string", example: "4921" },
-            qrPayload: { type: "string", example: "EWASTE:<lotId>:4921:5000" },
             status: ref("LotStatus"),
             transaction: { type: "object", nullable: true, additionalProperties: true },
             latestHandover: { type: "object", nullable: true, additionalProperties: true },
@@ -688,23 +686,23 @@ export const operations: OperationDef[] = [
   {
     path: "/api/v1/lots/{id}/handover",
     method: "post",
-    roles: ["RECYCLER", "ADMIN"],
+    roles: ["RECYCLER"],
     operation: {
       tags: ["Handover"],
       operationId: "submitHandover",
-      summary: "Record scale weight, payment and complete the lot",
+      summary: "Verify the handover code and record the scale weight",
       description:
-        "Runs weight tolerance (5% / 25% / 40%) and location proof (`MATCH` / `NEAR` / `FAR`), writes the handover + payment, sets the transaction to `PAID` and the lot to `COMPLETED`, then notifies the collector. Payment is recorded with `recordedBy: RECYCLER`. ⚠ The route only checks that the caller is signed in; role/participation is not enforced in code.",
+        "Only the recycler chosen for the lot. The collector's 4-digit code is required and checked against the stored hash (400 `INVALID_CODE`, the expected code is never returned). The amount is the scale weight x the rate locked at selection (409 `RATE_NOT_AVAILABLE` if none). Within the 5% tolerance the handover is `CONFIRMED`, and the lot is paid when `paymentMode` is sent (payment `recordedBy: RECYCLER`, `confirmedByCollector: false` until the collector taps Money received). Outside tolerance the handover is `WEIGHED`: nothing is paid and the collector accepts or disputes in the app. Location proof (`MATCH` / `NEAR` / `FAR`) and anomaly flags are recorded either way.",
       security: bearerOrCookie,
       parameters: [LOT_ID],
       requestBody: body(
         {
           type: "object",
-          required: ["scaleWeightGrams"],
+          required: ["verificationCode", "scaleWeightGrams"],
           properties: {
-            verificationCode: { type: "string" },
+            verificationCode: { type: "string", pattern: "^\\d{4}$" },
             scaleWeightGrams: { type: "integer", minimum: 1 },
-            paymentMode: { ...ref("PaymentMethod"), default: "CASH" },
+            paymentMode: { ...ref("PaymentMethod"), description: "Send to mark the lot paid; ignored while the weight is outside tolerance" },
             paymentRef: { type: "string", description: "UPI reference" },
             latitude: { type: "number" },
             longitude: { type: "number" },
@@ -731,6 +729,7 @@ export const operations: OperationDef[] = [
         }),
         "400": r("BadRequest"),
         "404": r("NotFound"),
+        "409": r("Conflict"),
         ...authErrors,
       },
     },

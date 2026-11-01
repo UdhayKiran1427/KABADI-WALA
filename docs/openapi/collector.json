@@ -2137,8 +2137,8 @@
           "Handover"
         ],
         "operationId": "getHandoverInfo",
-        "summary": "Verification code + QR payload for a lot",
-        "description": "Used by the collector to show the 4-digit code / QR, and by the recycler to read it. ⚠ The route only checks that the caller is signed in — it does not verify participation in the lot.",
+        "summary": "Handover status for a lot",
+        "description": "Visible to the lot's collector, the chosen recycler and admins (404 for anyone else). Never returns the 4-digit code or its hash: the code lives only on the collector's phone.",
         "security": [
           {
             "bearerAuth": []
@@ -2186,14 +2186,6 @@
                         },
                         "declaredWeightKg": {
                           "type": "string"
-                        },
-                        "verificationCode": {
-                          "type": "string",
-                          "example": "4921"
-                        },
-                        "qrPayload": {
-                          "type": "string",
-                          "example": "EWASTE:<lotId>:4921:5000"
                         },
                         "status": {
                           "$ref": "#/components/schemas/LotStatus"

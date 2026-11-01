@@ -86,6 +86,7 @@
 - /collector  (src/app/collector/page.tsx)
 - /collector/pickup-requests  (src/app/collector/pickup-requests/page.tsx)
 - /collector/prices  (src/app/collector/prices/page.tsx)
+- /collector/profile  (src/app/collector/profile/page.tsx)
 - /collector/register  (src/app/collector/register/page.tsx)
 - /collector/safety  (src/app/collector/safety/page.tsx)
 - /collector/settings  (src/app/collector/settings/page.tsx)
@@ -101,6 +102,7 @@
 - /  (src/app/page.tsx)
 - /receipts/[token]  (src/app/receipts/[token]/page.tsx)
 - /recycler/deals/[lotId]  (src/app/recycler/deals/[lotId]/page.tsx)
+- /recycler/history  (src/app/recycler/history/page.tsx)
 - /recycler/language  (src/app/recycler/language/page.tsx)
 - /recycler/login  (src/app/recycler/login/page.tsx)
 - /recycler/notifications  (src/app/recycler/notifications/page.tsx)
@@ -113,6 +115,9 @@
 ## Exports (src/lib, src/components)
 
 - src/components/AutoRefresh.tsx (19 lines): AutoRefresh
+- src/components/BackButton.tsx (18 lines): BackButton
+- src/components/HistoryFilters.tsx (116 lines): FilterOption, HistoryFilterValues, HistoryFilters
+- src/components/LotPhotoStrip.tsx (16 lines): LotPhotoStrip
 - src/components/geo/RecyclerDirectionsCard.tsx (353 lines): RecyclerDirectionsCardProps, RecyclerDirectionsCard
 - src/components/payment/DemoPaymentQr.tsx (36 lines): DemoPaymentQr
 - src/components/voice/LanguageSwitcher.tsx (413 lines): LanguageSwitcher, TextLanguageSwitcher
@@ -142,91 +147,97 @@
 - src/lib/domain/geoDirections.ts (112 lines): TRAVEL_SPEEDS_KMH, TravelMode, calculateTravelMinutes, TravelEstimates, getTravelEstimates, getDirectionsUrl, buildLocationShareMessage, checkArrivalProximity
 - src/lib/domain/handover.ts (215 lines): LocationClass, LocationProofResult, WeightToleranceResult, classifyLocationProof, checkTravelVelocitySpoof, evaluateWeightTolerance, generateVerificationCode, validateVerificationCode, hashHandoverCode, safeEqualStrings, HandoverCodeRecord, verifyEnteredHandoverCode, incidentSeverity
 - src/lib/domain/lotBroadcast.ts (50 lines): BROADCAST_RADIUS_KM, BroadcastCandidate, BroadcastTarget, selectBroadcastTargets, calculateLotValuePaise, isValidCoordinate
+- src/lib/domain/lotItems.ts (80 lines): LotItemInput, PricedLotItem, ItemRate, MAX_LOT_ITEMS, MAX_ITEM_WEIGHT_GRAMS, normalizeLotItems, lotValuePaise, totalWeightGrams, primaryItem, averageRatePerKgPaise, completeItemRates
 - src/lib/domain/lotRef.ts (45 lines): generateLotRef, validateLotRef
 - src/lib/domain/lotStateMachine.ts (98 lines): LotStatus, StateTransitionValidation, validateLotTransition, checkServerOwnedFields
 - src/lib/domain/lotStatusMapping.ts (171 lines): CLIENT_LOT_STATES, ClientLotState, ServerTransactionStatus, LotStateOwner, ServerLotState, LOT_STATE_TABLE, isClientLotState, CLIENT_PUSHABLE_LOT_STATES, isClientPushableLotState, toServerLotState, toClientLotState, CLIENT_LOT_TRANSITIONS, isClientTransitionAllowed, findClientPath, findServerMachineGaps
 - src/lib/domain/matching.ts (284 lines): CandidateRecycler, MatchQuery, RankedRecycler, MatchResult, SEARCH_RADII_KM, calculateHaversineDistanceKm, calculateCompassDirection, matchRecyclers
-- src/lib/domain/money.ts (45 lines): amountPaise, netAmountPaise, isWithinTolerance, rateLockExpiresAt, isRateLockActive, lotExpiresAt
+- src/lib/domain/money.ts (54 lines): amountPaise, netAmountPaise, isWithinTolerance, rateLockExpiresAt, isRateLockActive, lotExpiresAt, firstPositiveRate
 - src/lib/domain/nearbyPrices.ts (62 lines): DEFAULT_TRAVEL_COST_PER_KM_PAISE, AreaPriceComparison, compareAreaPrice
 - src/lib/domain/priceBoard.ts (60 lines): TrendDirection, CategoryPriceStats, calculateTrend, generateCategoryPriceBoard
 - src/lib/format.ts (14 lines): rupees, rupeesIN, kg, inr
+- src/lib/historyFilters.ts (30 lines): HistoryQuery, parseHistoryQuery, periodStart, PERIOD_VALUES
 - src/lib/i18n/translations.ts (216 lines): SupportedLanguage, TranslationDictionary, UI_TRANSLATIONS, getTranslation
 - src/lib/prisma.ts (49 lines): prisma, assertReplicaSetHealth
 - src/lib/services/adminService.ts (140 lines): CreateRecyclerInput, createRecycler, setTodayPrices, setRecyclerStatus
 - src/lib/services/auditService.ts (35 lines): AuditAction, AuditInput, writeAudit
 - src/lib/services/collectorService.ts (26 lines): generateUniqueShortCode
-- src/lib/services/dealView.ts (64 lines): getDealView
+- src/lib/services/dealView.ts (79 lines): getDealView
 - src/lib/services/disputeService.ts (69 lines): DisputeOutcome, ResolveDisputeInput, resolveDispute
-- src/lib/services/lotFlowService.ts (405 lines): FlowError, TodayRate, getTodayRates, getTodayRate, notifyRecyclerStaff, broadcastLot, DemoPaymentResult, completeDemoPayment, CreateLotInput, createLot, confirmLot, rebroadcastLot, selectOffer, respondToOffer
+- src/lib/services/historyQuery.ts (80 lines): COLLECTOR_HISTORY_STATUSES, RECYCLER_HISTORY_STATUSES, collectorHistoryWhere, recyclerHistoryWhere
+- src/lib/services/invoiceService.ts (59 lines): getInvoice, Invoice
+- src/lib/services/lotFlowService.ts (473 lines): FlowError, TodayRate, MAX_LOT_PHOTOS, getTodayRates, getTodayRate, notifyRecyclerStaff, broadcastLot, DemoPaymentResult, completeDemoPayment, CreateLotInput, createLot, confirmLot, rebroadcastLot, offerTotalPaise, selectOffer, OfferRates, respondToOffer
+- src/lib/services/lotItemsView.ts (65 lines): MaterialNames, LotItemView, LOT_ITEMS_INCLUDE, lotItemsOf, lotItemsLabel, lotPhotoUrls, dealLines
 - src/lib/services/notificationService.ts (52 lines): SendNotificationInput, sendNotification, getUnreadNotificationCount, getUserNotifications
 - src/lib/services/syncEngine.ts (386 lines): SyncMutationInput, SyncMutationResult, SyncActorContext, RETRYABLE_REJECT_CODES, sortMutations, isPersistable, normalizePayload, processMutation
 - src/lib/services/syncHandlers.ts (811 lines): Tx, MutationStatus, HandlerResult, HandlerContext, handleLot, handleLotImage, handleHandover, handleBatchHandover, recomputePaymentState, handlePayment, handlePricePoint, handlePickupRequest, handleCoverageRequest, handleConsent, handleIncident, handleQuizResult, handleRating, handleDispute, handleProfile, handleDealerComparison
-- src/lib/storage/index.ts (147 lines): PresignedUploadResponse, sanitizeStorageKey, validateStorageKey, getPresignedUploadUrl, saveLocalFile, readLocalFile, storageObjectExists
+- src/lib/storage/index.ts (190 lines): PresignedUploadResponse, sanitizeStorageKey, validateStorageKey, getPresignedUploadUrl, saveLocalFile, readLocalFile, IMAGE_TYPES, MAX_IMAGE_BYTES, saveLotImage, getImageUrl, imageContentType, storageObjectExists
 - src/lib/voice/distanceVoice.ts (181 lines): VoiceLanguage, formatDistanceForVoice
 - src/lib/voice/prompts.ts (262 lines): ScreenVoicePrompt, SCREEN_PROMPTS, HAZARD_AUDIO_SCRIPTS, getMaterialPriceSpeech, getVerificationCodeSpeech, getEstimateSpeech
 - src/lib/voice/speech.ts (164 lines): AppLanguage, isSpeechSupported, getBestVoice, SpeakOptions, speakText, stopSpeaking, isSpeaking
 
 ## Prisma models (prisma/schema.prisma)
 
-- enum Role (line 14)
-- enum Language (line 21)
-- enum AuthStatus (line 27)
-- enum Unit (line 34)
-- enum Condition (line 39)
-- enum SourceType (line 46)
-- enum LotStatus (line 54)
-- enum TransactionStatus (line 66)
-- enum PaymentStatus (line 76)
-- enum PaymentMethod (line 82)
-- enum HandoverStatus (line 87)
-- enum DownstreamStatus (line 96)
-- enum PriceSource (line 102)
-- enum ImageKind (line 108)
-- enum FlagType (line 115)
-- enum FlagStatus (line 124)
-- enum LabelSource (line 130)
-- enum DataSplit (line 137)
-- enum QualityStatus (line 143)
-- enum MlTask (line 149)
-- enum SyncStatus (line 156)
-- model User (line 164)
-- model ConsentRecord (line 199)
-- model DeviceRestore (line 212)
-- model Collector (line 225)
-- model RecyclerStaff (line 243)
-- model MaterialCategory (line 254)
-- model SafetyTopic (line 277)
-- model SafetyQuizResult (line 294)
-- model Recycler (line 309)
-- model RecyclerRate (line 351)
-- model RecyclerServiceArea (line 365)
-- model CollectionPoint (line 380)
-- model RecyclerVerification (line 402)
-- model PricePoint (line 418)
-- model PriceAlert (line 444)
-- model Lot (line 459)
-- model LotImage (line 515)
-- model MatchSuggestion (line 536)
-- model LotOffer (line 555)
-- model Transaction (line 573)
-- model Handover (line 609)
-- model BatchHandover (line 651)
-- model BatchHandoverItem (line 671)
-- model Dispute (line 682)
-- model IncidentReport (line 698)
-- model Payment (line 717)
-- model PickupRequest (line 740)
-- model CoverageRequest (line 765)
-- model Notification (line 780)
-- model RecyclerRating (line 793)
-- model ReceiptShareToken (line 807)
-- model AreaCentroid (line 818)
-- model PlatformFeeConfig (line 828)
-- model DatasetCard (line 835)
-- model DataValidationResult (line 842)
-- model AnomalyFlag (line 851)
-- model TrainingSample (line 876)
-- model ModelVersion (line 893)
-- model SyncMutation (line 913)
-- model DealerComparison (line 934)
-- model AuditLog (line 950)
+- enum Role (line 21)
+- enum Language (line 28)
+- enum AuthStatus (line 34)
+- enum Unit (line 41)
+- enum Condition (line 46)
+- enum SourceType (line 53)
+- enum LotStatus (line 61)
+- enum TransactionStatus (line 73)
+- enum PaymentStatus (line 83)
+- enum PaymentMethod (line 89)
+- enum HandoverStatus (line 94)
+- enum DownstreamStatus (line 103)
+- enum PriceSource (line 109)
+- enum ImageKind (line 115)
+- enum FlagType (line 122)
+- enum FlagStatus (line 131)
+- enum LabelSource (line 137)
+- enum DataSplit (line 144)
+- enum QualityStatus (line 150)
+- enum MlTask (line 156)
+- enum SyncStatus (line 163)
+- model User (line 171)
+- model ConsentRecord (line 206)
+- model DeviceRestore (line 219)
+- model Collector (line 232)
+- model RecyclerStaff (line 250)
+- model MaterialCategory (line 261)
+- model SafetyTopic (line 285)
+- model SafetyQuizResult (line 302)
+- model Recycler (line 317)
+- model RecyclerRate (line 359)
+- model RecyclerServiceArea (line 373)
+- model CollectionPoint (line 388)
+- model RecyclerVerification (line 410)
+- model PricePoint (line 426)
+- model PriceAlert (line 452)
+- model Lot (line 467)
+- model LotImage (line 524)
+- model MatchSuggestion (line 545)
+- model LotItem (line 563)
+- model LotOffer (line 578)
+- model Transaction (line 598)
+- model Handover (line 635)
+- model BatchHandover (line 677)
+- model BatchHandoverItem (line 697)
+- model Dispute (line 708)
+- model IncidentReport (line 724)
+- model Payment (line 743)
+- model PickupRequest (line 766)
+- model CoverageRequest (line 791)
+- model Notification (line 806)
+- model RecyclerRating (line 819)
+- model ReceiptShareToken (line 833)
+- model AreaCentroid (line 844)
+- model PlatformFeeConfig (line 854)
+- model DatasetCard (line 861)
+- model DataValidationResult (line 868)
+- model AnomalyFlag (line 877)
+- model TrainingSample (line 902)
+- model ModelVersion (line 919)
+- model SyncMutation (line 939)
+- model DealerComparison (line 960)
+- model AuditLog (line 976)

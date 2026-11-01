@@ -5,7 +5,6 @@ export type AuditAction =
   | "RECYCLER_CREATED"
   | "TODAY_PRICES_SET"
   | "PRICE_ADDED"
-  | "PRICE_DELETED"
   | "ANOMALY_REVIEWED"
   | "TEAM_USER_CREATED"
   | "DISPUTE_RESOLVED";

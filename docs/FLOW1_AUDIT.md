@@ -21,11 +21,30 @@ Run `npm run db:push` once so the `AuditLog` collection and indexes exist.
 3. Web recycler/admin use server actions, and the mobile API has different paths than spec s10 (`/lots/[id]/select`, `/lots/[id]/handover`, `/recyclers/match`, ...). `docs/API.md` is the real contract.
 4. The web portal also has a broadcast / offers / bargain flow that Flow 1 does not describe.
 
-## Open issues (not fixed)
-- **Prices are deleted**: `deletePriceRecordAction` hard-deletes a `PricePoint`; spec rule 6 says append-only. Now audit-logged with the old values, but still a delete.
-- **Invented fallback rates**: `|| 3000` (recycler/actions.ts) and `|| 4000` (handover route, field/actions.ts) make up a rate when none exists. Spec: show "price not available".
-- **Rate lock expiry**: the quote is locked (`quotedRatePaise`) and never changes, but nothing happens after `RATE_LOCK_HOURS`. `isRateLockActive` exists and is tested; no endpoint uses it. Spec does not say what happens after the window.
-- **Concurrent edits (not mine)** break the build right now: Flutter `http_remote_api.dart` (`_resolveUri`, `_tokenProvider`, `_processResponse` undefined), `reference_data_syncer.dart` and `offline_full_flow_integration_test.dart` (`latitude`/`longitude` params), and TS `src/app/api/v1/sync/my-data/route.ts` (`mode`, `referenceNumber` not on Payment).
+## Fixed in the second pass
+| Area | Before | After |
+|---|---|---|
+| `POST/GET /lots/{id}/handover` | Any signed-in user could read any lot's code (derived from the lot id) and complete + pay any lot; code check optional; wrong code returned the expected code | GET only for the lot's collector / chosen recycler / admin and never returns the code or hash; POST only for the chosen recycler, code required and checked against the stored hash, nothing leaked |
+| Outside-tolerance weight | R2 web action and REST route confirmed or paid regardless | Outside tolerance -> handover `WEIGHED`, nothing paid; the collector accepts or disputes (existing sync handler) |
+| Invented rates | `|| 3000` / `|| 4000` in 4 places | `firstPositiveRate` returns null -> error / "price not available". Only the rate locked at selection is used (no fallback to the recycler's current rate) |
+| Recycler payment | R2 set `confirmedByCollector: true`, so the collector's "Money received" push created a duplicate payment | Created unconfirmed; sync handler matches it when the collector confirms |
+| Duplicate anomaly flags | R2 created weight/price flags twice | Once (de-duplicated by rule code) |
+| Prices append-only | `deletePriceRecordAction` hard-deleted | Removed (action and button). Correct a wrong price by adding a new one |
+| Field-agent doorstep | Fake `"1234"` code stored, no check | Code verified against an existing handover; no default code |
+
+## Deviations kept on purpose
+Handover hash `sha256(ref:code)`: not changed. Batch handovers have no single lotRef, there are 8 call sites, and stored hashes/QRs would break; a global salt adds no real protection. Update the spec instead.
+
+## Open issues
+- **Rate lock**: the quote is immutable once chosen (`quotedRatePaise`), which is what spec rule 3 asks. What happens after `RATE_LOCK_HOURS` is not defined by the spec, so nothing is enforced; `isRateLockActive` exists and is tested.
+- **Default PIN**: `field/actions.ts` onboarding falls back to PIN `1234` when none is given.
+- **Pickup-agent flow** (`agentCompleteDoorstepHandoverAction`) pays and completes in one step. Out of scope per spec s15; left as is.
+- `next lint` is not configured (no ESLint config; it prompts interactively).
+
+## Verification (2026-11-02, latest run)
+- Backend: `tsc --noEmit` clean, `tsx --test` 137/137 pass.
+- Flutter: `flutter analyze` 0 errors; `flutter test` 728 pass, 3 fail (R2 / R4 recycler screens and C14), all in files another session was editing during the run (`lib/screens/recycler/r2_*`, `r4_*`). Run alone, only R2 (overflow 480px at 360dp / text scale 1.3) still fails.
+- Full `flutter test` can show different failures on each run while other `flutter` processes use the same `build/` folder.
 
 ## UNVERIFIED (not run)
-Full `flutter test` (blocked by the compile errors above), `/admin/disputes` in a browser (needs MongoDB replica set), idempotent `/sync/push` double-push, role x route matrix, airplane-mode journey, clock skew.
+`/admin/disputes` and the rewritten `/lots/{id}/handover` against a real MongoDB replica set, idempotent `/sync/push` double-push, role x route matrix, airplane-mode journey, clock skew.

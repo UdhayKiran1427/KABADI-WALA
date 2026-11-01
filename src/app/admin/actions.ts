@@ -169,16 +169,7 @@ export async function addPriceRecordAction(formData: FormData) {
   revalidatePath("/admin/prices");
 }
 
-/**
- * M2: Delete / clean price record.
- */
-export async function deletePriceRecordAction(priceId: string) {
-  const { dbUser } = await requireRole(["ADMIN"]);
-  const before = await prisma.pricePoint.findUnique({ where: { id: priceId } });
-  await prisma.pricePoint.delete({ where: { id: priceId } });
-  await writeAudit({ actorId: dbUser.id, action: "PRICE_DELETED", entityType: "PricePoint", entityId: priceId, details: before ? { categoryId: before.categoryId, buyingPricePaise: before.buyingPricePaise, source: before.source } : undefined });
-  revalidatePath("/admin/prices");
-}
+// M2 prices are append-only (spec s2 rule 6): there is no delete. A wrong price is corrected by adding a new one.
 
 /**
  * M3: Review or dismiss anomaly alert.

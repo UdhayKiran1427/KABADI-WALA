@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { amountPaise, isWithinTolerance, isRateLockActive, rateLockExpiresAt, lotExpiresAt, netAmountPaise } from "../../src/lib/domain/money";
+import { amountPaise, isWithinTolerance, isRateLockActive, rateLockExpiresAt, lotExpiresAt, netAmountPaise, firstPositiveRate } from "../../src/lib/domain/money";
 import { evaluateWeightTolerance } from "../../src/lib/domain/handover";
 import { generateLotRef } from "../../src/lib/domain/lotRef";
 import { CLIENT_LOT_TRANSITIONS, findServerMachineGaps } from "../../src/lib/domain/lotStatusMapping";
@@ -69,4 +69,11 @@ test("admin dispute resolution: DISPUTED can only go to HANDED_OVER (confirm) or
   assert.equal(validateLotTransition("DISPUTED", "HANDED_OVER").valid, true);
   assert.equal(validateLotTransition("DISPUTED", "CANCELLED").valid, true);
   assert.equal(validateLotTransition("READY", "HANDED_OVER").valid, false);
+});
+
+test("firstPositiveRate never invents a rate", () => {
+  assert.equal(firstPositiveRate(null, undefined, 0, 34000, 99), 34000);
+  assert.equal(firstPositiveRate(null, undefined, 0), null);
+  assert.equal(firstPositiveRate(), null);
+  assert.equal(firstPositiveRate(-5, 12.5), null);
 });

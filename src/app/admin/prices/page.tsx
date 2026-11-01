@@ -1,8 +1,8 @@
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { ChevronDown, CircleAlert, CircleCheck, Download, Plus, Save, X } from "lucide-react";
-import { addPriceRecordAction, deletePriceRecordAction, setTodayPricesAction } from "../actions";
+import { ChevronDown, CircleAlert, CircleCheck, Download, Plus, Save } from "lucide-react";
+import { addPriceRecordAction, setTodayPricesAction } from "../actions";
 import { getTodayRates } from "@/lib/services/lotFlowService";
 import { rupees } from "@/lib/format";
 
@@ -247,7 +247,6 @@ export default async function AdminPricesPage({
                       <th>Area</th>
                       <th>Source</th>
                       <th>Date</th>
-                      <th aria-label="Delete"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -257,18 +256,6 @@ export default async function AdminPricesPage({
                         <td>{p.area}</td>
                         <td><span className="badge badge-neutral">{p.source}</span></td>
                         <td>{p.recordedAt.toISOString().split("T")[0]}</td>
-                        <td>
-                          <form action={deletePriceRecordAction.bind(null, p.id)}>
-                            <button
-                              type="submit"
-                              className="btn btn-danger btn-sm"
-                              style={{ padding: "0.2rem 0.35rem" }}
-                              aria-label={`Delete record ₹${rupees(p.buyingPricePaise)}/kg, ${p.area}`}
-                            >
-                              <X size={14} aria-hidden="true" />
-                            </button>
-                          </form>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
