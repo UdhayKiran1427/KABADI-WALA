@@ -13,6 +13,8 @@ interface CollectorDashboardClientProps {
     estimatedValuePaise: number | null;
     finalPricePaise: number | null;
     category: { nameEn: string; nameHi: string; nameMr?: string | null };
+    /** Number of materials in the lot (0 for lots created before multi-material lots) */
+    _count: { items: number };
   }>;
   hasMore: boolean;
 }
@@ -55,7 +57,10 @@ export function CollectorDashboardClient({ lots, hasMore }: CollectorDashboardCl
             return (
               <Link key={lot.id} href={`/collector/lots/${lot.id}`} className="card c-lot-row">
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="c-lot-name">{tx({ hi: lot.category.nameHi, en: lot.category.nameEn, mr: lot.category.nameMr })}</div>
+                  <div className="c-lot-name">
+                    {tx({ hi: lot.category.nameHi, en: lot.category.nameEn, mr: lot.category.nameMr })}
+                    {lot._count.items > 1 && <span style={{ color: "var(--slate-500)", fontWeight: 600 }}> +{lot._count.items - 1}</span>}
+                  </div>
                   <div style={{ fontSize: "0.85rem", color: "var(--slate-600)" }}>
                     {(lot.approxWeightGrams / 1000).toFixed(1)} kg &middot; ₹{amount.toLocaleString("en-IN")}
                   </div>
@@ -69,7 +74,7 @@ export function CollectorDashboardClient({ lots, hasMore }: CollectorDashboardCl
 
         {hasMore && (
           <Link href="/collector/ledger" className="btn btn-secondary btn-block">
-            {tx({ hi: "सभी लॉट देखें", en: "See all lots", mr: "सर्व लॉट पहा" })}
+            {tx({ hi: "ऑर्डर इतिहास देखें", en: "See order history", mr: "ऑर्डर इतिहास पहा" })}
           </Link>
         )}
       </section>

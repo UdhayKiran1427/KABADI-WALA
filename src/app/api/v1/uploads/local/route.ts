@@ -1,46 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveLocalFile, readLocalFile, sanitizeStorageKey } from "@/lib/storage";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { saveLocalFile, readLocalFile, sanitizeStorageKey, validateStorageKey, imageContentType, MAX_IMAGE_BYTES } from "@/lib/storage";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
+import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
 
+/**
+ * Local-disk upload target returned by POST /uploads/presign (dev storage driver).
+ * Requires the same Bearer token, and the key must be in the caller's own images/{userId}/ folder.
+ */
 export async function PUT(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (!key) {
-      return apiError("MISSING_KEY", "Storage key is required as query parameter ?key=...", 400);
+    const user = await getAuthUser(req);
+    if (!user) {
+      return apiError("UNAUTHORIZED", "Missing or invalid authorization", 401);
     }
 
-    const cleanKey = sanitizeStorageKey(key);
-    if (!cleanKey) {
-      return apiError("INVALID_KEY", "Invalid or unsafe storage key provided", 400);
+    const key = req.nextUrl.searchParams.get("key");
+    if (!key || !validateStorageKey(key, user.userId)) {
+      return apiError("INVALID_KEY", "Use the upload URL returned by /uploads/presign", 400);
     }
 
-    const arrayBuffer = await req.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) {
+      return apiError("INVALID_TYPE", "Only images can be uploaded", 415);
+    }
 
+    const buffer = Buffer.from(await req.arrayBuffer());
+    if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) {
+      return apiError("INVALID_SIZE", "Photo must be smaller than 5 MB", 413);
+    }
+
+    const cleanKey = sanitizeStorageKey(key)!;
     await saveLocalFile(cleanKey, buffer);
-
-    return apiSuccess({
-      message: "File uploaded successfully to local storage",
-      storageKey: cleanKey,
-      bytes: buffer.length,
-    });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("UPLOAD_FAILED", errorMsg, 500);
+    return apiSuccess({ storageKey: cleanKey, bytes: buffer.length });
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const key = url.searchParams.get("key");
-    if (!key) {
-      return apiError("MISSING_KEY", "Storage key is required", 400);
-    }
-
-    const cleanKey = sanitizeStorageKey(key);
-    if (!cleanKey) {
+    const cleanKey = sanitizeStorageKey(req.nextUrl.searchParams.get("key") || "");
+    if (!cleanKey || !cleanKey.startsWith("images/")) {
       return apiError("INVALID_KEY", "Invalid or unsafe storage key", 400);
     }
 
@@ -52,12 +52,12 @@ export async function GET(req: NextRequest) {
     return new NextResponse(new Uint8Array(fileBuffer), {
       status: 200,
       headers: {
-        "Content-Type": "image/jpeg",
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Type": imageContentType(cleanKey),
+        "Cache-Control": "private, max-age=86400",
+        "X-Content-Type-Options": "nosniff",
       },
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("FILE_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }

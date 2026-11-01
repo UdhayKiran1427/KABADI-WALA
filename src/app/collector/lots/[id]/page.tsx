@@ -22,6 +22,9 @@ import { confirmLotAction, rebroadcastLotAction, selectRecyclerOfferAction, dele
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { DemoPaymentQr } from "@/components/payment/DemoPaymentQr";
 import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
+import { offerTotalPaise } from "@/lib/services/lotFlowService";
+import { LOT_ITEMS_INCLUDE, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
+import { LotPhotoStrip } from "@/components/LotPhotoStrip";
 import { ConfirmSubmit, LotStatusBadge, PageTitle, PageVoice, T } from "../../ui";
 
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -43,6 +46,8 @@ export default async function CollectorLotDetailPage(props: {
       transaction: { include: { recycler: true } },
       receiptTokens: { orderBy: { createdAt: "desc" }, take: 1 },
       offers: { include: { recycler: true }, orderBy: { distanceKm: "asc" } },
+      images: true,
+      ...LOT_ITEMS_INCLUDE,
     },
   });
 
@@ -54,6 +59,8 @@ export default async function CollectorLotDetailPage(props: {
     redirect("/collector");
   }
 
+  const items = lotItemsOf(lot);
+  const photos = await lotPhotoUrls(lot.images);
   const kg = (lot.approxWeightGrams / 1000).toFixed(1);
   const listedRate = lot.listedRatePerKgPaise ?? 0;
   const listedTotal = lot.estimatedValuePaise ?? calculateLotValuePaise(listedRate, lot.approxWeightGrams);
@@ -61,20 +68,24 @@ export default async function CollectorLotDetailPage(props: {
   const tx = lot.transaction;
   const recycler = tx?.recycler;
   const dealRate = tx ? tx.agreedRatePaise ?? tx.quotedRatePerKgPaise : listedRate;
-  const dealTotal = tx?.finalPricePaise ?? calculateLotValuePaise(dealRate, lot.approxWeightGrams);
+  const dealTotal = tx ? tx.finalPricePaise ?? tx.quotedPricePaise : listedTotal;
   const payToken = lot.receiptTokens[0]?.token;
   const canDelete = lot.status === "DRAFT" || lot.status === "READY";
   const isPaid = tx?.paymentStatus === "PAID";
-  const rate = tx ? dealRate : listedRate;
   const total = tx ? dealTotal : listedTotal;
-
-  const material = { hi: lot.category.nameHi, en: lot.category.nameEn, mr: lot.category.nameMr };
+  // Per-material rates: agreed ones once a buyer is chosen, otherwise today's price
+  const itemRate = (categoryId: number, listed: number) =>
+    tx?.itemRates.find((r) => r.categoryId === categoryId)?.ratePerKgPaise ?? (tx && items.length === 1 ? dealRate : listed);
 
   // What the speaker reads depends on the step the collector is on.
+  const spokenItems = (lang: "en" | "hi" | "mr") =>
+    items
+      .map((i) => `${(i.weightGrams / 1000).toFixed(1)} ${lang === "en" ? "kilo" : "किलो"} ${lang === "en" ? i.category.nameEn : lang === "mr" ? i.category.nameMr || i.category.nameHi : i.category.nameHi}`)
+      .join(", ");
   const base = {
-    en: `${kg} kilo ${lot.category.nameEn}, ${spokenRupees(rate)} rupees per kilo, total ${spokenRupees(total)} rupees.`,
-    hi: `${kg} किलो ${lot.category.nameHi}, ${spokenRupees(rate)} रुपये किलो, कुल ${spokenRupees(total)} रुपये।`,
-    mr: `${kg} किलो ${lot.category.nameMr || lot.category.nameHi}, ${spokenRupees(rate)} रुपये किलो, एकूण ${spokenRupees(total)} रुपये.`,
+    en: `${spokenItems("en")}. Total ${spokenRupees(total)} rupees.`,
+    hi: `${spokenItems("hi")}। कुल ${spokenRupees(total)} रुपये।`,
+    mr: `${spokenItems("mr")}. एकूण ${spokenRupees(total)} रुपये.`,
   };
   const step = isPaid
     ? { en: "Payment received.", hi: "पैसे मिल गए।", mr: "पैसे मिळाले." }
@@ -115,13 +126,27 @@ export default async function CollectorLotDetailPage(props: {
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.5rem" }}>
           <LotStatusBadge status={lot.status} />
         </div>
-        <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "var(--slate-900)" }}>
-          {kg} kg <T {...material} />
-        </div>
-        <div style={{ fontSize: "1rem", color: "var(--slate-600)", marginTop: "0.25rem" }}>
-          × {rupees(rate)}/kg
-        </div>
+        <ul className="lot-items" style={{ textAlign: "left", marginTop: "0.5rem" }}>
+          {items.map((i) => {
+            const r = itemRate(i.categoryId, i.listedRatePerKgPaise);
+            return (
+              <li key={i.categoryId}>
+                <span>
+                  <strong>{(i.weightGrams / 1000).toFixed(1)} kg</strong> <T hi={i.category.nameHi} en={i.category.nameEn} mr={i.category.nameMr} />{" "}
+                  <span style={{ color: "var(--slate-500)" }}>× {rupees(r)}</span>
+                </span>
+                <span>{rupees(calculateLotValuePaise(r, i.weightGrams))}</span>
+              </li>
+            );
+          })}
+        </ul>
         <div className="c-total">= {rupees(total)}</div>
+        {items.length > 1 && <div className="c-hint" style={{ justifyContent: "center" }}>{kg} kg</div>}
+        {photos.length > 0 && (
+          <div style={{ marginTop: "0.75rem" }}>
+            <LotPhotoStrip photos={photos} />
+          </div>
+        )}
 
         {lot.status === "DRAFT" && (
           <>
@@ -164,7 +189,7 @@ export default async function CollectorLotDetailPage(props: {
             </div>
           ) : (
             interested.map((offer) => {
-              const offerRate = offer.ratePerKgPaise ?? listedRate;
+              const offerTotal = offerTotalPaise(offer, lot.approxWeightGrams);
               return (
                 <div key={offer.id} className="card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
@@ -179,9 +204,11 @@ export default async function CollectorLotDetailPage(props: {
                     </div>
                     <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "var(--primary-800)" }}>
-                        {rupees(calculateLotValuePaise(offerRate, lot.approxWeightGrams))}
+                        {rupees(offerTotal)}
                       </div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>{rupees(offerRate)}/kg</div>
+                      {items.length === 1 && (
+                        <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>{rupees(offer.ratePerKgPaise ?? listedRate)}/kg</div>
+                      )}
                     </div>
                   </div>
                   <form action={selectRecyclerOfferAction}>

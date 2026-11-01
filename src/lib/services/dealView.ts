@@ -1,5 +1,5 @@
 import { prisma } from "../prisma";
-import { calculateLotValuePaise } from "../domain/lotBroadcast";
+import { LOT_ITEMS_INCLUDE, dealLines, lotItemsOf, lotPhotoUrls } from "./lotItemsView";
 
 /**
  * Full deal details for a lot whose collector selected a recycler.
@@ -15,6 +15,8 @@ export async function getDealView(lotId: string, origin: string) {
       transaction: { include: { recycler: true } },
       receiptTokens: { orderBy: { createdAt: "desc" }, take: 1 },
       payments: { orderBy: { paidAt: "desc" }, take: 1 },
+      images: { select: { id: true, storageKey: true } },
+      ...LOT_ITEMS_INCLUDE,
     },
   });
   if (!lot || !lot.transaction) return null;
@@ -28,15 +30,28 @@ export async function getDealView(lotId: string, origin: string) {
     lotId: lot.id,
     lotRef: lot.lotRef,
     lotStatus: lot.status,
+    // Main (heaviest) material; see items for every material
     material: { categoryId: lot.categoryId, nameEn: lot.category.nameEn, nameHi: lot.category.nameHi, nameMr: lot.category.nameMr },
+    items: dealLines(lotItemsOf(lot), tx).map((i) => ({
+      categoryId: i.categoryId,
+      nameEn: i.category.nameEn,
+      nameHi: i.category.nameHi,
+      nameMr: i.category.nameMr,
+      weightGrams: i.weightGrams,
+      ratePerKgPaise: i.ratePerKgPaise,
+      amountPaise: i.amountPaise,
+    })),
+    photos: await lotPhotoUrls(lot.images),
     approxWeightGrams: lot.approxWeightGrams,
+    // Average rate over all materials
     ratePerKgPaise,
-    amountPaise: tx.finalPricePaise ?? calculateLotValuePaise(ratePerKgPaise, lot.approxWeightGrams),
+    amountPaise: tx.finalPricePaise ?? tx.quotedPricePaise,
     paymentStatus: tx.paymentStatus,
     paymentToken: token,
     // DEMO: opening payUrl (e.g. by scanning its QR) marks the deal paid and redirects to the invoice page
     payUrl: token ? `${origin}/pay/${token}` : null,
     invoiceUrl: token ? `${origin}/invoice/${token}` : null,
+    invoicePdfUrl: token ? `${origin}/invoice/${token}/pdf` : null,
     payment: payment
       ? { id: payment.id, method: payment.method, reference: payment.upiRef, amountPaise: payment.amountPaise, paidAt: payment.paidAt }
       : null,

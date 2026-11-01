@@ -54,19 +54,22 @@ sequenceDiagram
 ### Collector
 1. Register or sign in → `POST /auth/register` / `POST /auth/login` (phone + 4-digit PIN).
 2. Show materials with today's price → `GET /prices/today`.
-3. Create a lot (material + weight + phone GPS) → `POST /lots`. The response has the value, e.g. 10 kg × ₹10 = ₹100. Status `DRAFT`.
-4. Collector checks the value and confirms → `POST /lots/{id}/confirm`. Status `READY`; recyclers within 5 km are notified.
-5. Wait for recyclers. Poll `GET /lots/{id}/offers` (every 10–15 s while on the screen) to show who is ready to buy, with price and address. Use `POST /lots/{id}/search-again` if nobody is in range yet.
-6. Pick one → `POST /lots/{id}/select`. Status `MATCHED`. The response contains the recycler's full details and the payment QR link.
-7. Show the payment QR (`deal.payUrl`) and wait. Poll `GET /lots/{id}/deal` until `paymentStatus` is `PAID`, then show the success screen and invoice.
+3. Upload up to 5 photos (optional): `POST /uploads/presign` for each, then `PUT` the image to the returned `uploadUrl` with the same Bearer token.
+4. Create a lot with one or more materials (e.g. PCB 5 kg + Wires 2 kg), the photo `storageKey`s and phone GPS → `POST /lots`. The response has each material's value and the total, e.g. 5 kg × ₹120 + 2 kg × ₹45 = ₹690. Status `DRAFT`.
+5. Collector checks the value and confirms → `POST /lots/{id}/confirm`. Status `READY`; recyclers within 5 km are notified.
+6. Wait for recyclers. Poll `GET /lots/{id}/offers` (every 10–15 s while on the screen) to show who is ready to buy, with price and address. Use `POST /lots/{id}/search-again` if nobody is in range yet.
+7. Pick one → `POST /lots/{id}/select`. Status `MATCHED`. The response contains the recycler's full details and the payment QR link.
+8. Show the payment QR (`deal.payUrl`) and wait. Poll `GET /lots/{id}/deal` until `paymentStatus` is `PAID`, then show the success screen and invoice.
+9. Order history with search and filters → `GET /lots?q=&status=&material=&period=`. Profile → `GET /auth/me`.
 
 ### Recycler
 1. Sign in → `POST /auth/staff-login` (phone + password given by admin).
 2. See nearby lot requests → `GET /recycler/requests` (material, weight, price, distance, area – **no collector name or phone**).
-3. Answer each request → `POST /recycler/requests/{offerId}` with `INTERESTED` (+ your ₹/kg) or `DECLINED`.
+3. Answer each request → `POST /recycler/requests/{offerId}` with `INTERESTED` (+ your ₹/kg for each material; pre-fill with today's price) or `DECLINED`.
 4. When a collector chooses you, the lot appears in `GET /recycler/deals` and you get a notification.
 5. Open the deal → `GET /lots/{lotId}/deal` to see the collector's name, phone and lot location.
 6. Pay: scan the collector's QR, take the token from the URL (`…/pay/{token}`) and call `POST /payments/{token}/demo-pay`. Show the success + invoice from the response.
+7. Order history with search by collector name/phone and filters → `GET /recycler/deals?q=&status=&material=&period=`.
 
 > **Demo payment:** no real money moves. The QR encodes `{server}/pay/{token}`. Opening it in a browser also marks the deal paid and shows the invoice page `{server}/invoice/{token}`.
 
@@ -115,23 +118,23 @@ sequenceDiagram
 
 | Method | Path | Who | Description |
 |---|---|---|---|
-| POST | `/lots` | Collector | Create a lot. Body: `categoryId, approxWeightGrams, latitude?, longitude?, id? (client UUID), photos? (storage keys)`. Returns the lot with `listedRatePerKgPaise` and `estimatedValuePaise`. Status `DRAFT`. Without GPS, the collector's registered area is used. |
-| GET | `/lots?status=` | Collector | My lots, newest first. |
+| POST | `/lots` | Collector | Create a lot. Body: `items: [{ categoryId, weightGrams }]` (1–10 materials; repeated materials are added together), `latitude?, longitude?, id? (client UUID), photos? (up to 5 storage keys)`. The older single `categoryId` + `approxWeightGrams` still works. Every material needs today's price (`PRICE_NOT_SET` otherwise). Returns the lot with `items` (each with `listedRatePerKgPaise`, `valuePaise`), `estimatedValuePaise` (total) and `photos` (URLs). Status `DRAFT`. Without GPS, the collector's registered area is used. |
+| GET | `/lots?q=&status=&material=&period=` | Collector | **Order history**, newest first (max 200). `q` searches lot ref, material name and buyer (recycler) name. `status`: `finding` (DRAFT+READY), `topay` (MATCHED), `paid` (COMPLETED), or an exact lot status. `material`: category id. `period`: `7d`, `30d`, `90d`. All optional. |
 | GET | `/lots/{id}` | Collector (owner) | One lot with all its data. |
 | DELETE | `/lots/{id}` | Collector (owner) | Delete a lot that is not paid. |
 | POST | `/lots/{id}/confirm` | Collector (owner) | Confirm a `DRAFT` lot and notify recyclers within 5 km. Returns `recyclersNotified`. |
 | POST | `/lots/{id}/search-again` | Collector (owner) | Notify recyclers that joined the 5 km area since the lot was confirmed. |
-| GET | `/lots/{id}/offers` | Collector (owner) | Recyclers ready to buy: `offerId, recycler {name, address, lat/lng}, distanceKm, ratePerKgPaise, totalPaise`, plus counts (`notified, interested, waiting, declined`). |
+| GET | `/lots/{id}/offers` | Collector (owner) | Recyclers ready to buy: `offerId, recycler {name, address, lat/lng}, distanceKm, totalPaise` (what they will pay for the whole lot), `itemRates` (their ₹/kg per material) and `ratePerKgPaise` (average), plus counts (`notified, interested, waiting, declined`). |
 | POST | `/lots/{id}/select` | Collector (owner) | Sell to one recycler. Body: `offerId`. Returns the `deal`. |
-| GET | `/lots/{id}/deal` | Collector (owner), selected recycler, admin | Both parties' full details, `amountPaise`, `paymentStatus`, `payUrl` (for the QR), `invoiceUrl`, `payment`. |
+| GET | `/lots/{id}/deal` | Collector (owner), selected recycler, admin | Both parties' full details, `items` (each material with agreed `ratePerKgPaise` and `amountPaise`), `photos`, `amountPaise` (total), `paymentStatus`, `payUrl` (for the QR), `invoiceUrl`, `invoicePdfUrl`, `payment`. |
 
 ### 4.4 Recycler
 
 | Method | Path | Who | Description |
 |---|---|---|---|
-| GET | `/recycler/requests` | Recycler | Open lot requests within 5 km. Each has `offerId`, `status` (`NOTIFIED` / `INTERESTED`), `distanceKm` and `lot {material, approxWeightGrams, listedRatePerKgPaise, listedValuePaise, area}`. |
-| POST | `/recycler/requests/{offerId}` | Recycler | Answer a request. Body: `{ "response": "INTERESTED", "ratePerKgPaise": 1000 }` or `{ "response": "DECLINED" }`. |
-| GET | `/recycler/deals` | Recycler | Lots where a collector chose me: collector name/phone/area, `amountPaise`, `paymentStatus`. |
+| GET | `/recycler/requests` | Recycler | Open lot requests within 5 km. Each has `offerId`, `status` (`NOTIFIED` / `INTERESTED`), `distanceKm`, `notifiedAt`, my answer (`myItemRates`, `myTotalPaise`) and `lot {lotRef, items [{categoryId, names, weightGrams, listedRatePerKgPaise}], photos [{id, url}], approxWeightGrams, listedValuePaise, area}`. |
+| POST | `/recycler/requests/{offerId}` | Recycler | Answer a request. Body: `{ "response": "INTERESTED", "itemRates": [{ "categoryId": 1, "ratePerKgPaise": 12000 }, ...] }` or `{ "response": "DECLINED" }`. Materials left out of `itemRates` use `ratePerKgPaise` if sent, otherwise today's price. Returns `totalPaise`. |
+| GET | `/recycler/deals?q=&status=&material=&period=` | Recycler | **Order history**: lots where a collector chose me (max 100), with collector name/phone/area, `amountPaise`, `paymentStatus`. `q` searches collector name, collector phone, lot ref and material. `status`: `topay` or `paid`. `material` and `period` as for `/lots`. All optional. |
 
 ### 4.5 Payment & invoice
 
@@ -139,6 +142,7 @@ sequenceDiagram
 |---|---|---|---|
 | POST | `/payments/{token}/demo-pay` | Collector / recycler of the deal, admin | **Demo** payment. Marks the deal `PAID` and returns the `deal` with `payment` (method, reference, amount, time). Safe to call twice. |
 | GET | `{server}/invoice/{token}` (web page) | Anyone with the link | Invoice + "Payment successful" screen. Can be opened in a WebView. |
+| GET | `{server}/invoice/{token}/pdf` | Anyone with the link | Downloads the invoice as a PDF file (`deal.invoicePdfUrl`). |
 
 ### 4.6 Admin
 
@@ -163,7 +167,7 @@ sequenceDiagram
 
 | Method | Path | Who | Description |
 |---|---|---|---|
-| POST | `/uploads/presign` | Collector | Get an upload URL for a lot photo. Body: `filename, contentType?`. Upload the file, then pass `storageKey` in `photos` of `POST /lots`. |
+| POST | `/uploads/presign` | Collector | Get an upload URL for a lot photo. Body: `filename, contentType?`. `PUT` the image bytes to `uploadUrl` (JPEG/PNG/WebP, max 5 MB; with the local storage driver send the same `Authorization` header and `Content-Type: image/jpeg`), then pass `storageKey` in `photos` of `POST /lots`. Resize photos on the phone first (e.g. max 1600 px). |
 | GET | `/ledger` | Collector | My earnings history. |
 | GET | `/reference/bootstrap?since=` | Public | Reference data for offline caching: materials, safety topics, recyclers, areas. |
 | GET | `/recyclers/nearby?latitude=&longitude=&radiusKm=25` | Public | Verified recyclers near a point (for a map). |
@@ -188,8 +192,11 @@ sequenceDiagram
 # Collector creates a lot: 10 kg of material 2 at the phone's location
 POST /api/v1/lots
 Authorization: Bearer <collector-token>
-{ "categoryId": 2, "approxWeightGrams": 10000, "latitude": 19.0434, "longitude": 72.8567 }
-→ 201 { "data": { "lot": { "id": "L1", "status": "DRAFT", "listedRatePerKgPaise": 1000, "estimatedValuePaise": 10000 } } }
+{ "items": [{ "categoryId": 1, "weightGrams": 5000 }, { "categoryId": 2, "weightGrams": 2000 }],
+  "photos": ["images/U1/1730…_a1b2c3.jpg"], "latitude": 19.0434, "longitude": 72.8567 }
+→ 201 { "data": { "lot": { "id": "L1", "status": "DRAFT", "estimatedValuePaise": 69000,
+        "items": [ { "categoryId": 1, "weightGrams": 5000, "listedRatePerKgPaise": 12000, "valuePaise": 60000 },
+                   { "categoryId": 2, "weightGrams": 2000, "listedRatePerKgPaise": 4500, "valuePaise": 9000 } ] } } }
 
 POST /api/v1/lots/L1/confirm
 → { "data": { "lotId": "L1", "status": "READY", "recyclersNotified": 10 } }
@@ -198,14 +205,14 @@ POST /api/v1/lots/L1/confirm
 GET /api/v1/recycler/requests          (recycler token)
 → { "data": { "requests": [ { "offerId": "O7", "status": "NOTIFIED", "distanceKm": 2.3, "lot": { ... } } ] } }
 POST /api/v1/recycler/requests/O7
-{ "response": "INTERESTED", "ratePerKgPaise": 1100 }
+{ "response": "INTERESTED", "itemRates": [{ "categoryId": 1, "ratePerKgPaise": 12500 }, { "categoryId": 2, "ratePerKgPaise": 4500 }] }
 
 # Collector sees who is ready and picks one
 GET /api/v1/lots/L1/offers
-→ { "data": { "summary": { "notified": 10, "interested": 5, ... }, "offers": [ { "offerId": "O7", "totalPaise": 11000, ... } ] } }
+→ { "data": { "summary": { "notified": 10, "interested": 5, ... }, "offers": [ { "offerId": "O7", "totalPaise": 71500, ... } ] } }
 POST /api/v1/lots/L1/select
 { "offerId": "O7" }
-→ { "data": { "deal": { "amountPaise": 11000, "paymentStatus": "UNPAID", "payUrl": "https://…/pay/ab12…", ... } } }
+→ { "data": { "deal": { "amountPaise": 71500, "items": [...], "paymentStatus": "UNPAID", "payUrl": "https://…/pay/ab12…", ... } } }
 
 # Recycler scans the QR and pays (demo)
 POST /api/v1/payments/ab12…/demo-pay     (recycler token)

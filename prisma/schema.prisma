@@ -10,6 +10,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------- Composite types ----------
+// Buying rate for one material of a lot
+type ItemRate {
+  categoryId     Int
+  ratePerKgPaise Int
+}
+
 // ---------- Enums ----------
 enum Role {
   COLLECTOR
@@ -268,6 +275,7 @@ model MaterialCategory {
   trainingSamples  TrainingSample[]
   priceAlerts      PriceAlert[]
   coverageRequests CoverageRequest[]
+  lotItems         LotItem[]
 }
 
 model SafetyTopic {
@@ -490,6 +498,7 @@ model Lot {
   flags           AnomalyFlag[]
   receiptTokens   ReceiptShareToken[]
   offers          LotOffer[]
+  items           LotItem[]
 
   @@index([collectorId, collectedAt])
   @@index([status])
@@ -532,20 +541,36 @@ model MatchSuggestion {
   @@index([lotId])
 }
 
+// One material in a lot, e.g. PCB 5 kg. Lot.categoryId/approxWeightGrams hold the main material and total weight.
+model LotItem {
+  id                   String           @id @default(uuid()) @map("_id")
+  lotId                String
+  lot                  Lot              @relation(fields: [lotId], references: [id])
+  categoryId           Int
+  category             MaterialCategory @relation(fields: [categoryId], references: [id])
+  weightGrams          Int
+  listedRatePerKgPaise Int // Admin today's price at lot creation
+
+  @@index([lotId])
+  @@index([categoryId])
+}
+
 // Broadcast of a confirmed lot to one nearby recycler.
 // NOTIFIED -> INTERESTED | DECLINED; INTERESTED -> SELECTED | NOT_SELECTED
 model LotOffer {
-  id             String    @id @default(uuid()) @map("_id")
+  id             String     @id @default(uuid()) @map("_id")
   lotId          String
-  lot            Lot       @relation(fields: [lotId], references: [id])
+  lot            Lot        @relation(fields: [lotId], references: [id])
   recyclerId     String
-  recycler       Recycler  @relation(fields: [recyclerId], references: [id])
-  status         String    @default("NOTIFIED")
+  recycler       Recycler   @relation(fields: [recyclerId], references: [id])
+  status         String     @default("NOTIFIED")
   distanceKm     Float
-  ratePerKgPaise Int? // Recycler's buying rate, set when INTERESTED
+  ratePerKgPaise Int? // Average buying rate (totalPaise / weight), set when INTERESTED
+  totalPaise     Int? // What the recycler will pay for the whole lot
+  itemRates      ItemRate[] // Per-material rates, set when INTERESTED
   respondedAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@unique([lotId, recyclerId])
   @@index([recyclerId, status])
@@ -573,8 +598,9 @@ model Transaction {
   bargainRatePaise Int? // Pending counter-offer rate in paise/kg
   bargainBy        String? // "COLLECTOR" | "RECYCLER"
   bargainNote      String? // e.g. "Clean sorted material"
-  bargainStatus    String? @default("NONE") // NONE, OFFER_BY_COLLECTOR, OFFER_BY_RECYCLER, AGREED
+  bargainStatus    String?    @default("NONE") // NONE, OFFER_BY_COLLECTOR, OFFER_BY_RECYCLER, AGREED
   agreedRatePaise  Int? // Final agreed rate in paise/kg
+  itemRates        ItemRate[] // Agreed per-material rates (multi-material lots)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -5,7 +5,8 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { DemoPaymentQr } from "@/components/payment/DemoPaymentQr";
-import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
+import { LOT_ITEMS_INCLUDE, dealLines, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
+import { LotPhotoStrip } from "@/components/LotPhotoStrip";
 
 export default async function RecyclerDealPage(props: { params: Promise<{ lotId: string }> }) {
   const { dbUser } = await requireRole(["RECYCLER"]);
@@ -18,6 +19,8 @@ export default async function RecyclerDealPage(props: { params: Promise<{ lotId:
       collector: { include: { user: { select: { phone: true } } } },
       transaction: true,
       receiptTokens: { orderBy: { createdAt: "desc" }, take: 1 },
+      images: { select: { id: true, storageKey: true } },
+      ...LOT_ITEMS_INCLUDE,
     },
   });
 
@@ -27,8 +30,9 @@ export default async function RecyclerDealPage(props: { params: Promise<{ lotId:
   }
 
   const tx = lot.transaction;
-  const rate = tx.agreedRatePaise ?? tx.quotedRatePerKgPaise;
-  const amountPaise = tx.finalPricePaise ?? calculateLotValuePaise(rate, lot.approxWeightGrams);
+  const lines = dealLines(lotItemsOf(lot), tx);
+  const photos = await lotPhotoUrls(lot.images);
+  const amountPaise = tx.finalPricePaise ?? tx.quotedPricePaise;
   const isPaid = tx.paymentStatus === "PAID";
   const token = lot.receiptTokens[0]?.token;
   const collectorName = lot.collector.name || `Collector ${lot.collector.shortCode}`;
@@ -86,22 +90,24 @@ export default async function RecyclerDealPage(props: { params: Promise<{ lotId:
             <span>Collector code</span>
             <span>{lot.collector.shortCode}</span>
           </div>
-          <div className="r-kv">
-            <span>Material</span>
-            <span>{lot.category.nameEn} ({lot.category.nameHi})</span>
-          </div>
-          <div className="r-kv">
-            <span>Weight</span>
-            <span>{(lot.approxWeightGrams / 1000).toFixed(1)} kg</span>
-          </div>
-          <div className="r-kv">
-            <span>Rate</span>
-            <span>₹{(rate / 100).toFixed(2)}/kg</span>
-          </div>
+          {lines.map((line) => (
+            <div key={line.categoryId} className="r-kv">
+              <span>
+                {line.category.nameEn} · {(line.weightGrams / 1000).toFixed(1)} kg × ₹{(line.ratePerKgPaise / 100).toFixed(2)}
+              </span>
+              <span>₹{(line.amountPaise / 100).toLocaleString("en-IN")}</span>
+            </div>
+          ))}
           <div className="r-kv" style={{ borderBottom: "none", fontSize: "1.05rem" }}>
             <span>Total</span>
             <span style={{ fontWeight: 800 }}>₹{(amountPaise / 100).toLocaleString("en-IN")}</span>
           </div>
+
+          {photos.length > 0 && (
+            <div style={{ marginTop: "0.75rem" }}>
+              <LotPhotoStrip photos={photos} />
+            </div>
+          )}
 
           {lot.collectLat != null && lot.collectLng != null && (
             <a

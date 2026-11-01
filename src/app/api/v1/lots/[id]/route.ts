@@ -16,6 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       where: { id },
       include: {
         category: true,
+        items: { include: { category: true } },
         images: true,
         transaction: {
           include: {
@@ -85,6 +86,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       await db.dispute.deleteMany({ where: { lotId: id } });
       await db.matchSuggestion.deleteMany({ where: { lotId: id } });
       await db.lotOffer.deleteMany({ where: { lotId: id } });
+      await db.lotItem.deleteMany({ where: { lotId: id } });
       await db.receiptShareToken.deleteMany({ where: { lotId: id } });
       await db.payment.deleteMany({ where: { lotId: id } });
       await db.handover.deleteMany({ where: { lotId: id } });

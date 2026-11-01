@@ -5,6 +5,18 @@ import { ArrowRight, CircleAlert, CircleCheck, Clock, Handshake, Inbox, MapPin, 
 import { respondToLotOfferAction } from "./actions";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { BROADCAST_RADIUS_KM } from "@/lib/domain/lotBroadcast";
+import { offerTotalPaise } from "@/lib/services/lotFlowService";
+import { LOT_ITEMS_INCLUDE, lotItemsLabel, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
+import { LotPhotoStrip } from "@/components/LotPhotoStrip";
+
+function timeAgo(date: Date): string {
+  const minutes = Math.round((Date.now() - date.getTime()) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return minutes + " min ago";
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return hours + " h ago";
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
 
 export default async function RecyclerDashboardPage(props: { searchParams: Promise<{ error?: string; success?: string }> }) {
   const { dbUser } = await requireRole(["RECYCLER"]);
@@ -29,7 +41,7 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
   }
 
   // Open lot broadcasts within 5 km (collector identity is not loaded)
-  const openOffers = await prisma.lotOffer.findMany({
+  const offerRows = await prisma.lotOffer.findMany({
     where: {
       recyclerId,
       status: { in: ["NOTIFIED", "INTERESTED"] },
@@ -38,26 +50,34 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
     include: {
       lot: {
         select: {
+          lotRef: true,
+          categoryId: true,
           approxWeightGrams: true,
           listedRatePerKgPaise: true,
           estimatedValuePaise: true,
           category: true,
+          images: { select: { id: true, storageKey: true } },
+          ...LOT_ITEMS_INCLUDE,
           collector: { select: { operatingArea: true } },
         },
       },
     },
     orderBy: { createdAt: "desc" },
   });
+  const openOffers = await Promise.all(
+    offerRows.map(async (offer) => ({ offer, items: lotItemsOf(offer.lot), photos: await lotPhotoUrls(offer.lot.images) }))
+  );
 
-  // Deals: lots whose collector selected this facility
+  // Deals still to pay: lots whose collector selected this facility (paid ones are in History)
   const deals = await prisma.lot.findMany({
     where: {
       chosenRecyclerId: recyclerId,
-      status: { in: ["MATCHED", "COMPLETED"] },
+      status: "MATCHED",
       offers: { some: { recyclerId, status: "SELECTED" } },
     },
     include: {
       category: true,
+      ...LOT_ITEMS_INCLUDE,
       collector: { include: { user: { select: { phone: true } } } },
       transaction: true,
     },
@@ -109,22 +129,21 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
             </div>
           ) : (
             <div className="r-list">
-              {openOffers.map((offer) => {
+              {openOffers.map(({ offer, items, photos }) => {
                 const lot = offer.lot;
-                const listedRate = lot.listedRatePerKgPaise ?? 0;
                 return (
                   <div key={offer.id} className="r-item">
                     <div className="r-item-head">
                       <div style={{ minWidth: 0 }}>
-                        <div className="r-item-title">
-                          {lot.category.nameEn} <span style={{ fontWeight: 500, color: "var(--slate-500)" }}>({lot.category.nameHi})</span>
-                        </div>
+                        <div className="r-item-title">{lotItemsLabel(items)}</div>
                         <div className="r-muted">
-                          {(lot.approxWeightGrams / 1000).toFixed(1)} kg &middot; ₹{(listedRate / 100).toFixed(0)}/kg
+                          Lot {lot.lotRef} &middot; posted {timeAgo(offer.createdAt)}
                         </div>
                       </div>
                       <div className="r-amount">₹{((lot.estimatedValuePaise ?? 0) / 100).toLocaleString("en-IN")}</div>
                     </div>
+
+                    <LotPhotoStrip photos={photos} />
 
                     <div className="r-meta">
                       <span>
@@ -136,33 +155,47 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
                     {offer.status === "INTERESTED" ? (
                       <span className="badge badge-info r-inline" style={{ alignSelf: "flex-start" }}>
                         <Clock size={14} aria-hidden="true" />
-                        You offered ₹{((offer.ratePerKgPaise ?? 0) / 100).toFixed(0)}/kg &middot; waiting for collector
+                        You offered ₹{(offerTotalPaise(offer, lot.approxWeightGrams) / 100).toLocaleString("en-IN")} &middot; waiting for collector
                       </span>
                     ) : (
-                      <div className="r-actions">
-                        <form action={respondToLotOfferAction} className="r-rate-form">
+                      <>
+                        <form action={respondToLotOfferAction} className="r-offer-form">
                           <input type="hidden" name="offerId" value={offer.id} />
                           <input type="hidden" name="response" value="INTERESTED" />
-                          <span aria-hidden="true">₹</span>
-                          <input
-                            type="number"
-                            name="rateRupees"
-                            min="1"
-                            step="0.5"
-                            defaultValue={(listedRate / 100).toFixed(0)}
-                            required
-                            aria-label="Your buying rate in rupees per kg"
-                            className="form-control r-rate-input"
-                          />
-                          <span aria-hidden="true">/kg</span>
-                          <button type="submit" className="btn btn-sm btn-primary">Ready to buy</button>
+                          <div className="r-muted">Your price per kg</div>
+                          {items.map((item) => (
+                            <label key={item.categoryId} className="r-offer-row">
+                              <span className="r-offer-name">
+                                {item.category.nameEn} <span className="r-muted">{(item.weightGrams / 1000).toFixed(1)} kg</span>
+                              </span>
+                              <span className="r-rate-form">
+                                <span aria-hidden="true">₹</span>
+                                <input
+                                  type="number"
+                                  name={`rate_${item.categoryId}`}
+                                  min="1"
+                                  step="0.5"
+                                  defaultValue={(item.listedRatePerKgPaise / 100).toFixed(0)}
+                                  required
+                                  aria-label={`Your buying rate for ${item.category.nameEn} in rupees per kg`}
+                                  className="form-control r-rate-input"
+                                />
+                                <span aria-hidden="true">/kg</span>
+                              </span>
+                            </label>
+                          ))}
+                          <button type="submit" className="btn btn-primary btn-block">
+                            Ready to buy
+                          </button>
                         </form>
                         <form action={respondToLotOfferAction}>
                           <input type="hidden" name="offerId" value={offer.id} />
                           <input type="hidden" name="response" value="DECLINED" />
-                          <button type="submit" className="btn btn-sm btn-secondary">Not interested</button>
+                          <button type="submit" className="btn btn-sm btn-secondary btn-block">
+                            Not interested
+                          </button>
                         </form>
-                      </div>
+                      </>
                     )}
                   </div>
                 );
@@ -178,7 +211,7 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
               <h2 className="r-section-title">
                 <Handshake size={20} aria-hidden="true" /> My Deals
               </h2>
-              <div className="r-muted">{unpaidDealCount > 0 ? `${unpaidDealCount} to pay` : "All paid"}</div>
+              <div className="r-muted">{unpaidDealCount > 0 ? `${unpaidDealCount} to pay` : "All paid"} · <Link href="/recycler/history">Order history</Link></div>
             </div>
             <span className="badge badge-neutral">{deals.length}</span>
           </div>
@@ -186,21 +219,21 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
           {deals.length === 0 ? (
             <div className="r-empty">
               <Handshake size={28} aria-hidden="true" />
-              <div>No deals yet.</div>
+              <div>No deals to pay.</div>
+              <Link href="/recycler/history" className="btn btn-sm btn-secondary">Order history</Link>
             </div>
           ) : (
             <div className="r-list">
               {deals.map((lot) => {
                 const tx = lot.transaction;
-                const rate = tx ? tx.agreedRatePaise ?? tx.quotedRatePerKgPaise : 0;
-                const amount = tx?.finalPricePaise ?? Math.round((rate * lot.approxWeightGrams) / 1000);
+                const amount = tx ? tx.finalPricePaise ?? tx.quotedPricePaise : 0;
                 const isPaid = tx?.paymentStatus === "PAID";
                 return (
                   <div key={lot.id} className="r-item">
                     <div className="r-item-head">
                       <div style={{ minWidth: 0 }}>
                         <div className="r-item-title">
-                          {(lot.approxWeightGrams / 1000).toFixed(1)} kg {lot.category.nameEn}
+                          {lotItemsLabel(lotItemsOf(lot))}
                         </div>
                         <div className="r-muted">Lot {lot.lotRef}</div>
                       </div>

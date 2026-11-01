@@ -3,18 +3,18 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, House, LogOut, PackagePlus, Recycle, Wallet } from "lucide-react";
+import { Bell, CircleUserRound, House, PackagePlus, Recycle, ReceiptText } from "lucide-react";
 import { useTxt, VoiceControls, type Txt } from "./ui";
 
 interface CollectorNavbarClientProps {
   unreadNotifications?: number;
-  logoutAction: () => Promise<void>;
+  name?: string | null;
 }
 
 const NAV: Array<{ href: string; label: Txt; Icon: typeof House; exact?: boolean; alerts?: boolean }> = [
   { href: "/collector", label: { hi: "होम", en: "Home", mr: "होम" }, Icon: House, exact: true },
   { href: "/collector/create-lot", label: { hi: "नया लॉट", en: "New lot", mr: "नवीन लॉट" }, Icon: PackagePlus },
-  { href: "/collector/ledger", label: { hi: "कमाई", en: "Earnings", mr: "कमाई" }, Icon: Wallet },
+  { href: "/collector/ledger", label: { hi: "इतिहास", en: "History", mr: "इतिहास" }, Icon: ReceiptText },
   { href: "/collector/notifications", label: { hi: "सूचना", en: "Alerts", mr: "सूचना" }, Icon: Bell, alerts: true },
 ];
 
@@ -28,8 +28,8 @@ function UnreadDot({ count }: { count: number }) {
   return <span className="c-nav-badge">{count > 9 ? "9+" : count}</span>;
 }
 
-/** Top bar: brand, desktop links, speaker, language, sign-out. */
-export function CollectorNavbarClient({ unreadNotifications = 0, logoutAction }: CollectorNavbarClientProps) {
+/** Top bar: brand, desktop links, speaker, language, profile. */
+export function CollectorNavbarClient({ unreadNotifications = 0, name }: CollectorNavbarClientProps) {
   const tx = useTxt();
   const isActive = useIsActive();
 
@@ -56,16 +56,20 @@ export function CollectorNavbarClient({ unreadNotifications = 0, logoutAction }:
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
         <VoiceControls />
-        <form action={logoutAction}>
-          <button
-            type="submit"
-            className="c-icon-btn"
-            aria-label={tx({ hi: "लॉगआउट", en: "Sign out", mr: "लॉगआउट" })}
-            title={tx({ hi: "लॉगआउट", en: "Sign out", mr: "लॉगआउट" })}
-          >
-            <LogOut size={18} aria-hidden="true" />
-          </button>
-        </form>
+        <Link
+          href="/collector/profile"
+          className={`c-icon-btn ${name ? "c-avatar-btn" : ""}`}
+          aria-label={tx({ hi: "मेरी प्रोफ़ाइल", en: "My profile", mr: "माझी प्रोफाइल" })}
+          title={tx({ hi: "मेरी प्रोफ़ाइल", en: "My profile", mr: "माझी प्रोफाइल" })}
+        >
+          {name ? (
+            <span className="c-avatar" style={{ width: "100%", height: "100%", fontSize: "1rem" }} aria-hidden="true">
+              {name.trim().charAt(0).toUpperCase()}
+            </span>
+          ) : (
+            <CircleUserRound size={22} aria-hidden="true" />
+          )}
+        </Link>
       </div>
     </div>
   );

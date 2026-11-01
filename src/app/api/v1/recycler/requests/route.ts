@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import { LOT_ITEMS_INCLUDE, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
 
 /**
  * Open lot requests for the signed-in recycler: lots within 5 km that are still looking for a buyer.
@@ -24,7 +25,10 @@ export async function GET(req: NextRequest) {
             listedRatePerKgPaise: true,
             estimatedValuePaise: true,
             collectedAt: true,
+            categoryId: true,
             category: { select: { id: true, nameEn: true, nameHi: true, nameMr: true } },
+            images: { select: { id: true, storageKey: true } },
+            ...LOT_ITEMS_INCLUDE,
             collector: { select: { operatingArea: true } },
           },
         },
@@ -32,16 +36,28 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return apiSuccess({
-      requests: offers.map((o) => ({
+    const requests = await Promise.all(
+      offers.map(async (o) => ({
         offerId: o.id,
         status: o.status, // NOTIFIED = not answered yet, INTERESTED = waiting for the collector to choose
+        myItemRates: o.itemRates,
+        myTotalPaise: o.totalPaise,
         myRatePerKgPaise: o.ratePerKgPaise,
         distanceKm: o.distanceKm,
         notifiedAt: o.createdAt,
         lot: {
           lotId: o.lot.id,
           lotRef: o.lot.lotRef,
+          // Every material with its weight and today's price; send your rate per categoryId when answering
+          items: lotItemsOf(o.lot).map((i) => ({
+            categoryId: i.categoryId,
+            nameEn: i.category.nameEn,
+            nameHi: i.category.nameHi,
+            nameMr: i.category.nameMr,
+            weightGrams: i.weightGrams,
+            listedRatePerKgPaise: i.listedRatePerKgPaise,
+          })),
+          photos: await lotPhotoUrls(o.lot.images),
           material: o.lot.category,
           approxWeightGrams: o.lot.approxWeightGrams,
           listedRatePerKgPaise: o.lot.listedRatePerKgPaise,
@@ -49,8 +65,10 @@ export async function GET(req: NextRequest) {
           area: o.lot.collector.operatingArea,
           collectedAt: o.lot.collectedAt,
         },
-      })),
-    });
+      }))
+    );
+
+    return apiSuccess({ requests });
   } catch (err) {
     return apiErrorFrom(err);
   }

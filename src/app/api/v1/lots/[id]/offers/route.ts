@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireOwnedLot } from "@/lib/auth/lotAccess";
 import { apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
-import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
+import { offerTotalPaise } from "@/lib/services/lotFlowService";
 
 /**
  * Recyclers who are ready to buy this lot (with their price and address), plus broadcast counts.
@@ -37,8 +37,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           offerId: o.id,
           status: o.status,
           distanceKm: o.distanceKm,
+          // Recycler's rate per material, and what they will pay for the whole lot
+          itemRates: o.itemRates,
           ratePerKgPaise: o.ratePerKgPaise,
-          totalPaise: calculateLotValuePaise(o.ratePerKgPaise ?? 0, lot.approxWeightGrams),
+          totalPaise: offerTotalPaise(o, lot.approxWeightGrams),
           respondedAt: o.respondedAt,
           recycler: {
             id: o.recycler.id,

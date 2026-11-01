@@ -1,8 +1,20 @@
 import { randomBytes, randomUUID } from "crypto";
 import { prisma } from "../prisma";
 import { selectBroadcastTargets, calculateLotValuePaise, isValidCoordinate } from "../domain/lotBroadcast";
+import {
+  averageRatePerKgPaise,
+  completeItemRates,
+  ItemRate,
+  LotItemInput,
+  lotValuePaise,
+  normalizeLotItems,
+  PricedLotItem,
+  primaryItem,
+  totalWeightGrams,
+} from "../domain/lotItems";
 import { generateLotRef } from "../domain/lotRef";
 import { sendNotification } from "./notificationService";
+import { LOT_ITEMS_INCLUDE, lotItemsLabel, lotItemsOf } from "./lotItemsView";
 
 /**
  * Expected business-rule failure. Web actions show `message`; the API returns `code` + `status`.
@@ -17,6 +29,8 @@ export interface TodayRate {
   ratePerKgPaise: number;
   recordedAt: Date;
 }
+
+export const MAX_LOT_PHOTOS = 5;
 
 /**
  * Admin-set "today's price" per category (latest ADMIN price point per category).
@@ -56,15 +70,17 @@ export async function notifyRecyclerStaff(
   await Promise.all(staff.map((s) => sendNotification({ userId: s.userId, title, body, dataJson })));
 }
 
+const rupees = (paise: number) => `₹${(paise / 100).toFixed(0)}`;
+
 /**
  * Notifies all verified recyclers within 5 km about a READY lot.
  * Recyclers already notified for this lot are skipped, so it is safe to call again.
- * The notification carries material, weight and price but never the collector's identity.
+ * The notification carries materials, weights and price but never the collector's identity.
  */
 export async function broadcastLot(lotId: string): Promise<{ newlyNotified: number; totalNotified: number }> {
   const lot = await prisma.lot.findUnique({
     where: { id: lotId },
-    include: { category: true, collector: true, offers: { select: { recyclerId: true } } },
+    include: { category: true, collector: true, offers: { select: { recyclerId: true } }, ...LOT_ITEMS_INCLUDE },
   });
   if (!lot || lot.collectLat == null || lot.collectLng == null) {
     return { newlyNotified: 0, totalNotified: 0 };
@@ -85,16 +101,15 @@ export async function broadcastLot(lotId: string): Promise<{ newlyNotified: numb
       data: targets.map((t) => ({ lotId: lot.id, recyclerId: t.recyclerId, distanceKm: t.distanceKm })),
     });
 
-    const kg = (lot.approxWeightGrams / 1000).toFixed(1);
-    const rate = lot.listedRatePerKgPaise ?? 0;
-    const total = calculateLotValuePaise(rate, lot.approxWeightGrams);
+    const items = lotItemsOf(lot);
+    const total = lot.estimatedValuePaise ?? lotValuePaise(items);
 
     await Promise.all(
       targets.map((t) =>
         notifyRecyclerStaff(
           t.recyclerId,
           `New lot ${t.distanceKm.toFixed(1)} km away`,
-          `${kg} kg ${lot.category.nameEn} @ ₹${(rate / 100).toFixed(0)}/kg = ₹${(total / 100).toFixed(0)} · Area: ${lot.collector.operatingArea}. Tap "Ready to buy" on your dashboard.`,
+          `${lotItemsLabel(items)} = ${rupees(total)} · Area: ${lot.collector.operatingArea}. Tap "Ready to buy" on your dashboard.`,
           { lotId: lot.id, lotRef: lot.lotRef, distanceKm: t.distanceKm }
         )
       )
@@ -114,7 +129,7 @@ export type DemoPaymentResult = "PAID" | "ALREADY_PAID" | "NOT_FOUND" | "NOT_PAY
 export async function completeDemoPayment(token: string): Promise<DemoPaymentResult> {
   const share = await prisma.receiptShareToken.findUnique({
     where: { token },
-    include: { lot: { include: { transaction: true, category: true } } },
+    include: { lot: { include: { transaction: true, category: true, ...LOT_ITEMS_INCLUDE } } },
   });
   if (!share || share.expiresAt < new Date()) return "NOT_FOUND";
 
@@ -124,7 +139,7 @@ export async function completeDemoPayment(token: string): Promise<DemoPaymentRes
   if (tx.paymentStatus === "PAID") return "ALREADY_PAID";
   if (lot.status !== "MATCHED") return "NOT_PAYABLE";
 
-  const amountPaise = calculateLotValuePaise(tx.agreedRatePaise ?? tx.quotedRatePerKgPaise, lot.approxWeightGrams);
+  const amountPaise = tx.quotedPricePaise;
   const now = new Date();
 
   const paid = await prisma.$transaction(async (db) => {
@@ -158,7 +173,7 @@ export async function completeDemoPayment(token: string): Promise<DemoPaymentRes
   if (!paid) return "ALREADY_PAID";
 
   const collector = await prisma.collector.findUnique({ where: { id: lot.collectorId }, select: { userId: true } });
-  const summary = `₹${(amountPaise / 100).toFixed(0)} for ${(lot.approxWeightGrams / 1000).toFixed(1)} kg ${lot.category.nameEn} (Lot ${lot.lotRef}).`;
+  const summary = `${rupees(amountPaise)} for ${lotItemsLabel(lotItemsOf(lot))} (Lot ${lot.lotRef}).`;
   if (collector) {
     await sendNotification({ userId: collector.userId, title: "Payment received", body: summary, dataJson: { lotId: lot.id } });
   }
@@ -169,28 +184,48 @@ export async function completeDemoPayment(token: string): Promise<DemoPaymentRes
 
 export interface CreateLotInput {
   collectorId: string;
-  categoryId: number;
-  approxWeightGrams: number;
+  /** One row per material, e.g. [{ categoryId: 1, weightGrams: 5000 }, { categoryId: 2, weightGrams: 2000 }] */
+  items: LotItemInput[];
   latitude?: number;
   longitude?: number;
   lotId?: string;
+  /** Storage keys of already-uploaded photos (max 5) */
+  photoKeys?: string[];
 }
 
 /**
- * Creates a DRAFT lot valued at the admin's today's price.
+ * Creates a DRAFT lot with one or more materials, each valued at the admin's today's price.
  * Location: device GPS when valid, otherwise the centroid of the collector's registered area.
  */
 export async function createLot(input: CreateLotInput) {
   const collector = await prisma.collector.findUnique({ where: { id: input.collectorId } });
   if (!collector) throw new FlowError("NOT_FOUND", "Collector profile not found", 404);
 
-  if (!Number.isInteger(input.approxWeightGrams) || input.approxWeightGrams <= 0) {
-    throw new FlowError("VALIDATION_ERROR", "Please enter a valid weight");
+  const normalized = normalizeLotItems(input.items);
+  if ("error" in normalized) throw new FlowError("VALIDATION_ERROR", normalized.error);
+
+  const photoKeys = input.photoKeys ?? [];
+  if (photoKeys.length > MAX_LOT_PHOTOS) {
+    throw new FlowError("VALIDATION_ERROR", `You can add at most ${MAX_LOT_PHOTOS} photos`);
   }
 
-  const todayRate = await getTodayRate(input.categoryId);
-  if (!todayRate) {
-    throw new FlowError("PRICE_NOT_SET", "Today's price for this material is not set yet. Please choose another material or contact admin.");
+  const [todayRates, categories] = await Promise.all([
+    getTodayRates(),
+    prisma.materialCategory.findMany({
+      where: { id: { in: normalized.items.map((i) => i.categoryId) }, isActive: true },
+      select: { id: true, nameEn: true },
+    }),
+  ]);
+
+  const items: PricedLotItem[] = [];
+  for (const item of normalized.items) {
+    const category = categories.find((c) => c.id === item.categoryId);
+    if (!category) throw new FlowError("VALIDATION_ERROR", "Unknown material");
+    const rate = todayRates.get(item.categoryId);
+    if (!rate) {
+      throw new FlowError("PRICE_NOT_SET", `Today's price for ${category.nameEn} is not set yet. Please remove it or contact admin.`);
+    }
+    items.push({ ...item, listedRatePerKgPaise: rate.ratePerKgPaise });
   }
 
   let collectLat = input.latitude ?? NaN;
@@ -214,22 +249,40 @@ export async function createLot(input: CreateLotInput) {
     lotRef = generateLotRef(collector.shortCode, new Date(), sequence);
   }
 
-  return prisma.lot.create({
-    data: {
-      id: input.lotId ?? randomUUID(),
-      lotRef,
-      collectorId: collector.id,
-      categoryId: input.categoryId,
-      approxWeightGrams: input.approxWeightGrams,
-      listedRatePerKgPaise: todayRate.ratePerKgPaise,
-      estimatedValuePaise: calculateLotValuePaise(todayRate.ratePerKgPaise, input.approxWeightGrams),
-      status: "DRAFT",
-      collectedAt: new Date(),
-      collectLat,
-      collectLng,
-    },
-    include: { category: true },
+  const lotId = input.lotId ?? randomUUID();
+  const weight = totalWeightGrams(items);
+  const value = lotValuePaise(items);
+  const now = new Date();
+
+  await prisma.$transaction(async (db) => {
+    await db.lot.create({
+      data: {
+        id: lotId,
+        lotRef,
+        collectorId: collector.id,
+        categoryId: primaryItem(items).categoryId,
+        approxWeightGrams: weight,
+        listedRatePerKgPaise: averageRatePerKgPaise(value, weight),
+        estimatedValuePaise: value,
+        status: "DRAFT",
+        collectedAt: now,
+        collectLat,
+        collectLng,
+      },
+    });
+
+    await db.lotItem.createMany({
+      data: items.map((i) => ({ lotId, categoryId: i.categoryId, weightGrams: i.weightGrams, listedRatePerKgPaise: i.listedRatePerKgPaise })),
+    });
+
+    if (photoKeys.length > 0) {
+      await db.lotImage.createMany({
+        data: photoKeys.map((storageKey) => ({ id: randomUUID(), lotId, storageKey, takenAt: now })),
+      });
+    }
   });
+
+  return prisma.lot.findUniqueOrThrow({ where: { id: lotId }, include: { category: true, images: true, ...LOT_ITEMS_INCLUDE } });
 }
 
 /**
@@ -258,6 +311,11 @@ export async function rebroadcastLot(lotId: string) {
   return broadcastLot(lotId);
 }
 
+/** What a recycler offered for a whole lot (handles offers saved before per-material rates). */
+export function offerTotalPaise(offer: { totalPaise: number | null; ratePerKgPaise: number | null }, lotWeightGrams: number): number {
+  return offer.totalPaise ?? calculateLotValuePaise(offer.ratePerKgPaise ?? 0, lotWeightGrams);
+}
+
 /**
  * Collector picks one of the recyclers who said "ready to buy".
  * Creates the transaction and payment token; other recyclers are told the lot is gone.
@@ -266,7 +324,7 @@ export async function rebroadcastLot(lotId: string) {
 export async function selectOffer(lotId: string, offerId: string) {
   const lot = await prisma.lot.findUnique({
     where: { id: lotId },
-    include: { category: true, collector: { include: { user: { select: { phone: true } } } } },
+    include: { category: true, collector: { include: { user: { select: { phone: true } } } }, ...LOT_ITEMS_INCLUDE },
   });
   if (!lot) throw new FlowError("NOT_FOUND", "Lot not found", 404);
 
@@ -275,8 +333,8 @@ export async function selectOffer(lotId: string, offerId: string) {
     throw new FlowError("OFFER_NOT_AVAILABLE", "This recycler is not available for this lot", 409);
   }
 
-  const ratePerKgPaise = offer.ratePerKgPaise;
-  const totalPaise = calculateLotValuePaise(ratePerKgPaise, lot.approxWeightGrams);
+  const totalPaise = offerTotalPaise(offer, lot.approxWeightGrams);
+  const ratePerKgPaise = averageRatePerKgPaise(totalPaise, lot.approxWeightGrams);
   const paymentToken = randomBytes(16).toString("hex");
   const otherInterested = await prisma.lotOffer.findMany({
     where: { lotId: lot.id, status: "INTERESTED", id: { not: offer.id } },
@@ -306,6 +364,7 @@ export async function selectOffer(lotId: string, offerId: string) {
         quotedRatePerKgPaise: ratePerKgPaise,
         quotedPricePaise: totalPaise,
         agreedRatePaise: ratePerKgPaise,
+        itemRates: offer.itemRates,
         bargainStatus: "AGREED",
       },
     });
@@ -320,16 +379,16 @@ export async function selectOffer(lotId: string, offerId: string) {
     throw new FlowError("ALREADY_SELECTED", "A recycler has already been selected for this lot", 409);
   }
 
-  const kg = (lot.approxWeightGrams / 1000).toFixed(1);
+  const label = lotItemsLabel(lotItemsOf(lot));
   await notifyRecyclerStaff(
     offer.recyclerId,
     "Collector selected you!",
-    `Lot ${lot.lotRef}: ${kg} kg ${lot.category.nameEn} for ₹${(totalPaise / 100).toFixed(0)}. Collector: ${lot.collector.name || "Collector " + lot.collector.shortCode}, Phone ${lot.collector.user.phone}. Open the deal to pay.`,
+    `Lot ${lot.lotRef}: ${label} for ${rupees(totalPaise)}. Collector: ${lot.collector.name || "Collector " + lot.collector.shortCode}, Phone ${lot.collector.user.phone}. Open the deal to pay.`,
     { lotId: lot.id }
   );
   await Promise.all(
     otherInterested.map((o) =>
-      notifyRecyclerStaff(o.recyclerId, "Lot sold to another recycler", `Lot ${lot.lotRef} (${kg} kg ${lot.category.nameEn}) is no longer available.`, {
+      notifyRecyclerStaff(o.recyclerId, "Lot sold to another recycler", `Lot ${lot.lotRef} (${label}) is no longer available.`, {
         lotId: lot.id,
       })
     )
@@ -338,19 +397,26 @@ export async function selectOffer(lotId: string, offerId: string) {
   return { recyclerId: offer.recyclerId, ratePerKgPaise, totalPaise, paymentToken };
 }
 
+export interface OfferRates {
+  /** Rate per material in paise/kg. Materials left out use `ratePerKgPaise` or their listed price. */
+  itemRates?: ItemRate[];
+  /** One rate for every material (older app builds, single-material lots). */
+  ratePerKgPaise?: number;
+}
+
 /**
- * Recycler answers a broadcast: INTERESTED (with its rate in paise/kg) or DECLINED.
+ * Recycler answers a broadcast: INTERESTED (with its rates) or DECLINED.
  * The collector's identity stays hidden until the collector selects a recycler.
  */
 export async function respondToOffer(
   offerId: string,
   recyclerId: string,
   response: "INTERESTED" | "DECLINED",
-  ratePerKgPaise?: number
+  rates: OfferRates = {}
 ) {
   const offer = await prisma.lotOffer.findUnique({
     where: { id: offerId },
-    include: { lot: { include: { collector: true } }, recycler: true },
+    include: { lot: { include: { collector: true, category: true, ...LOT_ITEMS_INCLUDE } }, recycler: true },
   });
   if (!offer || offer.recyclerId !== recyclerId) {
     throw new FlowError("NOT_FOUND", "Lot request not found", 404);
@@ -367,24 +433,26 @@ export async function respondToOffer(
     return { status: "DECLINED" as const };
   }
 
-  if (ratePerKgPaise == null || !Number.isInteger(ratePerKgPaise) || ratePerKgPaise <= 0 || ratePerKgPaise > 10_000_000) {
-    throw new FlowError("VALIDATION_ERROR", "Please enter a valid buying rate in ₹/kg");
-  }
+  const items = lotItemsOf(offer.lot);
+  const completed = completeItemRates(items, rates.itemRates ?? [], rates.ratePerKgPaise);
+  if ("error" in completed) throw new FlowError("VALIDATION_ERROR", completed.error);
+
+  const totalPaise = lotValuePaise(items, completed.rates);
+  const ratePerKgPaise = averageRatePerKgPaise(totalPaise, offer.lot.approxWeightGrams);
 
   const updated = await prisma.lotOffer.updateMany({
     where: { id: offer.id, status: "NOTIFIED" },
-    data: { status: "INTERESTED", ratePerKgPaise, respondedAt: new Date() },
+    data: { status: "INTERESTED", ratePerKgPaise, totalPaise, itemRates: completed.rates, respondedAt: new Date() },
   });
 
   if (updated.count > 0) {
-    const totalPaise = calculateLotValuePaise(ratePerKgPaise, offer.lot.approxWeightGrams);
     await sendNotification({
       userId: offer.lot.collector.userId,
       title: `${offer.recycler.name} wants to buy`,
-      body: `Lot ${offer.lot.lotRef}: ₹${(ratePerKgPaise / 100).toFixed(0)}/kg = ₹${(totalPaise / 100).toFixed(0)} · ${offer.distanceKm.toFixed(1)} km away. Open the lot to choose a buyer.`,
+      body: `Lot ${offer.lot.lotRef}: ${rupees(totalPaise)} · ${offer.distanceKm.toFixed(1)} km away. Open the lot to choose a buyer.`,
       dataJson: { lotId: offer.lot.id },
     });
   }
 
-  return { status: "INTERESTED" as const, ratePerKgPaise };
+  return { status: "INTERESTED" as const, totalPaise, itemRates: completed.rates };
 }
