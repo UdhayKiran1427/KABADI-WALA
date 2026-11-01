@@ -545,6 +545,14 @@ model Transaction {
   handoverAt          DateTime?
   status              TransactionStatus @default(QUOTED)
   paymentStatus       PaymentStatus     @default(UNPAID)
+  
+  // Price Negotiation / Bargaining
+  bargainRatePaise    Int?              // Pending counter-offer rate in paise/kg
+  bargainBy           String?           // "COLLECTOR" | "RECYCLER"
+  bargainNote         String?           // e.g. "Clean sorted material"
+  bargainStatus       String?           @default("NONE") // NONE, OFFER_BY_COLLECTOR, OFFER_BY_RECYCLER, AGREED
+  agreedRatePaise     Int?              // Final agreed rate in paise/kg
+
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 

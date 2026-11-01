@@ -164,6 +164,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/collector/notifications/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/collector/notifications">> = Specific
+  const handler = {} as typeof import("../../src/app/collector/notifications/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/collector/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/collector">> = Specific
@@ -258,6 +267,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends AppPageConfig<"/recycler/login">> = Specific
   const handler = {} as typeof import("../../src/app/recycler/login/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/recycler/notifications/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/recycler/notifications">> = Specific
+  const handler = {} as typeof import("../../src/app/recycler/notifications/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

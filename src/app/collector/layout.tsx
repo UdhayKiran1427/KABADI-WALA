@@ -2,12 +2,15 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
 import { collectorLogoutAction } from "./actions";
 import { prisma } from "@/lib/prisma";
+import { getUnreadNotificationCount } from "@/lib/services/notificationService";
 
 export default async function CollectorLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
 
   let collectorCode = "";
+  let unreadNotifications = 0;
   if (session) {
+    unreadNotifications = await getUnreadNotificationCount(session.userId);
     const collector = await prisma.collector.findFirst({
       where: { userId: session.userId },
       select: { shortCode: true },
@@ -62,6 +65,31 @@ export default async function CollectorLayout({ children }: { children: React.Re
             </Link>
 
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <Link
+                href="/collector/notifications"
+                style={{ position: "relative", fontSize: "1.1rem", textDecoration: "none" }}
+                title="Notifications"
+              >
+                🔔
+                {unreadNotifications > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "-6px",
+                      right: "-8px",
+                      backgroundColor: "#ef4444",
+                      color: "#ffffff",
+                      fontSize: "0.65rem",
+                      fontWeight: 800,
+                      padding: "0.1rem 0.35rem",
+                      borderRadius: "999px",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {unreadNotifications}
+                  </span>
+                )}
+              </Link>
               <span style={{ fontSize: "0.8rem", color: "#64748b" }}>{session.phone}</span>
               <form action={collectorLogoutAction}>
                 <button

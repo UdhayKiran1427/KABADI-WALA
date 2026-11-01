@@ -355,3 +355,93 @@ export async function updateProfileAction(formData: FormData) {
 
   revalidatePath("/recycler/profile");
 }
+
+export async function recyclerAcceptBargainAction(formData: FormData) {
+  const { dbUser } = await requireRole(["RECYCLER", "ADMIN"]);
+  const transactionId = formData.get("transactionId") as string;
+
+  const txRecord = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { lot: true, collector: { include: { user: true } } },
+  });
+
+  if (!txRecord || !txRecord.bargainRatePaise) {
+    throw new Error("No active bargain offer found");
+  }
+
+  const agreedRatePaise = txRecord.bargainRatePaise;
+  const agreedPricePaise = Math.round((agreedRatePaise * txRecord.lot.approxWeightGrams) / 1000);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.transaction.update({
+      where: { id: transactionId },
+      data: {
+        quotedRatePerKgPaise: agreedRatePaise,
+        quotedPricePaise: agreedPricePaise,
+        bargainStatus: "AGREED",
+        agreedRatePaise,
+      },
+    });
+
+    await tx.lot.update({
+      where: { id: txRecord.lotId },
+      data: {
+        quotedRatePaise: agreedRatePaise,
+      },
+    });
+  });
+
+  // Notify collector
+  const { sendNotification } = await import("@/lib/services/notificationService");
+  await sendNotification({
+    userId: txRecord.collector.userId,
+    title: "🎉 Price Agreed by Recycler!",
+    body: `Recycler accepted your price of ₹${(agreedRatePaise / 100).toFixed(0)}/kg for Lot ${txRecord.lot.lotRef}!`,
+    dataJson: { lotId: txRecord.lotId, agreedRatePaise },
+  });
+
+  revalidatePath("/recycler");
+}
+
+export async function recyclerCounterBargainAction(formData: FormData) {
+  const { dbUser } = await requireRole(["RECYCLER", "ADMIN"]);
+  const transactionId = formData.get("transactionId") as string;
+  const counterRateRupees = parseFloat(formData.get("counterRateRupees") as string);
+  const note = (formData.get("note") as string)?.trim() || "";
+
+  if (isNaN(counterRateRupees) || counterRateRupees <= 0) {
+    throw new Error("Invalid counter rate");
+  }
+
+  const txRecord = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { lot: true, collector: { include: { user: true } } },
+  });
+
+  if (!txRecord) {
+    throw new Error("Transaction not found");
+  }
+
+  const counterRatePaise = Math.round(counterRateRupees * 100);
+
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: {
+      bargainRatePaise: counterRatePaise,
+      bargainBy: "RECYCLER",
+      bargainNote: note,
+      bargainStatus: "OFFER_BY_RECYCLER",
+    },
+  });
+
+  // Notify collector
+  const { sendNotification } = await import("@/lib/services/notificationService");
+  await sendNotification({
+    userId: txRecord.collector.userId,
+    title: "💬 Counter-Offer from Recycler",
+    body: `Recycler proposed ₹${counterRateRupees}/kg for Lot ${txRecord.lot.lotRef}. Check and confirm!`,
+    dataJson: { lotId: txRecord.lotId, counterRatePaise, note },
+  });
+
+  revalidatePath("/recycler");
+}

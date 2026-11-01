@@ -1,7 +1,12 @@
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { acceptLotAction, updatePickupStatusAction } from "./actions";
+import {
+  acceptLotAction,
+  updatePickupStatusAction,
+  recyclerAcceptBargainAction,
+  recyclerCounterBargainAction,
+} from "./actions";
 
 export default async function RecyclerDashboardPage() {
   const { dbUser } = await requireRole(["RECYCLER"]);
@@ -33,6 +38,7 @@ export default async function RecyclerDashboardPage() {
     include: {
       category: true,
       collector: true,
+      transaction: true,
     },
     orderBy: { collectedAt: "desc" },
   });
@@ -133,16 +139,53 @@ export default async function RecyclerDashboardPage() {
                     <td>{lot.category.nameEn} ({lot.category.nameHi})</td>
                     <td>{(lot.approxWeightGrams / 1000).toFixed(1)} kg</td>
                     <td>{lot.collector.operatingArea}</td>
-                    <td>{lot.quotedRatePaise ? `₹${(lot.quotedRatePaise / 100).toFixed(0)}/kg` : "Market"}</td>
-                    <td style={{ display: "flex", gap: "0.5rem" }}>
-                      <form action={acceptLotAction.bind(null, lot.id)}>
-                        <button type="submit" className="btn btn-primary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
-                          Accept
-                        </button>
-                      </form>
-                      <Link href={`/recycler/verify?query=${lot.lotRef}`} className="btn btn-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
-                        Review
-                      </Link>
+                    <td>
+                      <div>{lot.quotedRatePaise ? `₹${(lot.quotedRatePaise / 100).toFixed(0)}/kg` : "Market"}</div>
+                      {lot.transaction?.bargainStatus === "OFFER_BY_COLLECTOR" && (
+                        <div style={{ marginTop: "0.25rem" }}>
+                          <span className="badge" style={{ backgroundColor: "#fef3c7", color: "#92400e", fontSize: "0.75rem" }}>
+                            💬 Collector asks: ₹{(lot.transaction.bargainRatePaise! / 100).toFixed(0)}/kg
+                          </span>
+                        </div>
+                      )}
+                      {lot.transaction?.bargainStatus === "AGREED" && (
+                        <div style={{ marginTop: "0.25rem" }}>
+                          <span className="badge" style={{ backgroundColor: "#ecfdf5", color: "#065f46", fontSize: "0.75rem" }}>
+                            ✓ Agreed: ₹{(lot.transaction.agreedRatePaise! / 100).toFixed(0)}/kg
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <form action={acceptLotAction.bind(null, lot.id)}>
+                          <button type="submit" className="btn btn-primary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
+                            Accept
+                          </button>
+                        </form>
+                        <Link href={`/recycler/verify?query=${lot.lotRef}`} className="btn btn-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
+                          Review
+                        </Link>
+                      </div>
+
+                      {lot.transaction && lot.transaction.bargainStatus === "OFFER_BY_COLLECTOR" && (
+                        <div style={{ display: "flex", gap: "0.25rem" }}>
+                          <form action={recyclerAcceptBargainAction}>
+                            <input type="hidden" name="transactionId" value={lot.transaction.id} />
+                            <button
+                              type="submit"
+                              className="btn btn-primary"
+                              style={{
+                                padding: "0.2rem 0.5rem",
+                                fontSize: "0.7rem",
+                                backgroundColor: "#059669",
+                              }}
+                            >
+                              ✓ Accept ₹{(lot.transaction.bargainRatePaise! / 100).toFixed(0)}
+                            </button>
+                          </form>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -188,3 +188,105 @@ export async function selectRecyclerForLotAction(formData: FormData) {
 
   redirect(`/collector/lots/${lotId}`);
 }
+
+export async function collectorBargainOfferAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const lotId = formData.get("lotId") as string;
+  const offerRateRupees = parseFloat(formData.get("offerRateRupees") as string);
+  const note = (formData.get("note") as string)?.trim() || "";
+
+  if (!lotId || isNaN(offerRateRupees) || offerRateRupees <= 0) {
+    redirect(`/collector/lots/${lotId}?error=Please enter a valid offer rate in rupees/kg`);
+  }
+
+  const lot = await prisma.lot.findUnique({
+    where: { id: lotId },
+    include: { collector: true, transaction: true },
+  });
+
+  if (!lot || lot.collector.userId !== user.userId || !lot.transaction) {
+    redirect(`/collector?error=Lot or transaction not found`);
+  }
+
+  const offerRatePaise = Math.round(offerRateRupees * 100);
+
+  await prisma.transaction.update({
+    where: { id: lot.transaction.id },
+    data: {
+      bargainRatePaise: offerRatePaise,
+      bargainBy: "COLLECTOR",
+      bargainNote: note,
+      bargainStatus: "OFFER_BY_COLLECTOR",
+    },
+  });
+
+  // Notify recycler staff
+  const staff = await prisma.recyclerStaff.findFirst({
+    where: { recyclerId: lot.transaction.recyclerId },
+  });
+
+  if (staff) {
+    const { sendNotification } = await import("@/lib/services/notificationService");
+    await sendNotification({
+      userId: staff.userId,
+      title: "💬 New Price Offer from Collector",
+      body: `Collector #${lot.collector.shortCode} offered ₹${offerRateRupees}/kg for Lot ${lot.lotRef}.`,
+      dataJson: { lotId, offerRatePaise, note },
+    });
+  }
+
+  redirect(`/collector/lots/${lotId}?success=Price offer of ₹${offerRateRupees}/kg sent to recycler!`);
+}
+
+export async function collectorAcceptBargainAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const lotId = formData.get("lotId") as string;
+
+  const lot = await prisma.lot.findUnique({
+    where: { id: lotId },
+    include: { collector: true, transaction: true },
+  });
+
+  if (!lot || lot.collector.userId !== user.userId || !lot.transaction || !lot.transaction.bargainRatePaise) {
+    redirect(`/collector?error=No active price offer to accept`);
+  }
+
+  const agreedRatePaise = lot.transaction.bargainRatePaise;
+  const agreedPricePaise = Math.round((agreedRatePaise * lot.approxWeightGrams) / 1000);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.transaction.update({
+      where: { id: lot.transaction!.id },
+      data: {
+        quotedRatePerKgPaise: agreedRatePaise,
+        quotedPricePaise: agreedPricePaise,
+        bargainStatus: "AGREED",
+        agreedRatePaise,
+      },
+    });
+
+    await tx.lot.update({
+      where: { id: lot.id },
+      data: {
+        quotedRatePaise: agreedRatePaise,
+      },
+    });
+  });
+
+  // Notify recycler staff
+  const staff = await prisma.recyclerStaff.findFirst({
+    where: { recyclerId: lot.transaction.recyclerId },
+  });
+
+  if (staff) {
+    const { sendNotification } = await import("@/lib/services/notificationService");
+    await sendNotification({
+      userId: staff.userId,
+      title: "✓ Price Confirmed by Collector",
+      body: `Collector #${lot.collector.shortCode} accepted ₹${(agreedRatePaise / 100).toFixed(0)}/kg for Lot ${lot.lotRef}!`,
+      dataJson: { lotId, agreedRatePaise },
+    });
+  }
+
+  redirect(`/collector/lots/${lotId}?success=Agreed price of ₹${(agreedRatePaise / 100).toFixed(0)}/kg confirmed!`);
+}
