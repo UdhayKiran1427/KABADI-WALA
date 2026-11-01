@@ -1,15 +1,18 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
+import { createLot } from "@/lib/services/lotFlowService";
+import { validateStorageKey } from "@/lib/storage";
 import { z } from "zod";
-import crypto from "crypto";
 
 const CreateLotSchema = z.object({
   id: z.string().uuid().optional(),
   categoryId: z.number().int().positive(),
   approxWeightGrams: z.number().int().positive(),
-  conditionNotes: z.string().max(500).optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  // Older app builds send deviceLat/deviceLng
   deviceLat: z.number().optional(),
   deviceLng: z.number().optional(),
   photos: z.array(z.string()).optional().default([]),
@@ -56,6 +59,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * Creates a DRAFT lot valued at today's price. Next step: POST /lots/{id}/confirm.
+ */
 export async function POST(req: NextRequest) {
   try {
     const auth = await getAuthUser(req);
@@ -63,76 +69,66 @@ export async function POST(req: NextRequest) {
       return apiError("UNAUTHORIZED", "Missing or invalid collector authorization", 401);
     }
 
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
+    }
     const parsed = CreateLotSchema.safeParse(body);
     if (!parsed.success) {
       return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);
     }
 
-    const { id: clientId, categoryId, approxWeightGrams, conditionNotes, deviceLat, deviceLng, photos } = parsed.data;
+    const { id, categoryId, approxWeightGrams, latitude, longitude, deviceLat, deviceLng, photos } = parsed.data;
 
-    const category = await prisma.materialCategory.findUnique({
-      where: { id: categoryId },
-    });
-
-    if (!category) {
-      return apiError("NOT_FOUND", "Material category not found", 404);
+    if (photos.some((key) => !validateStorageKey(key, auth.userId))) {
+      return apiError("INVALID_PHOTO", "Photos must be uploaded through /uploads/presign first", 400);
     }
 
-    const lotId = clientId || crypto.randomUUID();
-    const lotRef = `LOT-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
+    if (id && (await prisma.lot.findUnique({ where: { id }, select: { id: true } }))) {
+      return apiError("DUPLICATE", "A lot with this id already exists", 409);
+    }
 
-    // Default price: 4000 paise (₹40/kg)
-    const quotedRatePaise = 4000;
-
-    const lot = await prisma.$transaction(async (tx) => {
-      const createdLot = await tx.lot.create({
-        data: {
-          id: lotId,
-          lotRef,
-          collectorId: auth.collectorId!,
-          categoryId,
-          approxWeightGrams,
-          description: conditionNotes || null,
-          collectLat: deviceLat || null,
-          collectLng: deviceLng || null,
-          quotedRatePaise,
-          status: "DRAFT",
-          collectedAt: new Date(),
-        },
-      });
-
-      if (photos && photos.length > 0) {
-        await tx.lotImage.createMany({
-          data: photos.map((storageKey, idx) => ({
-            id: `IMG-${lotId.slice(0, 8)}-${idx + 1}`,
-            lotId,
-            storageKey,
-            takenAt: new Date(),
-          })),
-        });
-      }
-
-      return createdLot;
+    const lot = await createLot({
+      collectorId: auth.collectorId,
+      categoryId,
+      approxWeightGrams,
+      latitude: latitude ?? deviceLat,
+      longitude: longitude ?? deviceLng,
+      lotId: id,
     });
 
-    return apiSuccess({
-      message: "Lot created successfully",
-      lot: {
-        id: lot.id,
-        lotRef: lot.lotRef,
-        categoryId: lot.categoryId,
-        categoryName: category.nameEn,
-        approxWeightGrams: lot.approxWeightGrams,
-        weightKg: (lot.approxWeightGrams / 1000).toFixed(2),
-        quotedRatePaise: lot.quotedRatePaise,
-        quotedRateRupees: (lot.quotedRatePaise || 0) / 100,
-        status: lot.status,
-        collectedAt: lot.collectedAt,
+    if (photos.length > 0) {
+      await prisma.lotImage.createMany({
+        data: photos.map((storageKey, idx) => ({
+          id: `IMG-${lot.id.slice(0, 8)}-${idx + 1}`,
+          lotId: lot.id,
+          storageKey,
+          takenAt: new Date(),
+        })),
+      });
+    }
+
+    return apiSuccess(
+      {
+        lot: {
+          id: lot.id,
+          lotRef: lot.lotRef,
+          status: lot.status,
+          categoryId: lot.categoryId,
+          categoryName: lot.category.nameEn,
+          approxWeightGrams: lot.approxWeightGrams,
+          listedRatePerKgPaise: lot.listedRatePerKgPaise,
+          estimatedValuePaise: lot.estimatedValuePaise,
+          latitude: lot.collectLat,
+          longitude: lot.collectLng,
+          collectedAt: lot.collectedAt,
+        },
       },
-    }, 201);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+      201
+    );
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }

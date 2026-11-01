@@ -7,6 +7,7 @@ import { evaluateWeightTolerance, classifyLocationProof } from "@/lib/domain/han
 import { checkWeightAnomalies, checkPriceAnomalies } from "@/lib/domain/anomalies";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { FlowError, respondToOffer } from "@/lib/services/lotFlowService";
 
 /**
  * Sign in for Recycler Staff.
@@ -57,6 +58,10 @@ export async function acceptLotAction(lotId: string) {
   const recyclerId = dbUser.recyclerId;
   if (!recyclerId) throw new Error("No recycler facility assigned");
 
+  // Only the recycler the collector selected may act on the lot
+  const lot = await prisma.lot.findUnique({ where: { id: lotId }, select: { chosenRecyclerId: true } });
+  if (!lot || lot.chosenRecyclerId !== recyclerId) throw new Error("Lot not found");
+
   await prisma.lot.update({
     where: { id: lotId },
     data: {
@@ -78,8 +83,14 @@ export async function acceptLotFormAction(formData: FormData) {
 /**
  * Update pickup request status (R1).
  */
+const PICKUP_STATUSES = ["ACCEPTED", "ON_THE_WAY", "ARRIVED", "COMPLETED", "CANCELLED"];
+
 export async function updatePickupStatusAction(requestId: string, newStatus: string) {
-  await requireRole(["RECYCLER"]);
+  const { dbUser } = await requireRole(["RECYCLER"]);
+  if (!PICKUP_STATUSES.includes(newStatus)) throw new Error("Invalid pickup status");
+
+  const request = await prisma.pickupRequest.findUnique({ where: { id: requestId }, select: { recyclerId: true } });
+  if (!request || request.recyclerId !== dbUser.recyclerId) throw new Error("Pickup request not found");
 
   await prisma.pickupRequest.update({
     where: { id: requestId },
@@ -168,7 +179,7 @@ export async function confirmHandoverAction(formData: FormData) {
     },
   });
 
-  if (!lot) throw new Error("Lot not found");
+  if (!lot || lot.chosenRecyclerId !== recyclerId) throw new Error("Lot not found");
 
   const ratePerKgPaise = lot.quotedRatePaise || lot.category.recyclerRates[0]?.ratePerKgPaise || 3000;
   const finalPricePaise = Math.round((ratePerKgPaise * confirmedWeightGrams) / 1000);
@@ -628,4 +639,40 @@ export async function recyclerRegisterAction(formData: FormData): Promise<void> 
   });
 
   redirect("/recycler?welcome=true");
+}
+
+/**
+ * Recycler answers a nearby lot broadcast: "ready to buy" (with its rate) or "not interested".
+ * The collector's identity stays hidden until the collector selects a recycler.
+ */
+export async function respondToLotOfferAction(formData: FormData) {
+  const { dbUser } = await requireRole(["RECYCLER"]);
+  if (!dbUser.recyclerId) {
+    redirect("/recycler?error=Your account is not linked to a recycler facility");
+  }
+
+  const response = formData.get("response") === "DECLINED" ? "DECLINED" : "INTERESTED";
+  const rateRupees = parseFloat(formData.get("rateRupees") as string);
+
+  let result: Awaited<ReturnType<typeof respondToOffer>>;
+  try {
+    result = await respondToOffer(
+      formData.get("offerId") as string,
+      dbUser.recyclerId,
+      response,
+      Number.isFinite(rateRupees) ? Math.round(rateRupees * 100) : undefined
+    );
+  } catch (err) {
+    if (err instanceof FlowError) {
+      redirect(`/recycler?error=${encodeURIComponent(err.message)}`);
+    }
+    throw err;
+  }
+
+  revalidatePath("/recycler");
+  redirect(
+    result.status === "INTERESTED"
+      ? "/recycler?success=You are on the collector's list. You will be notified if they choose you."
+      : "/recycler"
+  );
 }

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth/session";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession(req);
-    if (!session || session.role !== "ADMIN") {
+    const user = await getAuthUser(req);
+    if (!user || user.role !== "ADMIN") {
       return new NextResponse(
         JSON.stringify({ error: { code: "UNAUTHORIZED", message: "Admin role required to export prices" } }),
         { status: 401, headers: { "Content-Type": "application/json" } }

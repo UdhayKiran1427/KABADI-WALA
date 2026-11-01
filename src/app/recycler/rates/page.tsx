@@ -49,11 +49,11 @@ export default async function RateManagerPage() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Link href="/recycler" style={{ color: "var(--slate-500)", textDecoration: "none" }}>
-              &larr; R1 Dashboard
+              &larr; Dashboard
             </Link>
             <span style={{ color: "var(--slate-300)" }}>/</span>
             <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--slate-900)", letterSpacing: "-0.02em" }}>
-              R3 Scrap Buying Rate Manager &bull; Price Engine
+              Buying Rates
             </h1>
           </div>
           <p style={{ color: "var(--slate-500)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
@@ -61,7 +61,7 @@ export default async function RateManagerPage() {
           </p>
         </div>
 
-        <span className="badge badge-success">✓ Live on Picker Mobile App</span>
+        <span className="badge badge-success">Live on Picker Mobile App</span>
       </div>
 
       {/* 2-Column Responsive Dashboard Grid (Fills 100% of desktop screens!) */}
@@ -146,7 +146,7 @@ export default async function RateManagerPage() {
               }}
             >
               <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--slate-900)", marginBottom: "0.75rem" }}>
-                🚚 Doorstep Collection Service Settings
+                Doorstep Collection Service Settings
               </h2>
               <div className="form-group">
                 <label style={{ display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer", fontWeight: 600 }}>
@@ -193,7 +193,7 @@ export default async function RateManagerPage() {
             </div>
 
             <button type="submit" className="btn btn-primary btn-block btn-lg" style={{ padding: "0.85rem" }}>
-              💾 Save Rates &amp; Publish to Picker App
+              Save Rates &amp; Publish to Picker App
             </button>
           </form>
         </div>
@@ -203,20 +203,20 @@ export default async function RateManagerPage() {
           {/* Rate Publishing Policy Card */}
           <div className="card" style={{ padding: "1.25rem", borderLeft: "4px solid var(--primary)" }}>
             <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--slate-900)", marginBottom: "0.5rem" }}>
-              💡 Pricing Strategy &amp; Picker Trust
+              Pricing Strategy &amp; Picker Trust
             </h3>
             <p style={{ fontSize: "0.8rem", color: "var(--slate-600)", lineHeight: 1.5, marginBottom: "0.75rem" }}>
               Scrap pickers prefer facilities offering transparent, guaranteed rates over volatile informal middlemen. Offering &plusmn;5% above local middleman rates increases your direct facility volume by over 40%.
             </p>
             <div style={{ fontSize: "0.75rem", color: "var(--slate-500)" }}>
-              🔒 Rates set here are guaranteed for matched lots at gate arrival within 24 hours.
+              Rates set here are guaranteed for matched lots at gate arrival within 24 hours.
             </div>
           </div>
 
           {/* Pricing Bands Card */}
           <div className="card" style={{ padding: "1.25rem" }}>
             <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--slate-900)", marginBottom: "0.75rem" }}>
-              📊 Mumbai Regional Benchmark Bands
+              Mumbai Regional Benchmark Bands
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.8rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "0.4rem 0", borderBottom: "1px solid var(--slate-100)" }}>
@@ -245,10 +245,10 @@ export default async function RateManagerPage() {
           {/* CPCB Price Floor Compliance */}
           <div className="card" style={{ padding: "1.25rem", backgroundColor: "var(--slate-50)" }}>
             <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--slate-800)", marginBottom: "0.4rem" }}>
-              🛡️ CPCB Floor Price Governance
+              CPCB Floor Price Governance
             </h3>
             <p style={{ fontSize: "0.75rem", color: "var(--slate-600)", lineHeight: 1.5 }}>
-              Under Module M2 governance rules, rate submissions below 35% of the 7-day municipal median are flagged for predatory pricing review to safeguard informal waste picker livelihoods.
+              Rate submissions below 35% of the 7-day municipal median are flagged for predatory pricing review to safeguard informal waste picker livelihoods.
             </p>
           </div>
         </div>

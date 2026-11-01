@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Megaphone, Volume1, Volume2 } from "lucide-react";
 import { useVoice } from "./VoiceLanguageContext";
 import { SCREEN_PROMPTS } from "@/lib/voice/prompts";
 
@@ -93,8 +94,8 @@ export function VoiceSpeaker({
           ...style,
         }}
       >
-        <span style={{ fontSize: currentSize.iconSize }}>
-          {isCurrentlySpeaking ? "🔊" : "🔉"}
+        <span style={{ fontSize: currentSize.iconSize, display: "inline-flex" }}>
+          {isCurrentlySpeaking ? <Volume2 size="1em" aria-hidden="true" /> : <Volume1 size="1em" aria-hidden="true" />}
         </span>
         <span>
           {isCurrentlySpeaking
@@ -124,7 +125,7 @@ export function VoiceSpeaker({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "1.2rem" }}>{isCurrentlySpeaking ? "🔊" : "📢"}</span>
+          <span style={{ fontSize: "1.2rem", display: "inline-flex" }}>{isCurrentlySpeaking ? <Volume2 size="1em" aria-hidden="true" /> : <Megaphone size="1em" aria-hidden="true" />}</span>
           <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>
             {isCurrentlySpeaking
               ? language === "EN" ? "Audio narration playing..." : language === "MR" ? "ऑडिओ वाचन सुरू आहे..." : "ऑडियो चल रहा है..."
@@ -184,10 +185,11 @@ export function VoiceSpeaker({
         style={{
           fontSize: currentSize.iconSize,
           lineHeight: 1,
+          display: "inline-flex",
           animation: isCurrentlySpeaking ? "pulseWave 1.2s infinite ease-in-out" : "none",
         }}
       >
-        {isCurrentlySpeaking ? "🔊" : "🔈"}
+        {isCurrentlySpeaking ? <Volume2 size="1em" aria-hidden="true" /> : <Volume1 size="1em" aria-hidden="true" />}
       </span>
     </button>
   );

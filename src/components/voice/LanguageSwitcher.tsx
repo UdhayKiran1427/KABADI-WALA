@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Check, Globe, Volume2 } from "lucide-react";
 import { useVoice, TextLanguage } from "./VoiceLanguageContext";
 import { AppLanguage } from "@/lib/voice/speech";
 
@@ -59,7 +60,7 @@ export function LanguageSwitcher({
         aria-label="Text Language Selection: English or Hindi"
       >
         <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--slate-500)", padding: "0 0.25rem" }}>
-          🌐
+          <Globe size={14} aria-hidden="true" style={{ verticalAlign: "-2px" }} />
         </span>
         <button
           type="button"
@@ -140,6 +141,7 @@ export function LanguageSwitcher({
             type="button"
             onClick={(e) => handleHearOnly(e, "EN")}
             title="Listen in English"
+            aria-label="Listen in English"
             style={{
               position: "absolute",
               top: "10px",
@@ -157,9 +159,8 @@ export function LanguageSwitcher({
               cursor: "pointer",
             }}
           >
-            🔊
+            <Volume2 size={16} aria-hidden="true" />
           </button>
-          <div style={{ fontSize: "2.25rem", marginBottom: "0.5rem" }}>🌐</div>
           <div
             style={{
               fontSize: "1.45rem",
@@ -184,7 +185,7 @@ export function LanguageSwitcher({
                 color: (language === "EN" || textLanguage === "EN") ? "#ffffff" : "#475569",
               }}
             >
-              {(language === "EN" || textLanguage === "EN") ? "✓ Active Language" : "Click to Choose"}
+              {(language === "EN" || textLanguage === "EN") ? <><Check size={14} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> Active</> : "Choose"}
             </span>
           </div>
         </div>
@@ -208,6 +209,7 @@ export function LanguageSwitcher({
             type="button"
             onClick={(e) => handleHearOnly(e, "HI")}
             title="आवाज सुनें (Click to hear)"
+            aria-label="आवाज सुनें (Click to hear)"
             style={{
               position: "absolute",
               top: "10px",
@@ -225,9 +227,8 @@ export function LanguageSwitcher({
               cursor: "pointer",
             }}
           >
-            🔊
+            <Volume2 size={16} aria-hidden="true" />
           </button>
-          <div style={{ fontSize: "2.25rem", marginBottom: "0.5rem" }}>🇮🇳</div>
           <div
             style={{
               fontSize: "1.45rem",
@@ -252,7 +253,7 @@ export function LanguageSwitcher({
                 color: (language === "HI" || textLanguage === "HI") ? "#ffffff" : "#475569",
               }}
             >
-              {(language === "HI" || textLanguage === "HI") ? "✓ सक्रिय भाषा" : "चुनने के लिए दबाएं"}
+              {(language === "HI" || textLanguage === "HI") ? <><Check size={14} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> चालू</> : "चुनें"}
             </span>
           </div>
         </div>
@@ -276,6 +277,7 @@ export function LanguageSwitcher({
             type="button"
             onClick={(e) => handleHearOnly(e, "MR")}
             title="आवाज ऐका (Click to hear)"
+            aria-label="आवाज ऐका (Click to hear)"
             style={{
               position: "absolute",
               top: "10px",
@@ -293,9 +295,8 @@ export function LanguageSwitcher({
               cursor: "pointer",
             }}
           >
-            🔊
+            <Volume2 size={16} aria-hidden="true" />
           </button>
-          <div style={{ fontSize: "2.25rem", marginBottom: "0.5rem" }}>🚩</div>
           <div
             style={{
               fontSize: "1.45rem",
@@ -320,7 +321,7 @@ export function LanguageSwitcher({
                 color: language === "MR" ? "#ffffff" : "#475569",
               }}
             >
-              {language === "MR" ? "✓ सक्रिय भाषा" : "निवडण्यासाठी टॅप करा"}
+              {language === "MR" ? <><Check size={14} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> चालू</> : "निवडा"}
             </span>
           </div>
         </div>

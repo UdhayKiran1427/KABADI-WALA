@@ -3,6 +3,7 @@ import { jwtVerify } from "jose";
 import { prisma } from "../prisma";
 import { Role } from "@prisma/client";
 import { verifyMobileToken } from "./jwt";
+import { apiError } from "../apiResponse";
 
 const SESSION_SECRET_STRING = process.env.SESSION_SECRET || "super-secret-session-cookie-key-for-recycler-and-admin-32-chars";
 const SECRET_KEY = new TextEncoder().encode(SESSION_SECRET_STRING);
@@ -79,4 +80,22 @@ export async function getAuthUser(req: NextRequest): Promise<AuthenticatedUser |
     shortCode: dbUser.collector?.shortCode,
     recyclerId: dbUser.recyclerStaff?.recyclerId,
   };
+}
+
+/**
+ * Authenticates the request and checks its role (verified against the database).
+ * Returns the user, or the 401/403 response to send back.
+ */
+export async function requireApiUser(
+  req: NextRequest,
+  roles: Role[]
+): Promise<{ user: AuthenticatedUser; response?: undefined } | { user?: undefined; response: Response }> {
+  const user = await getAuthUser(req);
+  if (!user) {
+    return { response: apiError("UNAUTHORIZED", "Missing or invalid authorization", 401) };
+  }
+  if (!roles.includes(user.role)) {
+    return { response: apiError("FORBIDDEN", "Your role cannot use this endpoint", 403) };
+  }
+  return { user };
 }

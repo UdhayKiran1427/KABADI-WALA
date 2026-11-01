@@ -4,10 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionCookie, clearSessionCookie, requireRole } from "@/lib/auth/session";
-import { generateLotRef } from "@/lib/domain/lotRef";
-import { calculateEstimate } from "@/lib/domain/estimates";
-import { generateVerificationCode } from "@/lib/domain/handover";
-import { randomUUID } from "crypto";
+import { FlowError, createLot, confirmLot, rebroadcastLot, selectOffer } from "@/lib/services/lotFlowService";
 
 export async function collectorLoginAction(formData: FormData) {
   const phone = (formData.get("phone") as string)?.trim();
@@ -55,9 +52,6 @@ export async function createCollectorLotAction(formData: FormData) {
     redirect("/collector/create-lot?error=Please select a category and enter a valid weight in kg");
   }
 
-  const approxWeightGrams = Math.round(weightKg * 1000);
-
-  // Find collector profile
   const collector = await prisma.collector.findFirst({
     where: { userId: user.userId },
   });
@@ -66,127 +60,95 @@ export async function createCollectorLotAction(formData: FormData) {
     redirect("/collector/create-lot?error=Collector profile not found");
   }
 
-  // Count existing lots to generate sequence
-  const lotCount = await prisma.lot.count({
-    where: { collectorId: collector.id },
-  });
-
-  const lotRef = generateLotRef(collector.shortCode, new Date(), lotCount + 1);
-  const lotId = randomUUID();
-
-  // Fetch recent price points for estimate calculation
-  const recentPrices = await prisma.pricePoint.findMany({
-    where: { categoryId },
-    orderBy: { recordedAt: "desc" },
-    take: 30,
-    select: { buyingPricePaise: true, recordedAt: true },
-  });
-
-  const fallbackRates = await prisma.recyclerRate.findMany({
-    where: { categoryId, isCurrent: true },
-    select: { ratePerKgPaise: true },
-  });
-
-  const estimate = calculateEstimate(
-    recentPrices.map((p) => ({ buyingPricePaise: p.buyingPricePaise, recordedAt: p.recordedAt })),
-    fallbackRates.map((r) => ({ ratePerKgPaise: r.ratePerKgPaise, isCurrent: true })),
-    approxWeightGrams
-  );
-
-  await prisma.lot.create({
-    data: {
-      id: lotId,
-      lotRef,
+  let lotId: string;
+  try {
+    const lot = await createLot({
       collectorId: collector.id,
       categoryId,
-      approxWeightGrams,
-      estimatedValuePaise: estimate.estimatedValuePaise,
-      status: "READY",
-      collectedAt: new Date(),
-    },
-  });
-
-  redirect(`/collector/lots/${lotId}/match`);
-}
-
-export async function selectRecyclerForLotAction(formData: FormData) {
-  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
-
-  const lotId = formData.get("lotId") as string;
-  const recyclerId = formData.get("recyclerId") as string;
-
-  if (!lotId || !recyclerId) {
-    redirect(`/collector?error=Missing lot or recycler information`);
+      approxWeightGrams: Math.round(weightKg * 1000),
+      latitude: parseFloat(formData.get("latitude") as string),
+      longitude: parseFloat(formData.get("longitude") as string),
+    });
+    lotId = lot.id;
+  } catch (err) {
+    if (err instanceof FlowError) {
+      redirect(`/collector/create-lot?categoryId=${categoryId}&error=${encodeURIComponent(err.message)}`);
+    }
+    throw err;
   }
 
+  redirect(`/collector/lots/${lotId}`);
+}
+
+async function findOwnedLot(lotId: string, user: { userId: string; role: string }) {
+  if (!lotId) {
+    redirect("/collector?error=Lot ID is required");
+  }
   const lot = await prisma.lot.findUnique({
     where: { id: lotId },
     include: { collector: true },
   });
-
   if (!lot || (user.role !== "ADMIN" && lot.collector.userId !== user.userId)) {
-    redirect(`/collector?error=Lot not found or access denied`);
+    redirect("/collector?error=Lot not found or access denied");
   }
+  return lot;
+}
 
-  // Find active rate for this category
-  const activeRate = await prisma.recyclerRate.findFirst({
-    where: { recyclerId, categoryId: lot.categoryId, isCurrent: true },
-  });
-
-  if (!activeRate) {
-    redirect(`/collector/lots/${lotId}/match?error=This recycler does not currently accept this material`);
+/**
+ * Runs a lot flow step and returns to the lot page with its outcome message.
+ */
+async function runLotStep(lotId: string, step: () => Promise<string>): Promise<never> {
+  let message: string;
+  try {
+    message = await step();
+  } catch (err) {
+    if (err instanceof FlowError) {
+      redirect(`/collector/lots/${lotId}?error=${encodeURIComponent(err.message)}`);
+    }
+    throw err;
   }
+  redirect(`/collector/lots/${lotId}?success=${encodeURIComponent(message)}`);
+}
 
-  const quotedRatePaise = activeRate.ratePerKgPaise;
-  const agreedPricePaise = Math.round((quotedRatePaise * lot.approxWeightGrams) / 1000);
+/**
+ * Collector confirms the lot summary; it is then broadcast to recyclers within 5 km.
+ */
+export async function confirmLotAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const lot = await findOwnedLot(formData.get("lotId") as string, user);
 
-  const txId = randomUUID();
-  const handoverId = randomUUID();
-  const verificationCode = generateVerificationCode();
-  const handoverRef = `HND-${lot.collector.shortCode}-${Date.now().toString().slice(-6)}`;
-  const now = new Date();
-
-  await prisma.$transaction(async (prismaTx) => {
-    await prismaTx.lot.update({
-      where: { id: lotId },
-      data: {
-        status: "MATCHED",
-        chosenRecyclerId: recyclerId,
-        quotedRatePaise,
-      },
-    });
-
-    await prismaTx.transaction.create({
-      data: {
-        id: txId,
-        lotId,
-        collectorId: lot.collectorId,
-        recyclerId,
-        status: "ACCEPTED",
-        quotedRatePerKgPaise: quotedRatePaise,
-        quotedPricePaise: agreedPricePaise,
-        handoverLat: 19.0434,
-        handoverLng: 72.8567,
-      },
-    });
-
-    await prismaTx.handover.create({
-      data: {
-        id: handoverId,
-        lotId,
-        transactionId: txId,
-        handoverRef,
-        verificationCode,
-        qrPayload: JSON.stringify({ lotId, lotRef: lot.lotRef, verificationCode }),
-        status: "PENDING",
-        declaredWeightGrams: lot.approxWeightGrams,
-        locationClass: "MATCH",
-        capturedAt: now,
-      },
-    });
+  await runLotStep(lot.id, async () => {
+    const { totalNotified } = await confirmLot(lot.id);
+    return totalNotified > 0
+      ? `Lot sent to ${totalNotified} recycler(s) within 5 km. Wait for them to respond.`
+      : "No verified recycler found within 5 km yet. Try searching again later.";
   });
+}
 
-  redirect(`/collector/lots/${lotId}`);
+/**
+ * Re-runs the 5 km broadcast for a READY lot (reaches recyclers added since the first broadcast).
+ */
+export async function rebroadcastLotAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const lot = await findOwnedLot(formData.get("lotId") as string, user);
+
+  await runLotStep(lot.id, async () => {
+    const { newlyNotified } = await rebroadcastLot(lot.id);
+    return newlyNotified > 0 ? `Sent to ${newlyNotified} more recycler(s) within 5 km.` : "No new recyclers found within 5 km.";
+  });
+}
+
+/**
+ * Collector picks one of the recyclers who said "ready to buy".
+ */
+export async function selectRecyclerOfferAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const lot = await findOwnedLot(formData.get("lotId") as string, user);
+
+  await runLotStep(lot.id, async () => {
+    await selectOffer(lot.id, formData.get("offerId") as string);
+    return "Recycler selected. You can now see each other's details and complete payment.";
+  });
 }
 
 export async function collectorBargainOfferAction(formData: FormData) {
@@ -293,6 +255,7 @@ export async function collectorAcceptBargainAction(formData: FormData) {
 
 
 export async function collectorRegisterAction(formData: FormData) {
+  const name = (formData.get("name") as string)?.trim();
   const phone = (formData.get("phone") as string)?.trim();
   const pin = (formData.get("pin") as string)?.trim();
   const confirmPin = (formData.get("confirmPin") as string)?.trim();
@@ -300,6 +263,10 @@ export async function collectorRegisterAction(formData: FormData) {
   const operatingArea = (formData.get("operatingArea") as string)?.trim() || "Dharavi";
   const district = (formData.get("district") as string)?.trim() || "Mumbai";
   const hasConsent = formData.get("hasConsent") === "on" || formData.get("hasConsent") === "true";
+
+  if (!name || name.length < 2) {
+    redirect("/collector/register?error=Please enter your name");
+  }
 
   if (!phone || !/^\d{10}$/.test(phone)) {
     redirect("/collector/register?error=Please enter a valid 10-digit mobile number");
@@ -345,6 +312,7 @@ export async function collectorRegisterAction(formData: FormData) {
     const collector = await tx.collector.create({
       data: {
         userId: user.id,
+        name,
         shortCode,
         preferredLanguage,
         operatingArea,
@@ -405,6 +373,7 @@ export async function deleteLotAction(formData: FormData) {
     await db.pickupRequest.deleteMany({ where: { lotId } });
     await db.dispute.deleteMany({ where: { lotId } });
     await db.matchSuggestion.deleteMany({ where: { lotId } });
+    await db.lotOffer.deleteMany({ where: { lotId } });
     await db.receiptShareToken.deleteMany({ where: { lotId } });
     await db.payment.deleteMany({ where: { lotId } });
     await db.handover.deleteMany({ where: { lotId } });
