@@ -1,11 +1,14 @@
 import { getSession } from "@/lib/auth/session";
-import { collectorLogoutAction } from "./actions";
+import { prisma } from "@/lib/prisma";
 import { getUnreadNotificationCount } from "@/lib/services/notificationService";
 import { CollectorBottomNav, CollectorNavbarClient } from "./CollectorNavbarClient";
 
 export default async function CollectorLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   const unreadNotifications = session ? await getUnreadNotificationCount(session.userId) : 0;
+  const collector = session
+    ? await prisma.collector.findUnique({ where: { userId: session.userId }, select: { name: true } })
+    : null;
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", backgroundColor: "var(--bg)" }}>
@@ -22,7 +25,7 @@ export default async function CollectorLayout({ children }: { children: React.Re
           }}
         >
           <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-            <CollectorNavbarClient unreadNotifications={unreadNotifications} logoutAction={collectorLogoutAction} />
+            <CollectorNavbarClient unreadNotifications={unreadNotifications} name={collector?.name} />
           </div>
         </header>
       )}

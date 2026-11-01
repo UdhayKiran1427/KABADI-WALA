@@ -2,6 +2,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs/promises";
 import path from "path";
+import { randomBytes } from "crypto";
 
 const STORAGE_DRIVER = process.env.STORAGE_DRIVER || "local";
 const STORAGE_LOCAL_DIR = process.env.STORAGE_LOCAL_DIR || "./uploads";
@@ -105,3 +106,45 @@ export async function readLocalFile(storageKey: string): Promise<Buffer | null> 
   }
 }
 
+
+export const IMAGE_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Stores a lot photo under images/{userId}/ and returns its storage key.
+ */
+export async function saveLotImage(userId: string, buffer: Buffer, contentType: string): Promise<string> {
+  const ext = IMAGE_TYPES[contentType];
+  if (!ext) throw new Error("Only JPEG, PNG or WebP photos are allowed");
+  if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) throw new Error("Photo must be smaller than 5 MB");
+
+  const storageKey = `images/${userId}/${Date.now()}_${randomBytes(6).toString("hex")}.${ext}`;
+  if (STORAGE_DRIVER === "s3") {
+    await s3Client.send(
+      new PutObjectCommand({ Bucket: process.env.S3_BUCKET || "ewaste-media", Key: storageKey, Body: buffer, ContentType: contentType })
+    );
+  } else {
+    await saveLocalFile(storageKey, buffer);
+  }
+  return storageKey;
+}
+
+/**
+ * URL a browser or app can load a stored photo from (valid for 1 hour on S3).
+ */
+export async function getImageUrl(storageKey: string): Promise<string> {
+  if (STORAGE_DRIVER === "s3") {
+    const command = new GetObjectCommand({ Bucket: process.env.S3_BUCKET || "ewaste-media", Key: storageKey });
+    return getSignedUrl(s3Client, command, { expiresIn: 3600 });
+  }
+  return `/api/v1/uploads/local?key=${encodeURIComponent(storageKey)}`;
+}
+
+export function imageContentType(storageKey: string): string {
+  const ext = storageKey.split(".").pop()?.toLowerCase();
+  return Object.entries(IMAGE_TYPES).find(([, e]) => e === ext || (ext === "jpeg" && e === "jpg"))?.[0] ?? "image/jpeg";
+}

@@ -2,10 +2,13 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
-import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
+import { LOT_ITEMS_INCLUDE, dealLines, lotItemsOf } from "@/lib/services/lotItemsView";
+import { parseHistoryQuery } from "@/lib/historyFilters";
+import { RECYCLER_HISTORY_STATUSES, recyclerHistoryWhere } from "@/lib/services/historyQuery";
 
 /**
- * Lots where the collector chose the signed-in recycler (latest 50). Full details: GET /lots/{lotId}/deal.
+ * Order history: lots where the collector chose the signed-in recycler (latest 100). Full details: GET /lots/{lotId}/deal.
+ * Filters: q (collector name/phone, lot ref, material), status (topay | paid), material (category id), period (7d | 30d | 90d).
  */
 export async function GET(req: NextRequest) {
   try {
@@ -14,31 +17,39 @@ export async function GET(req: NextRequest) {
     if (!user.recyclerId) return apiError("NO_FACILITY", "Your account is not linked to a recycler facility", 403);
 
     const lots = await prisma.lot.findMany({
-      where: {
-        chosenRecyclerId: user.recyclerId,
-        status: { in: ["MATCHED", "COMPLETED"] },
-        offers: { some: { recyclerId: user.recyclerId, status: "SELECTED" } },
-      },
+      where: recyclerHistoryWhere(
+        user.recyclerId,
+        parseHistoryQuery(Object.fromEntries(req.nextUrl.searchParams), Object.keys(RECYCLER_HISTORY_STATUSES))
+      ),
       include: {
         category: { select: { id: true, nameEn: true, nameHi: true, nameMr: true } },
+        ...LOT_ITEMS_INCLUDE,
         collector: { include: { user: { select: { phone: true } } } },
         transaction: true,
       },
       orderBy: { updatedAt: "desc" },
-      take: 50,
+      take: 100,
     });
 
     return apiSuccess({
       deals: lots.map((lot) => {
         const tx = lot.transaction;
-        const rate = tx ? tx.agreedRatePaise ?? tx.quotedRatePerKgPaise : 0;
         return {
           lotId: lot.id,
           lotRef: lot.lotRef,
           material: lot.category,
+          items: tx
+            ? dealLines(lotItemsOf(lot), tx).map((i) => ({
+                categoryId: i.categoryId,
+                nameEn: i.category.nameEn,
+                weightGrams: i.weightGrams,
+                ratePerKgPaise: i.ratePerKgPaise,
+                amountPaise: i.amountPaise,
+              }))
+            : [],
           approxWeightGrams: lot.approxWeightGrams,
-          ratePerKgPaise: rate,
-          amountPaise: tx?.finalPricePaise ?? calculateLotValuePaise(rate, lot.approxWeightGrams),
+          ratePerKgPaise: tx ? tx.agreedRatePaise ?? tx.quotedRatePerKgPaise : 0,
+          amountPaise: tx ? tx.finalPricePaise ?? tx.quotedPricePaise : 0,
           paymentStatus: tx?.paymentStatus ?? "UNPAID",
           collector: {
             name: lot.collector.name || `Collector ${lot.collector.shortCode}`,

@@ -652,6 +652,13 @@ export async function respondToLotOfferAction(formData: FormData) {
   }
 
   const response = formData.get("response") === "DECLINED" ? "DECLINED" : "INTERESTED";
+  // One "rate_<categoryId>" field (₹/kg) per material; "rateRupees" is the older single-rate field
+  const itemRates: Array<{ categoryId: number; ratePerKgPaise: number }> = [];
+  for (const [key, value] of formData.entries()) {
+    const match = /^rate_(\d+)$/.exec(key);
+    const rupees = typeof value === "string" ? parseFloat(value) : NaN;
+    if (match) itemRates.push({ categoryId: Number(match[1]), ratePerKgPaise: Number.isFinite(rupees) ? Math.round(rupees * 100) : 0 });
+  }
   const rateRupees = parseFloat(formData.get("rateRupees") as string);
 
   let result: Awaited<ReturnType<typeof respondToOffer>>;
@@ -660,7 +667,7 @@ export async function respondToLotOfferAction(formData: FormData) {
       formData.get("offerId") as string,
       dbUser.recyclerId,
       response,
-      Number.isFinite(rateRupees) ? Math.round(rateRupees * 100) : undefined
+      { itemRates, ratePerKgPaise: Number.isFinite(rateRupees) ? Math.round(rateRupees * 100) : undefined }
     );
   } catch (err) {
     if (err instanceof FlowError) {

@@ -2,8 +2,9 @@ import { ArrowRight, TriangleAlert } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { createCollectorLotAction } from "../actions";
-import { WeightSelector } from "./WeightSelector";
 import { LocationCapture } from "./LocationCapture";
+import { LotItemsPicker } from "./LotItemsPicker";
+import { PhotoPicker } from "./PhotoPicker";
 import { getTodayRates } from "@/lib/services/lotFlowService";
 import { PageTitle, PageVoice, T } from "../ui";
 
@@ -22,14 +23,21 @@ export default async function CreateLotPage(props: {
     prisma.collector.findUnique({ where: { userId: user.userId }, select: { operatingArea: true } }),
   ]);
 
-  const selectedCatId = searchParams.categoryId ? parseInt(searchParams.categoryId, 10) : categories[0]?.id;
+  const materials = categories.map((cat) => ({
+    id: cat.id,
+    nameHi: cat.nameHi,
+    nameEn: cat.nameEn,
+    nameMr: cat.nameMr,
+    isHazardous: cat.isHazardous,
+    ratePaise: todayRates.get(cat.id)?.ratePerKgPaise ?? null,
+  }));
 
   return (
     <div className="c-page">
       <PageVoice
-        en="New lot. Choose the material, then the weight in kilograms, then tap Next."
-        hi="नया लॉट। सामान चुनें, फिर किलो में वजन चुनें, फिर आगे दबाएं।"
-        mr="नवीन लॉट. साहित्य निवडा, मग किलोमध्ये वजन निवडा, मग पुढे दाबा."
+        en="New lot. Tap every material you have, enter the kilograms for each, add photos if you like, then tap Next."
+        hi="नया लॉट। आपके पास जो भी सामान है उसे चुनें, हर सामान का वजन किलो में डालें, चाहें तो फोटो जोड़ें, फिर आगे दबाएं।"
+        mr="नवीन लॉट. तुमच्याकडील प्रत्येक साहित्य निवडा, प्रत्येकाचे वजन किलोमध्ये टाका, हवे तर फोटो जोडा, मग पुढे दाबा."
       />
       <PageTitle title={{ hi: "नया लॉट", en: "New lot", mr: "नवीन लॉट" }} back="/collector" />
 
@@ -40,46 +48,12 @@ export default async function CreateLotPage(props: {
       )}
 
       <form action={createCollectorLotAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-        <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
-          <legend className="c-section-title" style={{ marginBottom: "0.6rem" }}>
-            1. <T hi="सामान चुनें" en="Material" mr="साहित्य निवडा" />
-          </legend>
-          <div className="c-choice-grid">
-            {categories.map((cat) => {
-              const todayRate = todayRates.get(cat.id);
-              return (
-                <label key={cat.id} className="c-choice">
-                  <input type="radio" name="categoryId" value={cat.id} defaultChecked={cat.id === selectedCatId} required />
-                  <span className="c-choice-name">
-                    <T hi={cat.nameHi} en={cat.nameEn} mr={cat.nameMr} />
-                    {cat.isHazardous && (
-                      <TriangleAlert size={14} aria-label="खतरनाक / Hazardous" style={{ color: "#c2410c", marginLeft: "0.25rem", verticalAlign: "-2px" }} />
-                    )}
-                  </span>
-                  <span className="c-choice-price">
-                    {todayRate ? (
-                      <>
-                        ₹{(todayRate.ratePerKgPaise / 100).toFixed(0)}
-                        <small>/kg</small>
-                      </>
-                    ) : (
-                      <small style={{ color: "var(--slate-400)" }}>
-                        <T hi="आज भाव नहीं" en="No price today" mr="आज भाव नाही" />
-                      </small>
-                    )}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
+        <LotItemsPicker
+          materials={materials}
+          initialCategoryId={searchParams.categoryId ? parseInt(searchParams.categoryId, 10) : undefined}
+        />
 
-        <div>
-          <label htmlFor="weightInput" className="c-section-title" style={{ display: "block", marginBottom: "0.6rem" }}>
-            2. <T hi="वजन (किलो)" en="Weight (kg)" mr="वजन (किलो)" />
-          </label>
-          <WeightSelector defaultValue="5" />
-        </div>
+        <PhotoPicker />
 
         <LocationCapture fallbackArea={collector?.operatingArea || ""} />
 

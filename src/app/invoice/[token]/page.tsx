@@ -1,105 +1,95 @@
 import { notFound } from "next/navigation";
-import { CircleCheckBig, Hourglass, Receipt } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
+import { CircleCheckBig, Download, Hourglass, Recycle } from "lucide-react";
+import { getInvoice } from "@/lib/services/invoiceService";
+import { BackButton } from "@/components/BackButton";
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="r-kv" style={strong ? { fontSize: "1.15rem" } : undefined}>
-      <span>{label}</span>
-      <span style={strong ? { fontWeight: 900 } : undefined}>{value}</span>
-    </div>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--slate-500)", margin: "1.25rem 0 0.25rem" }}>
-      {children}
-    </h3>
-  );
-}
+const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 export default async function InvoicePage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
-
-  const share = await prisma.receiptShareToken.findUnique({
-    where: { token },
-    include: {
-      lot: {
-        include: {
-          category: true,
-          collector: { include: { user: { select: { phone: true } } } },
-          transaction: { include: { recycler: true } },
-          payments: { orderBy: { paidAt: "desc" }, take: 1 },
-        },
-      },
-    },
-  });
-
-  if (!share || share.expiresAt < new Date() || !share.lot.transaction) {
+  const invoice = await getInvoice(token);
+  if (!invoice) {
     notFound();
   }
 
-  const lot = share.lot;
-  const tx = share.lot.transaction;
-  const recycler = tx.recycler;
-  const payment = lot.payments[0];
-  const isPaid = tx.paymentStatus === "PAID";
-  const ratePaise = tx.agreedRatePaise ?? tx.quotedRatePerKgPaise;
-  const amountPaise = tx.finalPricePaise ?? calculateLotValuePaise(ratePaise, lot.approxWeightGrams);
-  const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  const { isPaid, payment, seller, buyer } = invoice;
 
   return (
-    <div style={{ width: "100%", maxWidth: 520, margin: "1.5rem auto", padding: "0 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
-      {isPaid ? (
-        <div
-          className="card"
-          style={{ textAlign: "center", padding: "1.75rem 1.25rem", border: "2px solid var(--primary)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.35rem" }}
-        >
-          <CircleCheckBig size={48} color="var(--primary)" aria-hidden="true" />
-          <h1 style={{ fontSize: "1.4rem", fontWeight: 900, color: "var(--primary-800)", marginTop: "0.25rem" }}>
-            Payment successful
-          </h1>
-          <div style={{ fontSize: "0.9rem", color: "var(--slate-500)" }}>भुगतान सफल</div>
-          <div style={{ fontSize: "2rem", fontWeight: 900 }}>{rupees(amountPaise)}</div>
-          {payment && (
-            <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>
-              {payment.method} · Ref {payment.upiRef} · {payment.paidAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-            </div>
-          )}
-          <span className="badge badge-warning" style={{ fontSize: "0.7rem", marginTop: "0.35rem" }}>Demo – no real money</span>
-        </div>
-      ) : (
-        <div className="alert alert-warning" style={{ marginBottom: 0 }}>
-          <Hourglass size={18} aria-hidden="true" /> Payment pending for this lot.
-        </div>
-      )}
+    <main className="inv-screen">
+      <article className="card inv-card">
+        <header className={`inv-head ${isPaid ? "is-paid" : "is-pending"}`}>
+          {isPaid ? <CircleCheckBig size={40} aria-hidden="true" /> : <Hourglass size={36} aria-hidden="true" />}
+          <div style={{ minWidth: 0 }}>
+            <h1 className="inv-status">{isPaid ? "Payment successful" : "Payment pending"}</h1>
+            <div className="inv-sub">{isPaid ? "भुगतान सफल" : "भुगतान बाकी"}</div>
+          </div>
+          <div className="inv-amount">{rupees(invoice.amountPaise)}</div>
+        </header>
 
-      <div className="card" style={{ padding: "1.25rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
-          <h2 className="r-section-title">
-            <Receipt size={20} aria-hidden="true" /> Invoice
-          </h2>
-          <code style={{ fontSize: "0.8rem" }}>{lot.lotRef}</code>
+        <div className="inv-meta">
+          <span className="inv-brand">
+            <Recycle size={15} aria-hidden="true" /> Invoice {invoice.lotRef}
+          </span>
+          <span>
+            {payment && `${payment.method} · ${payment.reference} · `}
+            {invoice.issuedAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+          </span>
         </div>
 
-        <Row label="Material" value={`${lot.category.nameEn} (${lot.category.nameHi})`} />
-        <Row label="Weight" value={`${(lot.approxWeightGrams / 1000).toFixed(1)} kg`} />
-        <Row label="Rate" value={`${rupees(ratePaise)} / kg`} />
-        <Row label="Total" value={rupees(amountPaise)} strong />
+        <table className="inv-table">
+          <thead>
+            <tr>
+              <th scope="col">Material</th>
+              <th scope="col">Weight</th>
+              <th scope="col">Rate</th>
+              <th scope="col">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.lines.map((line) => (
+              <tr key={line.categoryId}>
+                <td>{line.nameEn}</td>
+                <td>{(line.weightGrams / 1000).toFixed(1)} kg</td>
+                <td>{rupees(line.ratePerKgPaise)}</td>
+                <td>{rupees(line.amountPaise)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">Total</th>
+              <td>{(invoice.totalWeightGrams / 1000).toFixed(1)} kg</td>
+              <td />
+              <td>{rupees(invoice.amountPaise)}</td>
+            </tr>
+          </tfoot>
+        </table>
 
-        <SectionTitle>Seller (collector)</SectionTitle>
-        <Row label="Name" value={lot.collector.name || `Collector ${lot.collector.shortCode}`} />
-        <Row label="Phone" value={lot.collector.user.phone} />
-        <Row label="Area" value={[lot.collector.operatingArea, lot.collector.district].filter(Boolean).join(", ")} />
+        <div className="inv-parties">
+          <section>
+            <h2>Seller</h2>
+            <strong>{seller.name}</strong>
+            <span>{seller.phone}</span>
+            <span>{seller.area}</span>
+          </section>
+          <section>
+            <h2>Buyer</h2>
+            <strong>{buyer.name}</strong>
+            <span>{buyer.phone}</span>
+            <span>{buyer.address}</span>
+            <span>Auth. {buyer.authorizationNo}</span>
+          </section>
+        </div>
 
-        <SectionTitle>Buyer (recycler)</SectionTitle>
-        <Row label="Name" value={recycler.name} />
-        <Row label="Address" value={recycler.address} />
-        <Row label="Phone" value={recycler.contactPhone} />
-        <Row label="Authorization no." value={recycler.authorizationNo} />
-      </div>
-    </div>
+        <footer className="inv-actions">
+          <BackButton className="btn btn-secondary" />
+          <a href={`/invoice/${token}/pdf`} className="btn btn-primary" download>
+            <Download size={18} aria-hidden="true" /> Download PDF
+          </a>
+        </footer>
+
+        <div className="inv-demo">Demo payment – no real money moved</div>
+      </article>
+    </main>
   );
 }

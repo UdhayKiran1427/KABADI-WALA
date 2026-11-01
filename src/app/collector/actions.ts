@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionCookie, clearSessionCookie, requireRole } from "@/lib/auth/session";
-import { FlowError, createLot, confirmLot, rebroadcastLot, selectOffer } from "@/lib/services/lotFlowService";
+import { FlowError, MAX_LOT_PHOTOS, createLot, confirmLot, rebroadcastLot, selectOffer } from "@/lib/services/lotFlowService";
+import type { LotItemInput } from "@/lib/domain/lotItems";
+import { saveLotImage } from "@/lib/storage";
 
 export async function collectorLoginAction(formData: FormData) {
   const phone = (formData.get("phone") as string)?.trim();
@@ -44,12 +46,26 @@ export async function collectorLogoutAction() {
 
 export async function createCollectorLotAction(formData: FormData) {
   const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const fail = (message: string): never => redirect(`/collector/create-lot?error=${encodeURIComponent(message)}`);
 
-  const categoryId = parseInt(formData.get("categoryId") as string, 10);
-  const weightKg = parseFloat(formData.get("weightKg") as string);
+  // One "weight_<categoryId>" field (kg) per selected material
+  const items: LotItemInput[] = [];
+  for (const [key, value] of formData.entries()) {
+    const match = /^weight_(\d+)$/.exec(key);
+    if (!match || typeof value !== "string" || value.trim() === "") continue;
+    const kg = parseFloat(value);
+    if (!Number.isFinite(kg) || kg <= 0) {
+      fail("Please enter a valid weight in kg for every material");
+    }
+    items.push({ categoryId: Number(match[1]), weightGrams: Math.round(kg * 1000) });
+  }
+  if (items.length === 0) {
+    fail("Choose at least one material and enter its weight");
+  }
 
-  if (isNaN(categoryId) || isNaN(weightKg) || weightKg <= 0) {
-    redirect("/collector/create-lot?error=Please select a category and enter a valid weight in kg");
+  const photos = formData.getAll("photos").filter((p): p is File => p instanceof File && p.size > 0);
+  if (photos.length > MAX_LOT_PHOTOS) {
+    fail(`You can add at most ${MAX_LOT_PHOTOS} photos`);
   }
 
   const collector = await prisma.collector.findFirst({
@@ -57,23 +73,27 @@ export async function createCollectorLotAction(formData: FormData) {
   });
 
   if (!collector) {
-    redirect("/collector/create-lot?error=Collector profile not found");
+    return fail("Collector profile not found");
   }
 
   let lotId: string;
   try {
+    const photoKeys: string[] = [];
+    for (const photo of photos) {
+      photoKeys.push(await saveLotImage(user.userId, Buffer.from(await photo.arrayBuffer()), photo.type));
+    }
+
     const lot = await createLot({
       collectorId: collector.id,
-      categoryId,
-      approxWeightGrams: Math.round(weightKg * 1000),
+      items,
       latitude: parseFloat(formData.get("latitude") as string),
       longitude: parseFloat(formData.get("longitude") as string),
+      photoKeys,
     });
     lotId = lot.id;
   } catch (err) {
-    if (err instanceof FlowError) {
-      redirect(`/collector/create-lot?categoryId=${categoryId}&error=${encodeURIComponent(err.message)}`);
-    }
+    if (err instanceof FlowError) fail(err.message);
+    if (err instanceof Error && /photo/i.test(err.message)) fail(err.message);
     throw err;
   }
 
@@ -374,6 +394,7 @@ export async function deleteLotAction(formData: FormData) {
     await db.dispute.deleteMany({ where: { lotId } });
     await db.matchSuggestion.deleteMany({ where: { lotId } });
     await db.lotOffer.deleteMany({ where: { lotId } });
+    await db.lotItem.deleteMany({ where: { lotId } });
     await db.receiptShareToken.deleteMany({ where: { lotId } });
     await db.payment.deleteMany({ where: { lotId } });
     await db.handover.deleteMany({ where: { lotId } });
@@ -382,4 +403,29 @@ export async function deleteLotAction(formData: FormData) {
   });
 
   redirect("/collector?success=Lot+deleted+successfully");
+}
+
+/**
+ * Collector updates their own name, area and district.
+ */
+export async function updateCollectorProfileAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR"]);
+
+  const name = ((formData.get("name") as string) || "").trim();
+  const operatingArea = ((formData.get("operatingArea") as string) || "").trim();
+  const district = ((formData.get("district") as string) || "").trim();
+
+  if (name.length < 2 || name.length > 60) {
+    redirect("/collector/profile?error=Please enter your name");
+  }
+  if (operatingArea.length < 2 || operatingArea.length > 80) {
+    redirect("/collector/profile?error=Please enter your area");
+  }
+
+  await prisma.collector.update({
+    where: { userId: user.userId },
+    data: { name, operatingArea, district: district || null },
+  });
+
+  redirect("/collector/profile?success=Profile saved");
 }

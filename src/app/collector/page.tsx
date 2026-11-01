@@ -24,6 +24,7 @@ export default async function CollectorDashboardPage() {
           estimatedValuePaise: true,
           finalPricePaise: true,
           category: { select: { nameEn: true, nameHi: true, nameMr: true } },
+          _count: { select: { items: true } },
         },
       })
     : [];
