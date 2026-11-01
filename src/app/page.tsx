@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { VoiceSpeaker } from "@/components/voice/VoiceSpeaker";
+import { LanguageSwitcher } from "@/components/voice/LanguageSwitcher";
 
 export default function HomePage() {
   const categories = [
@@ -48,7 +50,10 @@ export default function HomePage() {
             <span>KABADI WALA</span>
           </Link>
 
-          <div className="nav-links">
+          <div className="nav-links" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <LanguageSwitcher />
+            <VoiceSpeaker screenKey="C3_HOME" size="sm" />
+
             <Link href="/collector" className="btn btn-sm btn-primary">
               📱 Collector (कलेक्टर)
             </Link>

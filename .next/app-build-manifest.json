@@ -6,11 +6,6 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
-    ],
     "/collector/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -21,70 +16,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/collector/page.js"
     ],
-    "/collector/login/page": [
+    "/collector/ledger/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/collector/login/page.js"
-    ],
-    "/field/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/field/layout.js"
-    ],
-    "/field/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/field/page.js"
-    ],
-    "/recycler/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/recycler/layout.js"
-    ],
-    "/recycler/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/recycler/page.js"
-    ],
-    "/recycler/login/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/recycler/login/page.js"
-    ],
-    "/field/login/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/field/login/page.js"
-    ],
-    "/field/pickups/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/field/pickups/page.js"
-    ],
-    "/recycler/verify/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/recycler/verify/page.js"
-    ],
-    "/collector/lots/[id]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/collector/lots/[id]/page.js"
-    ],
-    "/collector/notifications/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/collector/notifications/page.js"
-    ],
-    "/field/register/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/field/register/page.js"
-    ],
-    "/collector/create-lot/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/collector/create-lot/page.js"
+      "static/chunks/app/collector/ledger/page.js"
     ]
   }
 }

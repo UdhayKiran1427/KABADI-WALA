@@ -16,219 +16,228 @@ export default async function LogMarketPricePage(props: {
   const recentSpotPrices = await prisma.pricePoint.findMany({
     where: { source: "FIELD_AGENT" },
     orderBy: { recordedAt: "desc" },
-    take: 10,
+    take: 8,
     include: {
       category: true,
     },
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <Link href="/field" style={{ fontSize: "1.2rem", textDecoration: "none" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <Link
+          href="/field"
+          className="btn btn-secondary btn-sm"
+          style={{ width: "36px", height: "36px", padding: 0, borderRadius: "50%" }}
+        >
           &larr;
         </Link>
         <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#1e293b", margin: 0 }}>
-            F2: Log Scrap Dealer Market Price
+          <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--slate-900)", margin: 0, letterSpacing: "-0.01em" }}>
+            F2: Log Scrap Dealer Market Price &bull; Spot Intelligence
           </h1>
-          <div style={{ fontSize: "0.8rem", color: "#64748b" }}>कबाड़ी दुकान ग्राउंड मार्केट भाव</div>
+          <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>
+            कबाड़ी दुकान ग्राउंड मार्केट भाव &bull; Ground Observation Feed for Valuation Engine
+          </div>
         </div>
       </div>
 
       {searchParams.success && (
-        <div
-          style={{
-            padding: "0.875rem",
-            backgroundColor: "#ecfdf5",
-            color: "#065f46",
-            borderRadius: "10px",
-            border: "1px solid #a7f3d0",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-          }}
-        >
+        <div className="alert alert-success">
           ✓ {searchParams.success}
         </div>
       )}
 
       {searchParams.error && (
-        <div
-          style={{
-            padding: "0.875rem",
-            backgroundColor: "#fee2e2",
-            color: "#b91c1c",
-            borderRadius: "10px",
-            fontSize: "0.85rem",
-          }}
-        >
+        <div className="alert alert-danger">
           ⚠️ {searchParams.error}
         </div>
       )}
 
-      {/* Form */}
-      <form
-        action={logMarketPriceAction}
-        style={{
-          backgroundColor: "#ffffff",
-          borderRadius: "16px",
-          padding: "1.5rem",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1.25rem",
-        }}
-      >
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.35rem" }}>
-              Material Category *
-            </label>
-            <select name="categoryId" className="input" style={{ padding: "0.75rem" }} required>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.nameHi} ({cat.nameEn})
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* 2-Column Responsive Dashboard Grid (Fills 100% of desktop screens!) */}
+      <div className="dashboard-grid">
+        {/* LEFT COLUMN: Price Entry Form */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0 }}>
+          <form
+            action={logMarketPriceAction}
+            className="card"
+            style={{
+              padding: "1.5rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
+            }}
+          >
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--slate-900)" }}>
+              Record Local Scrap Yard Rate
+            </h2>
 
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.35rem" }}>
-              Buying Price (₹ / kg) *
-            </label>
-            <input
-              type="number"
-              step="1"
-              min="1"
-              name="buyingPriceRupees"
-              defaultValue="340"
-              required
-              placeholder="e.g. 340"
-              className="input"
-              style={{ padding: "0.75rem", fontSize: "1.1rem", fontWeight: 700 }}
-            />
-          </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "1rem" }}>
+              <div>
+                <label className="form-label" style={{ fontWeight: 700 }}>
+                  Material Category *
+                </label>
+                <select name="categoryId" className="form-control" style={{ padding: "0.75rem" }} required>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.nameHi} ({cat.nameEn})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontWeight: 700 }}>
+                  Buying Price (₹ / kg) *
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  name="buyingPriceRupees"
+                  defaultValue="340"
+                  required
+                  placeholder="e.g. 340"
+                  className="form-control"
+                  style={{ padding: "0.75rem", fontSize: "1.2rem", fontWeight: 800, color: "var(--slate-900)" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div>
+                <label className="form-label" style={{ fontWeight: 700 }}>
+                  Scrap Yard / Ward Area *
+                </label>
+                <input
+                  type="text"
+                  name="area"
+                  defaultValue="Dharavi 13th Compound"
+                  required
+                  className="form-control"
+                  style={{ padding: "0.75rem" }}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontWeight: 700 }}>
+                  District *
+                </label>
+                <input
+                  type="text"
+                  name="district"
+                  defaultValue="Mumbai"
+                  required
+                  className="form-control"
+                  style={{ padding: "0.75rem" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div>
+                <label className="form-label" style={{ fontSize: "0.825rem", fontWeight: 600 }}>
+                  GPS Latitude
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  name="latitude"
+                  defaultValue="19.0434"
+                  className="form-control"
+                  style={{ padding: "0.6rem 0.75rem", color: "var(--slate-600)" }}
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: "0.825rem", fontWeight: 600 }}>
+                  GPS Longitude
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  name="longitude"
+                  defaultValue="72.8567"
+                  className="form-control"
+                  style={{ padding: "0.6rem 0.75rem", color: "var(--slate-600)" }}
+                />
+              </div>
+            </div>
+
+            <input type="hidden" name="buyerType" value="SCRAP_DEALER" />
+
+            <button
+              type="submit"
+              className="btn btn-primary btn-block btn-lg"
+              style={{ padding: "0.85rem", backgroundColor: "#4f46e5" }}
+            >
+              ✓ Log Spot Rate to Price Engine &rarr;
+            </button>
+          </form>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.35rem" }}>
-              Scrap Yard / Area *
-            </label>
-            <input
-              type="text"
-              name="area"
-              defaultValue="Dharavi 13th Compound"
-              required
-              className="input"
-              style={{ padding: "0.75rem" }}
-            />
+        {/* RIGHT COLUMN: Recent Market Logs Table & Audit Impact (Fills Desktop Space!) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0 }}>
+          {/* Recent Ground Spot Prices Card */}
+          <div className="card" style={{ padding: "1.25rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem" }}>
+              <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--slate-900)" }}>
+                🕒 Recent Ground Spot Rates
+              </h3>
+              <span className="badge badge-neutral" style={{ fontSize: "0.7rem" }}>Field Feeds</span>
+            </div>
+
+            {recentSpotPrices.length === 0 ? (
+              <div style={{ color: "var(--slate-500)", fontSize: "0.825rem", textAlign: "center", padding: "1.5rem" }}>
+                No spot prices logged yet.
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Material</th>
+                      <th>Rate (₹/kg)</th>
+                      <th>Area</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentSpotPrices.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <strong>{p.category.nameHi}</strong>
+                          <div style={{ fontSize: "0.75rem", color: "var(--slate-500)" }}>{p.category.nameEn}</div>
+                        </td>
+                        <td>
+                          <strong style={{ color: "var(--primary-800)", fontSize: "0.95rem" }}>
+                            ₹{(p.buyingPricePaise / 100).toFixed(0)}
+                          </strong>
+                        </td>
+                        <td style={{ fontSize: "0.8rem" }}>{p.area}</td>
+                        <td style={{ fontSize: "0.75rem", color: "var(--slate-500)" }}>
+                          {new Date(p.recordedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.35rem" }}>
-              District *
-            </label>
-            <input
-              type="text"
-              name="district"
-              defaultValue="Mumbai"
-              required
-              className="input"
-              style={{ padding: "0.75rem" }}
-            />
+          {/* Pricing Engine Rule Notice */}
+          <div className="card" style={{ padding: "1.25rem", backgroundColor: "var(--slate-50)" }}>
+            <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--slate-800)", marginBottom: "0.4rem" }}>
+              📊 How Ground Data Protects Pickers
+            </h3>
+            <p style={{ fontSize: "0.775rem", color: "var(--slate-600)", lineHeight: 1.5 }}>
+              Your field survey logs compute the real-time median price baseline. If an authorized recycler sets a quote below 35% of this ground median, Module M3 alerts administrators immediately to prevent predatory margin clipping.
+            </p>
           </div>
         </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.35rem" }}>
-              GPS Latitude
-            </label>
-            <input
-              type="number"
-              step="any"
-              name="latitude"
-              defaultValue="19.0434"
-              className="input"
-              style={{ padding: "0.75rem", color: "#64748b" }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.35rem" }}>
-              GPS Longitude
-            </label>
-            <input
-              type="number"
-              step="any"
-              name="longitude"
-              defaultValue="72.8567"
-              className="input"
-              style={{ padding: "0.75rem", color: "#64748b" }}
-            />
-          </div>
-        </div>
-
-        <input type="hidden" name="buyerType" value="SCRAP_DEALER" />
-
-        <button
-          type="submit"
-          className="btn btn-primary"
-          style={{
-            padding: "0.875rem",
-            fontSize: "1.05rem",
-            fontWeight: 800,
-            borderRadius: "10px",
-            backgroundColor: "#2563eb",
-          }}
-        >
-          Log Spot Rate to Pricing Engine &rarr;
-        </button>
-      </form>
-
-      {/* Recent Logged Spot Prices */}
-      <div className="card">
-        <h2 style={{ fontSize: "1.05rem", fontWeight: 700, marginBottom: "0.75rem" }}>
-          हाल के ग्राउंड मार्केट भाव / Recently Logged Spot Rates
-        </h2>
-
-        {recentSpotPrices.length === 0 ? (
-          <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", textAlign: "center", padding: "1.5rem" }}>
-            No spot prices logged yet.
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="table" style={{ fontSize: "0.85rem" }}>
-              <thead>
-                <tr>
-                  <th>Material</th>
-                  <th>Rate (₹/kg)</th>
-                  <th>Area</th>
-                  <th>District</th>
-                  <th>Logged Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentSpotPrices.map((p) => (
-                  <tr key={p.id}>
-                    <td style={{ fontWeight: 700 }}>{p.category.nameHi} ({p.category.nameEn})</td>
-                    <td style={{ fontWeight: 800, color: "#065f46", fontSize: "0.95rem" }}>
-                      ₹{(p.buyingPricePaise / 100).toFixed(0)}
-                    </td>
-                    <td>{p.area}</td>
-                    <td>{p.district}</td>
-                    <td>{new Date(p.recordedAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );
 }
-

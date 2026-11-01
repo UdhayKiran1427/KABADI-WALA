@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { calculateHaversineDistanceKm } from "@/lib/domain/matching";
+import { CollectorControlToolbar } from "@/components/voice/CollectorControlToolbar";
 
 export default async function DropPointsPage() {
   await requireRole(["COLLECTOR", "ADMIN"]);
@@ -23,8 +24,17 @@ export default async function DropPointsPage() {
     })
     .sort((a, b) => a.distanceKm - b.distanceKm);
 
+  const narration = {
+    en: `Nearby e-waste drop points. Found ${points.length} verified collection bins within range. Smaller items like batteries, cables, and phones can be safely deposited here.`,
+    hi: `नजदीकी ड्रॉप बॉक्स एवं कैंप। आपके आसपास ${points.length} अधिकृत ड्रॉप बॉक्स उपलब्ध हैं। छोटी वस्तुएं जैसे बैटरी और केबल यहाँ जमा कर सकते हैं।`,
+    mr: `जवळील ड्रॉप बॉक्स आणि कॅम्प. तुमच्या परिसरात ${points.length} अधिकृत ड्रॉप बॉक्स आहेत. बॅटरी, केबल यांसारख्या लहान वस्तू सुरक्षितपणे येथे जमा करू शकता.`,
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* Voice & Text Language Toolbar */}
+      <CollectorControlToolbar pageNarration={narration} narrationId="drop-points-narration" />
+
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
         <Link href="/collector" style={{ fontSize: "1.2rem", textDecoration: "none" }}>
           &larr;
@@ -68,7 +78,7 @@ export default async function DropPointsPage() {
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <div className="grid-2">
           {pointsWithDistance.map((p) => {
             const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}`;
             const typeLabel =

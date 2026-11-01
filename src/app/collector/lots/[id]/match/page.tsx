@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { matchRecyclers, CandidateRecycler } from "@/lib/domain/matching";
 import { selectRecyclerForLotAction } from "../../../actions";
+import { VoiceSpeaker } from "@/components/voice/VoiceSpeaker";
+import { CollectorControlToolbar } from "@/components/voice/CollectorControlToolbar";
 
 export default async function MatchRecyclerPage(props: {
   params: Promise<{ id: string }>;
@@ -90,20 +92,34 @@ export default async function MatchRecyclerPage(props: {
     pickupRequired: false,
   });
 
+  const narration = {
+    en: `Match verified recyclers for ${lot.category.nameEn}. Found ${matchResult.recyclers.length} verified facilities. Compare price, distance, and pickup options to choose your buyer.`,
+    hi: `पास के अधिकृत रिसायकलर खोजें। ${lot.category.nameHi} के लिए ${matchResult.recyclers.length} अधिकृत फैक्ट्रियां मिली हैं। सर्वोत्तम भाव और दूरी देखकर अपना रिसायकलर चुनें।`,
+    mr: `जवळील अधिकृत रिसायकलर शोधा. ${lot.category.nameMr || lot.category.nameHi} साठी ${matchResult.recyclers.length} अधिकृत फॅक्टरी उपलब्ध आहेत. सर्वोत्तम दर आणि अंतर पाहून रिसायकलर निवडा.`,
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <Link href="/collector" style={{ fontSize: "1.2rem", textDecoration: "none" }}>
-          &larr;
-        </Link>
-        <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#1e293b", margin: 0 }}>
-            रिसाइक्लर खोजें / Nearest Recycler
-          </h1>
-          <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
-            लॉट #{lot.lotRef} • {lot.category.nameHi} ({(lot.approxWeightGrams / 1000).toFixed(1)} kg)
+      {/* Voice & Text Language Toolbar */}
+      <CollectorControlToolbar pageNarration={narration} narrationId="match-page-narration" />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Link href="/collector" style={{ fontSize: "1.2rem", textDecoration: "none" }}>
+            &larr;
+          </Link>
+          <div>
+            <h1 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#1e293b", margin: 0 }}>
+              पास के रिसाइक्लर / Nearest Recycler
+            </h1>
+            <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
+              लॉट #{lot.lotRef} • {lot.category.nameHi} ({(lot.approxWeightGrams / 1000).toFixed(1)} kg)
+            </div>
           </div>
         </div>
+
+        {/* C7 Recycler Match Audio Speaker */}
+        <VoiceSpeaker screenKey="C7_RECYCLER_MATCH" size="md" />
       </div>
 
       {/* G1 & C20: Location Badge & Locality Fallback Selector */}

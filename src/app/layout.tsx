@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { VoiceLanguageProvider } from "@/components/voice/VoiceLanguageContext";
 
 export const metadata: Metadata = {
   title: "KABADI WALA | Circular E-Waste Supply Chain Platform",
@@ -27,7 +28,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body>{children}</body>
+      <body>
+        <VoiceLanguageProvider>{children}</VoiceLanguageProvider>
+      </body>
     </html>
   );
 }

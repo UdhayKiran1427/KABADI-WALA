@@ -1,7 +1,4 @@
 {
-  "/recycler/page": "app/recycler/page.js",
-  "/field/register/page": "app/field/register/page.js",
-  "/collector/lots/[id]/page": "app/collector/lots/[id]/page.js",
-  "/collector/create-lot/page": "app/collector/create-lot/page.js",
-  "/collector/page": "app/collector/page.js"
+  "/collector/page": "app/collector/page.js",
+  "/collector/ledger/page": "app/collector/ledger/page.js"
 }

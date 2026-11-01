@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { agentUpdatePickupStatusAction, agentCompleteDoorstepHandoverAction } from "../actions";
+import { VoiceSpeaker } from "@/components/voice/VoiceSpeaker";
 
 export default async function FieldPickupsPage(props: {
   searchParams: Promise<{ success?: string; error?: string }>;
@@ -30,18 +31,23 @@ export default async function FieldPickupsPage(props: {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <Link href="/field" style={{ fontSize: "1.2rem", textDecoration: "none" }}>
-          &larr;
-        </Link>
-        <div>
-          <h1 style={{ fontSize: "1.3rem", fontWeight: 800, color: "#1e293b", margin: 0 }}>
-            🚚 Doorstep Pickups &amp; Cash Handover (घर से उठाव व नकद भुगतान)
-          </h1>
-          <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
-            Visit collectors with portable scale, weigh on-site, disburse cash, and transport scrap back to recycler.
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Link href="/field" style={{ fontSize: "1.2rem", textDecoration: "none" }}>
+            &larr;
+          </Link>
+          <div>
+            <h1 style={{ fontSize: "1.3rem", fontWeight: 800, color: "#1e293b", margin: 0 }}>
+              🚚 Doorstep Pickups &amp; Cash Handover (घर से उठाव व नकद भुगतान)
+            </h1>
+            <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+              Visit collectors with portable scale, weigh on-site, disburse cash, and transport scrap back to recycler.
+            </div>
           </div>
         </div>
+
+        {/* F4 Audio Speaker */}
+        <VoiceSpeaker screenKey="F4_PICKUPS" size="md" />
       </div>
 
       {searchParams.success && (

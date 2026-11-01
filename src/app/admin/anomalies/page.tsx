@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { reviewAnomalyAction } from "../actions";
+import { reviewAnomalyFormAction } from "../actions";
 
 export default async function AdminAnomaliesPage({
   searchParams,
@@ -97,12 +97,16 @@ export default async function AdminAnomaliesPage({
                     <td>
                       {flag.status === "OPEN" ? (
                         <div style={{ display: "flex", gap: "0.5rem" }}>
-                          <form action={reviewAnomalyAction.bind(null, flag.id, "REVIEWED")}>
+                          <form action={reviewAnomalyFormAction}>
+                            <input type="hidden" name="flagId" value={flag.id} />
+                            <input type="hidden" name="status" value="REVIEWED" />
                             <button type="submit" className="btn btn-primary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
                               Review
                             </button>
                           </form>
-                          <form action={reviewAnomalyAction.bind(null, flag.id, "DISMISSED")}>
+                          <form action={reviewAnomalyFormAction}>
+                            <input type="hidden" name="flagId" value={flag.id} />
+                            <input type="hidden" name="status" value="DISMISSED" />
                             <button type="submit" className="btn btn-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
                               Dismiss
                             </button>

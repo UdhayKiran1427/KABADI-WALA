@@ -74,6 +74,15 @@ export async function updateRecyclerStatusAction(recyclerId: string, status: "VE
   revalidatePath("/admin");
 }
 
+export async function updateRecyclerStatusFormAction(formData: FormData): Promise<void> {
+  const recyclerId = formData.get("recyclerId") as string;
+  const status = formData.get("status") as "VERIFIED" | "SUSPENDED" | "EXPIRED";
+  const notes = (formData.get("notes") as string) || undefined;
+  if (recyclerId && status) {
+    await updateRecyclerStatusAction(recyclerId, status, notes);
+  }
+}
+
 /**
  * M1: Add new recycler facility and staff login credentials.
  */
@@ -203,6 +212,14 @@ export async function reviewAnomalyAction(flagId: string, status: "REVIEWED" | "
 
   revalidatePath("/admin/anomalies");
   revalidatePath("/admin");
+}
+
+export async function reviewAnomalyFormAction(formData: FormData): Promise<void> {
+  const flagId = formData.get("flagId") as string;
+  const status = formData.get("status") as "REVIEWED" | "DISMISSED";
+  if (flagId && status) {
+    await reviewAnomalyAction(flagId, status);
+  }
 }
 
 /**
