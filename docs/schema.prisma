@@ -1,0 +1,517 @@
+// Targets Prisma 5 or 6. On Prisma 7, move the datasource url into prisma.config.ts.
+// E-waste collector platform: server database (PostgreSQL) for the Next.js backend.
+// Conventions:
+//  - Rows created on the phone use client-generated UUIDs (no @default) so they can be made offline.
+//  - Money is Decimal in rupees. The Flutter app stores paise (integer) and converts on sync.
+//  - Weights are Decimal kg. The Flutter app stores grams (integer) and converts on sync.
+//  - Coordinates are plain latitude/longitude floats. Add PostGIS later if matching needs it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+enum Role {
+  COLLECTOR
+  RECYCLER
+  ADMIN
+  FIELD_AGENT
+}
+enum Language {
+  HI
+  MR
+  EN
+}
+enum AuthStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  SUSPENDED
+}
+enum Unit {
+  KG
+  PIECE
+}
+enum Condition {
+  WORKING
+  DAMAGED
+  BROKEN
+  UNKNOWN
+}
+enum SourceType {
+  HOUSEHOLD
+  OFFICE
+  SHOP
+  REPAIR_SHOP
+  OTHER
+}
+enum LotStatus {
+  DRAFT
+  READY
+  MATCHED
+  HANDED_OVER
+  COMPLETED
+  CANCELLED
+}
+enum TransactionStatus {
+  QUOTED
+  ACCEPTED
+  HANDED_OVER
+  CONFIRMED
+  PAID
+  CANCELLED
+  DISPUTED
+}
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+enum PaymentMethod {
+  CASH
+  UPI
+}
+enum HandoverStatus {
+  PENDING
+  CONFIRMED
+  DISPUTED
+}
+enum DownstreamStatus {
+  RECEIVED
+  SENT_TO_PROCESSING
+  PROCESSED
+}
+enum PriceSource {
+  FIELD_AGENT
+  RECYCLER
+  ADMIN
+}
+enum ImageKind {
+  COLLECTION
+  HANDOVER
+  TRAINING
+}
+enum FlagType {
+  PRICE_OUTLIER
+  WEIGHT_MISMATCH
+  LOCATION_MISMATCH
+  DUPLICATE_LOT
+  OTHER
+}
+enum FlagStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+enum LabelSource {
+  COLLECTOR
+  FIELD_AGENT
+  ADMIN
+  MODEL
+}
+enum DataSplit {
+  TRAIN
+  VALIDATION
+  TEST
+}
+enum QualityStatus {
+  UNREVIEWED
+  GOOD
+  REJECTED
+}
+enum MlTask {
+  CLASSIFIER
+  VALUATION
+  MATCHING
+  ANOMALY
+}
+enum SyncStatus {
+  APPLIED
+  DUPLICATE
+  CONFLICT
+  REJECTED
+}
+
+// ---------- Users and roles ----------
+model User {
+  id        String   @id @default(uuid())
+  role      Role
+  phone     String   @unique
+  pinHash   String
+  language  Language @default(HI)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  collector            Collector?         @relation("CollectorUser")
+  onboardedCollectors  Collector[]        @relation("OnboardedBy")
+  recyclerStaff        RecyclerStaff?
+  pricesRecorded       PricePoint[]
+  verificationsDone    RecyclerVerification[]
+  handoversConfirmed   Handover[]
+  paymentsConfirmed    Payment[]
+  flagsReviewed        AnomalyFlag[]
+  samplesCaptured      TrainingSample[]
+  syncMutations        SyncMutation[]
+}
+
+// Collector dataset: minimal profile. No name, address or ID documents.
+model Collector {
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  user              User      @relation("CollectorUser", fields: [userId], references: [id])
+  shortCode         String    @unique // 4 characters, used inside lot refs so refs can be made offline
+  preferredLanguage Language  @default(HI)
+  operatingArea     String // general area only
+  district          String?
+  consentAt         DateTime?
+  onboardedById     String?
+  onboardedBy       User?     @relation("OnboardedBy", fields: [onboardedById], references: [id])
+  createdAt         DateTime  @default(now())
+
+  lots         Lot[]
+  transactions Transaction[]
+}
+
+model RecyclerStaff {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id])
+  recyclerId String
+  recycler   Recycler @relation(fields: [recyclerId], references: [id])
+}
+
+// ---------- Reference data ----------
+model MaterialCategory {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique // e.g. PCB, CABLE, BATTERY, CRT, LCD, MOTOR_MAGNET, MIXED_PLASTIC
+  parentId    Int? // sub-category support
+  parent      MaterialCategory?  @relation("SubCategory", fields: [parentId], references: [id])
+  children    MaterialCategory[] @relation("SubCategory")
+  nameEn      String
+  nameHi      String
+  nameMr      String
+  iconKey     String
+  defaultUnit Unit     @default(KG)
+  isHazardous Boolean  @default(false)
+  isActive    Boolean  @default(true)
+
+  lots           Lot[]            @relation("LotCategory")
+  aiSuggestedLots Lot[]           @relation("LotAiCategory")
+  prices         PricePoint[]
+  recyclerRates  RecyclerRate[]
+  trainingSamples TrainingSample[]
+}
+
+model SafetyTopic {
+  id        Int     @id @default(autoincrement())
+  key       String  @unique // burning_cables, acid_leaching, battery_opening, crt_breaking
+  titleEn   String
+  titleHi   String
+  titleMr   String
+  imageKey  String
+  audioKeyHi String
+  audioKeyMr String
+  sortOrder Int     @default(0)
+}
+
+// ---------- Recycler dataset ----------
+model Recycler {
+  id                     String     @id @default(uuid())
+  name                   String
+  address                String
+  area                   String
+  district               String
+  state                  String
+  latitude               Float
+  longitude              Float
+  authorizationNo        String     @unique
+  authorizationStatus    AuthStatus @default(PENDING)
+  authorizationValidTill DateTime?
+  authorizationDocKey    String?
+  contactPhone           String
+  pickupAvailable        Boolean    @default(false)
+  serviceRadiusKm        Float      @default(10)
+  verifiedAt             DateTime?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+
+  staff         RecyclerStaff[]
+  rates         RecyclerRate[]
+  verifications RecyclerVerification[]
+  transactions  Transaction[]
+  suggestions   MatchSuggestion[]
+  prices        PricePoint[]
+
+  @@index([district, authorizationStatus])
+}
+
+// Accepted materials and offered rates. A category row here means the recycler accepts it.
+// Keep exactly one isCurrent=true row per recycler and category (enforce in code or a partial unique index).
+model RecyclerRate {
+  id            String           @id @default(uuid())
+  recyclerId    String
+  recycler      Recycler         @relation(fields: [recyclerId], references: [id])
+  categoryId    Int
+  category      MaterialCategory @relation(fields: [categoryId], references: [id])
+  ratePerKg     Decimal          @db.Decimal(10, 2)
+  unit          Unit             @default(KG)
+  effectiveFrom DateTime         @default(now())
+  isCurrent     Boolean          @default(true)
+
+  @@index([recyclerId, categoryId, isCurrent])
+}
+
+model RecyclerVerification {
+  id           String     @id @default(uuid())
+  recyclerId   String
+  recycler     Recycler   @relation(fields: [recyclerId], references: [id])
+  reviewedById String
+  reviewedBy   User       @relation(fields: [reviewedById], references: [id])
+  status       AuthStatus
+  notes        String?
+  docKey       String?
+  createdAt    DateTime   @default(now())
+}
+
+// ---------- Price dataset ----------
+model PricePoint {
+  id                 String           @id @default(uuid())
+  categoryId         Int
+  category           MaterialCategory @relation(fields: [categoryId], references: [id])
+  area               String
+  district           String
+  latitude           Float?
+  longitude          Float?
+  recordedAt         DateTime
+  buyingPrice        Decimal          @db.Decimal(10, 2)
+  quotedSellingPrice Decimal?         @db.Decimal(10, 2)
+  unit               Unit             @default(KG)
+  marketLow          Decimal?         @db.Decimal(10, 2)
+  marketHigh         Decimal?         @db.Decimal(10, 2)
+  recyclerId         String?
+  recycler           Recycler?        @relation(fields: [recyclerId], references: [id])
+  source             PriceSource
+  recordedById       String?
+  recordedBy         User?            @relation(fields: [recordedById], references: [id])
+
+  @@index([categoryId, district, recordedAt])
+}
+
+// ---------- Material dataset (lots) ----------
+model Lot {
+  id               String           @id // client-generated UUID so lots can be created offline
+  lotRef           String           @unique // LOT-{collector shortCode}-{yyMMdd}-{seq}
+  collectorId      String
+  collector        Collector        @relation(fields: [collectorId], references: [id])
+  categoryId       Int
+  category         MaterialCategory @relation("LotCategory", fields: [categoryId], references: [id])
+  subCategory      String?
+  description      String?
+  condition        Condition        @default(UNKNOWN)
+  sourceType       SourceType       @default(OTHER)
+  approxWeightKg   Decimal          @db.Decimal(8, 2)
+  estimatedValue   Decimal?         @db.Decimal(10, 2)
+  estimatedValueMin Decimal?        @db.Decimal(10, 2)
+  estimatedValueMax Decimal?        @db.Decimal(10, 2)
+  aiCategoryId     Int?
+  aiCategory       MaterialCategory? @relation("LotAiCategory", fields: [aiCategoryId], references: [id])
+  aiConfidence     Float?
+  status           LotStatus        @default(DRAFT)
+  collectedAt      DateTime
+  collectLat       Float?
+  collectLng       Float?
+  clientCreatedAt  DateTime
+  syncedAt         DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  images       LotImage[]
+  suggestions  MatchSuggestion[]
+  transaction  Transaction?
+  flags        AnomalyFlag[]
+
+  @@index([collectorId, collectedAt])
+  @@index([status])
+}
+
+model LotImage {
+  id         String    @id // client-generated UUID
+  lotId      String
+  lot        Lot       @relation(fields: [lotId], references: [id])
+  kind       ImageKind @default(COLLECTION)
+  storageKey String
+  sha256     String?
+  takenAt    DateTime
+  widthPx    Int?
+  heightPx   Int?
+  bytes      Int?
+
+  trainingSample TrainingSample?
+
+  @@index([lotId])
+}
+
+// Recycler recommendation log: what was shown and why (feeds the matching model).
+model MatchSuggestion {
+  id              String   @id @default(uuid())
+  lotId           String
+  lot             Lot      @relation(fields: [lotId], references: [id])
+  recyclerId      String
+  recycler        Recycler @relation(fields: [recyclerId], references: [id])
+  rank            Int
+  score           Float
+  distanceKm      Float
+  ratePerKg       Decimal  @db.Decimal(10, 2)
+  pickupAvailable Boolean
+  createdAt       DateTime @default(now())
+
+  @@unique([lotId, recyclerId])
+}
+
+// ---------- Transaction dataset ----------
+model Transaction {
+  id              String            @id // client-generated UUID
+  lotId           String            @unique
+  lot             Lot               @relation(fields: [lotId], references: [id])
+  collectorId     String
+  collector       Collector         @relation(fields: [collectorId], references: [id])
+  recyclerId      String
+  recycler        Recycler          @relation(fields: [recyclerId], references: [id])
+  quotedRatePerKg Decimal           @db.Decimal(10, 2)
+  quotedPrice     Decimal           @db.Decimal(10, 2)
+  finalPrice      Decimal?          @db.Decimal(10, 2)
+  handoverLat     Float?
+  handoverLng     Float?
+  handoverAt      DateTime?
+  status          TransactionStatus @default(QUOTED)
+  paymentStatus   PaymentStatus     @default(UNPAID)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  handover Handover?
+  payments Payment[]
+  flags    AnomalyFlag[]
+
+  @@index([recyclerId, status])
+  @@index([collectorId, status])
+}
+
+// ---------- Traceability dataset ----------
+// Handover photos are LotImage rows with kind = HANDOVER on the same lot.
+model Handover {
+  id                  String            @id // client-generated UUID
+  transactionId       String            @unique
+  transaction         Transaction       @relation(fields: [transactionId], references: [id])
+  handoverRef         String            @unique // short code the recycler types or scans
+  qrPayload           String
+  declaredWeightKg    Decimal           @db.Decimal(8, 2)
+  confirmedWeightKg   Decimal?          @db.Decimal(8, 2)
+  capturedAt          DateTime
+  latitude            Float?
+  longitude           Float?
+  status              HandoverStatus    @default(PENDING)
+  recyclerConfirmedAt DateTime?
+  confirmedById       String?
+  confirmedBy         User?             @relation(fields: [confirmedById], references: [id])
+  disputeReason       String?
+  downstreamStatus    DownstreamStatus?
+  downstreamUpdatedAt DateTime?
+}
+
+// Ledger rows. Pending dues = Transaction.finalPrice minus the sum of Payment.amount.
+model Payment {
+  id                    String        @id // client-generated UUID
+  transactionId         String
+  transaction           Transaction   @relation(fields: [transactionId], references: [id])
+  amount                Decimal       @db.Decimal(10, 2)
+  method                PaymentMethod
+  upiRef                String?
+  paidAt                DateTime
+  confirmedByCollector  Boolean       @default(false)
+  confirmedByRecyclerId String?
+  confirmedByRecycler   User?         @relation(fields: [confirmedByRecyclerId], references: [id])
+
+  @@index([transactionId])
+}
+
+// ---------- Data quality and AI/ML ----------
+model AnomalyFlag {
+  id            String       @id @default(uuid())
+  type          FlagType
+  severity      Int          @default(1) // 1 low to 3 high
+  reason        String
+  ruleCode      String? // which rule fired, or null if a model fired
+  modelVersionId Int?
+  modelVersion  ModelVersion? @relation(fields: [modelVersionId], references: [id])
+  lotId         String?
+  lot           Lot?         @relation(fields: [lotId], references: [id])
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  status        FlagStatus   @default(OPEN)
+  reviewedById  String?
+  reviewedBy    User?        @relation(fields: [reviewedById], references: [id])
+  reviewedAt    DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([status, severity])
+}
+
+// AI/ML training dataset: labelled images plus the lot context (weight, location, price) via the image's lot.
+model TrainingSample {
+  id           String           @id @default(uuid())
+  imageId      String           @unique
+  image        LotImage         @relation(fields: [imageId], references: [id])
+  categoryId   Int
+  category     MaterialCategory @relation(fields: [categoryId], references: [id])
+  labelSource  LabelSource
+  labelConfidence Float?
+  split        DataSplit?
+  quality      QualityStatus    @default(UNREVIEWED)
+  capturedById String?
+  capturedBy   User?            @relation(fields: [capturedById], references: [id])
+  createdAt    DateTime         @default(now())
+
+  @@index([split, quality])
+}
+
+model ModelVersion {
+  id             Int      @id @default(autoincrement())
+  task           MlTask
+  version        String
+  trainedAt      DateTime
+  trainSize      Int
+  validationSize Int
+  metricName     String // e.g. accuracy, MAE
+  metricValue    Float
+  artifactKey    String?
+  isActive       Boolean  @default(false)
+  notes          String? // known limits of the data
+
+  flags AnomalyFlag[]
+
+  @@unique([task, version])
+}
+
+// ---------- Offline sync ----------
+// One row per mutation sent by a phone. The primary key is the client's mutation id, so retries are idempotent.
+model SyncMutation {
+  id              String     @id
+  deviceId        String
+  userId          String
+  user            User       @relation(fields: [userId], references: [id])
+  entity          String // lot, lot_image, transaction, handover, payment, price_point
+  entityId        String
+  op              String // create, update
+  payload         Json
+  clientTimestamp DateTime
+  receivedAt      DateTime   @default(now())
+  status          SyncStatus
+  error           String?
+
+  @@index([userId, receivedAt])
+  @@index([entity, entityId])
+}

@@ -1,0 +1,32 @@
+Role,Interface,Total screens,Must,Should,Later,Done
+Collector,Android app,12,10,2,0,0
+Recycler staff,Web,4,2,2,0,0
+Platform admin,Web,5,2,2,1,0
+Field agent,Android app (collector app plus 3 screens),3,0,2,1,0
+Total,,24,14,8,2,0
+
+ID,Role,Screen,Interface,What the user does,Demo priority,Status,Owner,Notes
+C1,Collector,Language select,Android app,Taps Hindi or Marathi and hears the audio prompt,Must,Not started,,
+C2,Collector,Sign in,Android app,Enters phone number and 4-digit PIN,Must,Not started,,
+C3,Collector,Home,Android app,"Picks one of four large icons: create lot, today's prices, earnings, safety",Must,Not started,,
+C4,Collector,Create lot,Android app,"Takes a photo, picks the category icon, sets the weight",Must,Not started,,
+C5,Collector,AI result and estimate,Android app,Confirms or changes the AI category and sees the price range,Must,Not started,,
+C6,Collector,Price board,Android app,Reads or hears current rates and trends,Must,Not started,,
+C7,Collector,Recycler match,Android app,Compares ranked authorized recyclers and picks one,Must,Not started,,
+C8,Collector,Handover record,Android app,Shows the QR and lot ID to the recycler,Must,Not started,,
+C9,Collector,Payment,Android app,Chooses cash or UPI and confirms money received,Must,Not started,,
+C10,Collector,Earnings ledger,Android app,Sees total received and pending dues,Must,Not started,,
+C11,Collector,Safety guide,Android app,Views pictures and hears audio on hazards,Should,Not started,,
+C12,Collector,My lots and sync,Android app,Checks lot status and how many are waiting to sync,Should,Not started,,
+R1,Recycler staff,Dashboard and incoming lots,Web,"Views lot counts and unpaid amount, accepts or reviews lots",Must,Not started,,
+R2,Recycler staff,Verify handover,Web,"Looks up the lot by ID or QR, enters the actual weight, confirms or disputes",Must,Not started,,
+R3,Recycler staff,Rate manager,Web,Edits buying rates and pickup availability,Should,Not started,,
+R4,Recycler staff,Profile and authorization,Web,"Maintains authorization number, validity, service area, and accepted materials",Should,Not started,,
+M1,Platform admin,Recycler verification queue,Web,Approves or suspends recyclers and flags expired authorizations,Should,Not started,,
+M2,Platform admin,Price dataset and trends,Web,"Adds, cleans and exports price records and watches the trend",Must,Not started,,
+M3,Platform admin,Anomaly alerts,Web,"Reviews flagged lots with odd prices, weights or locations",Must,Not started,,
+M4,Platform admin,Dataset and AI health,Web,"Tracks data volume, missing fields, last sync, model accuracy and limits",Should,Not started,,
+M5,Platform admin,Impact reports,Web,Views volume routed to authorized recyclers and collector earnings (summary only),Later,Not started,,
+F1,Field agent,Onboard collector,Android app,Creates a collector profile with minimal details on the collector's behalf,Later,Not started,,
+F2,Field agent,Log market price,Android app,"Records the price a local dealer is paying for a material, with date and place",Should,Not started,,
+F3,Field agent,Photo capture for training,Android app,Takes labelled material photos for the AI dataset,Should,Not started,,
