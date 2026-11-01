@@ -1,9 +1,12 @@
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { Ban, CalendarX, Check, CircleAlert, CircleCheck, LockKeyhole, Plus } from "lucide-react";
 import { updateRecyclerStatusFormAction, createRecyclerAction } from "../actions";
+import { CoordinateInputs } from "./CoordinateInputs";
 
-export default async function AdminRecyclersPage() {
+export default async function AdminRecyclersPage(props: { searchParams: Promise<{ error?: string; success?: string }> }) {
   await requireRole(["ADMIN"]);
+  const searchParams = await props.searchParams;
 
   const recyclers = await prisma.recycler.findMany({
     orderBy: { createdAt: "desc" },
@@ -21,37 +24,33 @@ export default async function AdminRecyclersPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-        <div>
-          <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--slate-900)", letterSpacing: "-0.02em" }}>
-            M1 Recycler Verification &amp; Authorization Control
-          </h1>
-          <p style={{ color: "var(--slate-500)", fontSize: "0.875rem", marginTop: "0.25rem" }}>
-            Review CPCB/SPCB statutory authorizations, approve facilities, or suspend non-compliant recyclers.
-          </p>
+      <h1 className="r-page-title">Recyclers</h1>
+
+      {searchParams.success && (
+        <div className="alert alert-success" style={{ marginBottom: 0 }}>
+          <CircleCheck size={18} aria-hidden="true" /> {searchParams.success}
         </div>
-        <span className="badge badge-success">✓ Statutory Audit Active</span>
-      </div>
+      )}
+      {searchParams.error && (
+        <div className="alert alert-danger" style={{ marginBottom: 0 }}>
+          <CircleAlert size={18} aria-hidden="true" /> {searchParams.error}
+        </div>
+      )}
 
       {/* Recyclers Table Card */}
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--slate-900)" }}>
-            Authorized Recycling Facilities ({recyclers.length})
-          </h2>
-          <span className="badge badge-neutral">CPCB Registered</span>
-        </div>
+        <h2 className="r-section-title" style={{ marginBottom: "1rem" }}>All recyclers ({recyclers.length})</h2>
 
         <div className="table-responsive">
           <table>
             <thead>
               <tr>
-                <th>Facility Name</th>
+                <th>Name</th>
                 <th>Permit No</th>
-                <th>Expiry Date</th>
+                <th>Valid till</th>
                 <th>Contact</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody>
@@ -62,7 +61,7 @@ export default async function AdminRecyclersPage() {
                     <td>
                       <strong>{r.name}</strong>
                       <div style={{ fontSize: "0.75rem", color: "var(--slate-500)" }}>
-                        {r.area}, {r.district} &bull; {r.serviceRadiusKm} km radius
+                        {r.area}, {r.district}
                       </div>
                     </td>
                     <td><code>{r.authorizationNo}</code></td>
@@ -70,10 +69,10 @@ export default async function AdminRecyclersPage() {
                       {r.authorizationValidTill ? (
                         <span style={{ color: isPastExpiry ? "var(--danger)" : "inherit", fontWeight: isPastExpiry ? 700 : 500 }}>
                           {r.authorizationValidTill.toISOString().split("T")[0]}
-                          {isPastExpiry && " (Expired)"}
+                          {isPastExpiry && " (expired)"}
                         </span>
                       ) : (
-                        "None"
+                        "–"
                       )}
                     </td>
                     <td>{r.contactPhone}</td>
@@ -90,7 +89,7 @@ export default async function AdminRecyclersPage() {
                             <input type="hidden" name="status" value="VERIFIED" />
                             <input type="hidden" name="notes" value="Approved by admin" />
                             <button type="submit" className="btn btn-sm btn-primary">
-                              Approve
+                              <Check size={14} aria-hidden="true" /> Approve
                             </button>
                           </form>
                         )}
@@ -100,7 +99,7 @@ export default async function AdminRecyclersPage() {
                             <input type="hidden" name="status" value="SUSPENDED" />
                             <input type="hidden" name="notes" value="Suspended by admin" />
                             <button type="submit" className="btn btn-sm btn-danger">
-                              Suspend
+                              <Ban size={14} aria-hidden="true" /> Suspend
                             </button>
                           </form>
                         )}
@@ -110,7 +109,7 @@ export default async function AdminRecyclersPage() {
                             <input type="hidden" name="status" value="EXPIRED" />
                             <input type="hidden" name="notes" value="Flagged expired by admin" />
                             <button type="submit" className="btn btn-sm btn-secondary">
-                              Expire
+                              <CalendarX size={14} aria-hidden="true" /> Expire
                             </button>
                           </form>
                         )}
@@ -126,75 +125,74 @@ export default async function AdminRecyclersPage() {
 
       {/* Add New Recycler Facility Form (Responsive full-width or split) */}
       <div className="card">
-        <h2 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--slate-900)", marginBottom: "0.35rem" }}>
-          Onboard New Authorized Recycler Facility
+        <h2 className="r-section-title" style={{ marginBottom: "1rem" }}>
+          <Plus size={20} aria-hidden="true" /> Add recycler
         </h2>
-        <p style={{ color: "var(--slate-500)", fontSize: "0.85rem", marginBottom: "1.25rem" }}>
-          Registers a verified formal recycling partner and creates their initial staff portal sign-in credentials.
-        </p>
 
         <form action={createRecyclerAction}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
             <div className="form-group">
-              <label className="form-label" htmlFor="name" style={{ fontWeight: 700 }}>Facility Legal Name *</label>
+              <label className="form-label" htmlFor="name" style={{ fontWeight: 700 }}>Business name</label>
               <input id="name" name="name" type="text" className="form-control" placeholder="e.g. EcoMetals Recycling Pvt Ltd" required />
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="contactPhone" style={{ fontWeight: 700 }}>Facility Contact Phone *</label>
+              <label className="form-label" htmlFor="contactPhone" style={{ fontWeight: 700 }}>Phone</label>
               <input id="contactPhone" name="contactPhone" type="text" className="form-control" placeholder="e.g. 9876543210" required />
             </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
             <div className="form-group">
-              <label className="form-label" htmlFor="authorizationNo" style={{ fontWeight: 700 }}>CPCB/SPCB Auth No *</label>
-              <input id="authorizationNo" name="authorizationNo" type="text" className="form-control" placeholder="EW-MH-2026-..." required />
+              <label className="form-label" htmlFor="authorizationNo" style={{ fontWeight: 700 }}>Authorization no.</label>
+              <input id="authorizationNo" name="authorizationNo" type="text" className="form-control" required />
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="validTill" style={{ fontWeight: 700 }}>Validity Till Date *</label>
+              <label className="form-label" htmlFor="validTill" style={{ fontWeight: 700 }}>Valid till</label>
               <input id="validTill" name="validTill" type="date" className="form-control" required />
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="serviceRadiusKm" style={{ fontWeight: 700 }}>Service Radius (km) *</label>
+              <label className="form-label" htmlFor="serviceRadiusKm" style={{ fontWeight: 700 }}>Service radius (km)</label>
               <input id="serviceRadiusKm" name="serviceRadiusKm" type="number" defaultValue="15" className="form-control" required />
             </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="address" style={{ fontWeight: 700 }}>Full Physical Address *</label>
-            <input id="address" name="address" type="text" className="form-control" placeholder="Plot 42, Industrial Area, Dharavi Cross Road..." required />
+            <label className="form-label" htmlFor="address" style={{ fontWeight: 700 }}>Address</label>
+            <input id="address" name="address" type="text" className="form-control" required />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <div className="r-grid-2" style={{ gap: "0 1rem" }}>
             <div className="form-group">
-              <label className="form-label" htmlFor="area" style={{ fontWeight: 700 }}>Area / Locality *</label>
+              <label className="form-label" htmlFor="area" style={{ fontWeight: 700 }}>Area</label>
               <input id="area" name="area" type="text" className="form-control" placeholder="e.g. Dharavi Central" required />
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="district" style={{ fontWeight: 700 }}>District *</label>
+              <label className="form-label" htmlFor="district" style={{ fontWeight: 700 }}>District</label>
               <input id="district" name="district" type="text" defaultValue="Mumbai" className="form-control" required />
             </div>
           </div>
 
+          <CoordinateInputs />
+
           <div style={{ background: "var(--slate-50)", padding: "1.25rem", borderRadius: "var(--radius-md)", border: "1px solid var(--slate-200)", marginBottom: "1.5rem" }}>
-            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--slate-900)", marginBottom: "0.75rem" }}>
-              🔐 Recycler Staff Login Credentials
+            <h3 className="r-section-title" style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>
+              <LockKeyhole size={16} aria-hidden="true" /> Login for the recycler
             </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div className="r-grid-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" htmlFor="staffPhone" style={{ fontWeight: 600 }}>Staff Phone Number *</label>
-                <input id="staffPhone" name="staffPhone" type="text" className="form-control" placeholder="e.g. 9876543210" required />
+                <label className="form-label" htmlFor="staffPhone" style={{ fontWeight: 600 }}>Login phone</label>
+                <input id="staffPhone" name="staffPhone" type="text" className="form-control" placeholder="10-digit phone number" required />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" htmlFor="staffPassword" style={{ fontWeight: 600 }}>Staff Password *</label>
-                <input id="staffPassword" name="staffPassword" type="password" defaultValue="password123" className="form-control" required />
+                <label className="form-label" htmlFor="staffPassword" style={{ fontWeight: 600 }}>Password</label>
+                <input id="staffPassword" name="staffPassword" type="password" minLength={6} className="form-control" required />
               </div>
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary btn-lg" style={{ padding: "0.85rem 2rem" }}>
-            ✓ Create Authorized Recycler &amp; Staff Account &rarr;
+          <button type="submit" className="btn btn-primary btn-lg">
+            <Plus size={18} aria-hidden="true" /> Add recycler
           </button>
         </form>
       </div>

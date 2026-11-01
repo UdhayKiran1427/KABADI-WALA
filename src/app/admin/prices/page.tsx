@@ -1,15 +1,20 @@
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { addPriceRecordAction, deletePriceRecordAction } from "../actions";
+import { ChevronDown, CircleAlert, CircleCheck, Download, Plus, Save, X } from "lucide-react";
+import { addPriceRecordAction, deletePriceRecordAction, setTodayPricesAction } from "../actions";
+import { getTodayRates } from "@/lib/services/lotFlowService";
 
 export default async function AdminPricesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ categoryId?: string }>;
+  searchParams: Promise<{ categoryId?: string; error?: string; success?: string }>;
 }) {
   await requireRole(["ADMIN"]);
-  const { categoryId: selectedCatIdStr } = await searchParams;
+  const { categoryId: selectedCatIdStr, error, success } = await searchParams;
+  const todayRates = await getTodayRates();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
 
   const categories = await prisma.materialCategory.findMany({
     where: { isActive: true },
@@ -85,152 +90,193 @@ export default async function AdminPricesPage({
   const latestMedian = weeklyBuckets[7].medianRupees;
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <div>
-          <h1 style={{ fontSize: "1.75rem", fontWeight: 700 }}>M2 Price Dataset &amp; Trends</h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-            Clean, manage, and export spot prices. Watch weekly trends and recycler spread.
-          </p>
+    <div className="r-stack">
+      <h1 className="r-page-title">Today&apos;s Prices</h1>
+
+      {success && (
+        <div className="alert alert-success" style={{ marginBottom: 0 }}>
+          <CircleCheck size={18} aria-hidden="true" /> {success}
         </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <a href="/api/v1/admin/prices/export" className="btn btn-secondary">
-            📥 Export CSV
-          </a>
+      )}
+      {error && (
+        <div className="alert alert-danger" style={{ marginBottom: 0 }}>
+          <CircleAlert size={18} aria-hidden="true" /> {error}
         </div>
-      </div>
+      )}
 
-      {/* Category Filter Tabs */}
-      <div style={{ display: "flex", gap: "0.5rem", overflowX: "auto", paddingBottom: "0.75rem", marginBottom: "1.5rem" }}>
-        {categories.map((cat) => (
-          <Link
-            key={cat.id}
-            href={`/admin/prices?categoryId=${cat.id}`}
-            className={`btn ${cat.id === selectedCategoryId ? "btn-primary" : "btn-secondary"}`}
-            style={{ padding: "0.375rem 0.75rem", fontSize: "0.875rem" }}
-          >
-            {cat.nameEn}
-          </Link>
-        ))}
-      </div>
-
-      {/* M2 SVG Weekly Trend Card */}
-      <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "1rem" }}>
-          <div>
-            <h2 style={{ fontSize: "1.25rem", fontWeight: 700 }}>
-              {currentCategory?.nameEn} — 8-Week Trend
-            </h2>
-            <div style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-              Current Market Median: <strong>₹{latestMedian}/kg</strong> &bull; Recycler Offers: <strong>₹{recyclerMin} – ₹{recyclerMax}/kg</strong>
-            </div>
-          </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--primary)" }}>
-            ₹{latestMedian}/kg
-          </div>
-        </div>
-
-        {/* SVG Chart */}
-        <div style={{ background: "#f8fafc", borderRadius: "8px", padding: "1rem", display: "flex", justifyContent: "center" }}>
-          <svg viewBox="0 0 580 160" style={{ width: "100%", maxHeight: "200px" }}>
-            <line x1="30" y1="120" x2="550" y2="120" stroke="#cbd5e1" strokeDasharray="4" />
-            <line x1="30" y1="30" x2="550" y2="30" stroke="#cbd5e1" strokeDasharray="4" />
-            <text x="5" y="35" fill="#94a3b8" fontSize="10">₹{maxPrice}</text>
-            <text x="5" y="125" fill="#94a3b8" fontSize="10">₹{minPrice}</text>
-
-            <polyline fill="none" stroke="#0284c7" strokeWidth="3" points={points} />
-
-            {weeklyBuckets.map((w, index) => {
-              const x = 30 + (index * (chartWidth - 60)) / 7;
-              const y = chartHeight - 20 - ((w.medianRupees - minPrice) / (maxPrice - minPrice || 1)) * (chartHeight - 40);
+      {/* Today's price per category - used to value new collector lots */}
+      <div className="card" style={{ border: "2px solid var(--primary)" }}>
+        <p className="r-muted" style={{ marginBottom: "1rem" }}>
+          ₹ per kg. Leave blank to keep the current price.
+        </p>
+        <form action={setTodayPricesAction}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
+            {categories.map((cat) => {
+              const current = todayRates.get(cat.id);
+              const isToday = current && current.recordedAt >= startOfToday;
               return (
-                <g key={w.weekLabel}>
-                  <circle cx={x} cy={y} r="5" fill="#0284c7" />
-                  <text x={x} y={y - 10} fill="#0f172a" fontSize="11" fontWeight="600" textAnchor="middle">
-                    ₹{w.medianRupees}
-                  </text>
-                  <text x={x} y="150" fill="#64748b" fontSize="11" textAnchor="middle">
-                    {w.weekLabel}
-                  </text>
-                </g>
+                <label key={cat.id} className="form-group" style={{ marginBottom: 0 }}>
+                  <span className="form-label" style={{ fontWeight: 700 }}>{cat.nameEn}</span>
+                  <input
+                    name={`price_${cat.id}`}
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    inputMode="decimal"
+                    placeholder={current ? (current.ratePerKgPaise / 100).toFixed(2) : "Not set"}
+                    className="form-control"
+                    style={{ fontSize: "1.1rem", padding: "0.65rem 0.75rem" }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: isToday ? "var(--primary-800)" : current ? "var(--text-muted)" : "var(--danger)" }}>
+                    {current
+                      ? `Now ₹${(current.ratePerKgPaise / 100).toFixed(2)} · ${isToday ? "today" : current.recordedAt.toLocaleDateString("en-IN")}`
+                      : "Not set – collectors can't list this"}
+                  </span>
+                </label>
               );
             })}
-          </svg>
-        </div>
+          </div>
+          <button type="submit" className="btn btn-primary btn-lg">
+            <Save size={18} aria-hidden="true" /> Save prices
+          </button>
+        </form>
       </div>
 
-      <div className="grid-2">
-        {/* Spot Price Logger */}
-        <div className="card">
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Add Ground Price Record</h2>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem", marginBottom: "1rem" }}>
-            Log price data gathered from informal scrap dealers or regional hubs.
-          </p>
+      {/* Secondary: market price records and trend */}
+      <details className="card r-details" open={Boolean(selectedCatIdStr)}>
+        <summary>
+          Market price records <ChevronDown size={18} aria-hidden="true" />
+        </summary>
 
-          <form action={addPriceRecordAction}>
-            <input type="hidden" name="categoryId" value={selectedCategoryId} />
+        <div className="r-stack">
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "0.5rem", overflowX: "auto", paddingBottom: "0.25rem", maxWidth: "100%" }}>
+              {categories.map((cat) => (
+                <Link
+                  key={cat.id}
+                  href={`/admin/prices?categoryId=${cat.id}`}
+                  className={`btn btn-sm ${cat.id === selectedCategoryId ? "btn-primary" : "btn-secondary"}`}
+                >
+                  {cat.nameEn}
+                </Link>
+              ))}
+            </div>
+            <a href="/api/v1/admin/prices/export" className="btn btn-sm btn-secondary">
+              <Download size={15} aria-hidden="true" /> Export CSV
+            </a>
+          </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="buyingPriceRupees">Buying Price (₹/kg)</label>
-              <input id="buyingPriceRupees" name="buyingPriceRupees" type="number" step="0.5" defaultValue={latestMedian} className="form-control" required />
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
+              <h2 className="r-section-title">{currentCategory?.nameEn} – last 8 weeks</h2>
+              <div className="r-muted">
+                Median <strong>₹{latestMedian}/kg</strong> · Recyclers <strong>₹{recyclerMin}–₹{recyclerMax}/kg</strong>
+              </div>
             </div>
 
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label" htmlFor="area">Market / Area</label>
-                <input id="area" name="area" type="text" defaultValue="Dharavi Hub" className="form-control" required />
+            <div style={{ background: "var(--slate-50)", borderRadius: "8px", padding: "1rem", display: "flex", justifyContent: "center" }}>
+              <svg
+                viewBox="0 0 580 160"
+                style={{ width: "100%", maxHeight: "200px" }}
+                role="img"
+                aria-label={`Weekly median price for ${currentCategory?.nameEn ?? "category"}`}
+              >
+                <line x1="30" y1="120" x2="550" y2="120" stroke="#cbd5e1" strokeDasharray="4" />
+                <line x1="30" y1="30" x2="550" y2="30" stroke="#cbd5e1" strokeDasharray="4" />
+                <text x="5" y="35" fill="#94a3b8" fontSize="10">₹{maxPrice}</text>
+                <text x="5" y="125" fill="#94a3b8" fontSize="10">₹{minPrice}</text>
+
+                <polyline fill="none" stroke="#0284c7" strokeWidth="3" points={points} />
+
+                {weeklyBuckets.map((w, index) => {
+                  const x = 30 + (index * (chartWidth - 60)) / 7;
+                  const y = chartHeight - 20 - ((w.medianRupees - minPrice) / (maxPrice - minPrice || 1)) * (chartHeight - 40);
+                  return (
+                    <g key={w.weekLabel}>
+                      <circle cx={x} cy={y} r="5" fill="#0284c7" />
+                      <text x={x} y={y - 10} fill="#0f172a" fontSize="11" fontWeight="600" textAnchor="middle">
+                        ₹{w.medianRupees}
+                      </text>
+                      <text x={x} y="150" fill="#64748b" fontSize="11" textAnchor="middle">
+                        {w.weekLabel}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+          </div>
+
+          <div className="r-grid-2-lg">
+            <form action={addPriceRecordAction} style={{ minWidth: 0 }}>
+              <h3 className="r-section-title" style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>Add market price</h3>
+              <input type="hidden" name="categoryId" value={selectedCategoryId} />
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="buyingPriceRupees">Price (₹/kg)</label>
+                <input id="buyingPriceRupees" name="buyingPriceRupees" type="number" step="0.5" defaultValue={latestMedian} className="form-control" required />
               </div>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label" htmlFor="buyerType">Dealer Type</label>
-                <select id="buyerType" name="buyerType" className="form-control" defaultValue="SCRAP_DEALER">
-                  <option value="SCRAP_DEALER">Scrap Dealer (Kabadiwala)</option>
-                  <option value="RECYCLER">Formal Recycler</option>
-                </select>
+
+              <div className="r-grid-2" style={{ gap: "0 0.75rem" }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="area">Area</label>
+                  <input id="area" name="area" type="text" defaultValue="Dharavi Hub" className="form-control" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="buyerType">Buyer</label>
+                  <select id="buyerType" name="buyerType" className="form-control" defaultValue="SCRAP_DEALER">
+                    <option value="SCRAP_DEALER">Scrap dealer</option>
+                    <option value="RECYCLER">Recycler</option>
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" className="btn btn-secondary btn-block">
+                <Plus size={16} aria-hidden="true" /> Add record
+              </button>
+            </form>
+
+            <div style={{ minWidth: 0 }}>
+              <h3 className="r-section-title" style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>Recent records ({prices.length})</h3>
+              <div className="table-responsive" style={{ maxHeight: "320px", overflowY: "auto" }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Price</th>
+                      <th>Area</th>
+                      <th>Source</th>
+                      <th>Date</th>
+                      <th aria-label="Delete"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prices.slice(0, 15).map((p) => (
+                      <tr key={p.id}>
+                        <td><strong>₹{(p.buyingPricePaise / 100).toFixed(0)}/kg</strong></td>
+                        <td>{p.area}</td>
+                        <td><span className="badge badge-neutral">{p.source}</span></td>
+                        <td>{p.recordedAt.toISOString().split("T")[0]}</td>
+                        <td>
+                          <form action={deletePriceRecordAction.bind(null, p.id)}>
+                            <button
+                              type="submit"
+                              className="btn btn-danger btn-sm"
+                              style={{ padding: "0.2rem 0.35rem" }}
+                              aria-label={`Delete record ₹${(p.buyingPricePaise / 100).toFixed(0)}/kg, ${p.area}`}
+                            >
+                              <X size={14} aria-hidden="true" />
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-
-            <button type="submit" className="btn btn-primary" style={{ width: "100%", background: "#0284c7" }}>
-              + Save Price Record
-            </button>
-          </form>
-        </div>
-
-        {/* Recent Ground Prices List */}
-        <div className="card">
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Recent Records ({prices.length})</h2>
-          <div className="table-responsive" style={{ maxHeight: "320px", overflowY: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Price</th>
-                  <th>Area</th>
-                  <th>Source</th>
-                  <th>Date</th>
-                  <th>Clean</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prices.slice(0, 15).map((p) => (
-                  <tr key={p.id}>
-                    <td><strong>₹{(p.buyingPricePaise / 100).toFixed(0)}/kg</strong></td>
-                    <td>{p.area}</td>
-                    <td><span className="badge badge-neutral">{p.source}</span></td>
-                    <td>{p.recordedAt.toISOString().split("T")[0]}</td>
-                    <td>
-                      <form action={deletePriceRecordAction.bind(null, p.id)}>
-                        <button type="submit" className="btn btn-danger" style={{ padding: "0.15rem 0.4rem", fontSize: "0.7rem" }}>
-                          &times;
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
-      </div>
+      </details>
     </div>
   );
 }
-

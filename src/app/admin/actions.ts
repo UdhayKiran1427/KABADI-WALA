@@ -5,6 +5,8 @@ import { requireRole, createSessionCookie, clearSessionCookie } from "@/lib/auth
 import { verifyPassword, hashPassword, hashPin } from "@/lib/auth/password";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { createRecycler, setRecyclerStatus, setTodayPrices } from "@/lib/services/adminService";
+import { FlowError } from "@/lib/services/lotFlowService";
 
 /**
  * Sign in for Platform Admin.
@@ -50,25 +52,7 @@ export async function adminLogoutAction() {
 export async function updateRecyclerStatusAction(recyclerId: string, status: "VERIFIED" | "SUSPENDED" | "EXPIRED", notes?: string) {
   const { dbUser } = await requireRole(["ADMIN"]);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.recycler.update({
-      where: { id: recyclerId },
-      data: {
-        authorizationStatus: status,
-        verifiedAt: status === "VERIFIED" ? new Date() : undefined,
-        updatedAt: new Date(),
-      },
-    });
-
-    await tx.recyclerVerification.create({
-      data: {
-        recyclerId,
-        reviewedById: dbUser.id,
-        status,
-        notes: notes || `Admin updated status to ${status}`,
-      },
-    });
-  });
+  await setRecyclerStatus(dbUser.id, recyclerId, status, notes);
 
   revalidatePath("/admin/recyclers");
   revalidatePath("/admin");
@@ -89,72 +73,64 @@ export async function updateRecyclerStatusFormAction(formData: FormData): Promis
 export async function createRecyclerAction(formData: FormData) {
   await requireRole(["ADMIN"]);
 
-  const name = formData.get("name") as string;
-  const contactPhone = formData.get("contactPhone") as string;
-  const staffPhone = formData.get("staffPhone") as string;
-  const staffPassword = formData.get("staffPassword") as string;
-  const authorizationNo = formData.get("authorizationNo") as string;
-  const validTillStr = formData.get("validTill") as string;
-  const address = formData.get("address") as string;
-  const area = formData.get("area") as string;
-  const district = (formData.get("district") as string) || "Mumbai";
-  const state = (formData.get("state") as string) || "Maharashtra";
-  const latitude = parseFloat((formData.get("latitude") as string) || "19.076");
-  const longitude = parseFloat((formData.get("longitude") as string) || "72.877");
-  const serviceRadiusKm = parseFloat((formData.get("serviceRadiusKm") as string) || "15");
+  const get = (key: string) => ((formData.get(key) as string) || "").trim();
+  const validTill = get("validTill");
+  const name = get("name");
+  const staffPhone = get("staffPhone");
 
-  const staffPasswordHash = await hashPassword(staffPassword || "password123");
-
-  await prisma.$transaction(async (tx) => {
-    const recycler = await tx.recycler.create({
-      data: {
-        name,
-        contactPhone,
-        address,
-        area,
-        district,
-        state,
-        latitude,
-        longitude,
-        authorizationNo,
-        authorizationStatus: "VERIFIED",
-        authorizationValidTill: validTillStr ? new Date(validTillStr) : new Date("2028-12-31"),
-        serviceRadiusKm,
-        verifiedAt: new Date(),
-      },
+  try {
+    await createRecycler({
+      name,
+      contactPhone: get("contactPhone"),
+      authorizationNo: get("authorizationNo"),
+      authorizationValidTill: validTill ? new Date(validTill) : undefined,
+      address: get("address"),
+      area: get("area"),
+      district: get("district"),
+      state: get("state"),
+      latitude: parseFloat(get("latitude")),
+      longitude: parseFloat(get("longitude")),
+      serviceRadiusKm: parseFloat(get("serviceRadiusKm")),
+      staffPhone,
+      staffPassword: formData.get("staffPassword") as string,
     });
-
-    const staffUser = await tx.user.create({
-      data: {
-        phone: staffPhone,
-        pinHash: staffPasswordHash,
-        role: "RECYCLER",
-        language: "EN",
-      },
-    });
-
-    await tx.recyclerStaff.create({
-      data: {
-        userId: staffUser.id,
-        recyclerId: recycler.id,
-      },
-    });
-
-    // Populate initial default rates for all categories
-    const categories = await tx.materialCategory.findMany();
-    for (const cat of categories) {
-      await tx.recyclerRate.create({
-        data: {
-          recyclerId: recycler.id,
-          categoryId: cat.id,
-          ratePerKgPaise: 3500, // ₹35 default
-          isCurrent: true,
-        },
-      });
+  } catch (err) {
+    if (err instanceof FlowError) {
+      redirect(`/admin/recyclers?error=${encodeURIComponent(err.message)}`);
     }
-  });
+    throw err;
+  }
 
   revalidatePath("/admin/recyclers");
+  redirect(`/admin/recyclers?success=${encodeURIComponent(`${name} added. Staff can sign in with ${staffPhone}.`)}`);
+}
+
+/**
+ * M2: Set today's price per category. New lots are valued at these rates
+ * (e.g. 10 kg plastic at ₹10/kg = ₹100). Blank inputs keep the previous price.
+ */
+export async function setTodayPricesAction(formData: FormData) {
+  const { dbUser } = await requireRole(["ADMIN"]);
+
+  const categories = await prisma.materialCategory.findMany({ where: { isActive: true }, select: { id: true } });
+  const prices = categories
+    .map((cat) => ({ categoryId: cat.id, rupees: parseFloat(formData.get(`price_${cat.id}`) as string) }))
+    .filter((p) => Number.isFinite(p.rupees) && p.rupees > 0)
+    .map((p) => ({ categoryId: p.categoryId, ratePerKgPaise: Math.round(p.rupees * 100) }));
+
+  let updated: number;
+  try {
+    updated = await setTodayPrices(dbUser.id, prices);
+  } catch (err) {
+    if (err instanceof FlowError) {
+      redirect(`/admin/prices?error=${encodeURIComponent(err.message)}`);
+    }
+    throw err;
+  }
+
+  revalidatePath("/admin/prices");
+  revalidatePath("/collector/create-lot");
+  redirect(`/admin/prices?success=${encodeURIComponent(`Today's price updated for ${updated} categories`)}`);
 }
 
 /**

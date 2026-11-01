@@ -2,144 +2,68 @@
 
 import React from "react";
 import Link from "next/link";
-import { useVoice } from "@/components/voice/VoiceLanguageContext";
-import { CollectorControlToolbar } from "@/components/voice/CollectorControlToolbar";
+import { usePathname } from "next/navigation";
+import { Bell, House, LogOut, PackagePlus, Recycle, Wallet } from "lucide-react";
+import { useTxt, VoiceControls, type Txt } from "./ui";
 
 interface CollectorNavbarClientProps {
-  collectorCode?: string;
-  phone?: string;
   unreadNotifications?: number;
   logoutAction: () => Promise<void>;
 }
 
-export function CollectorNavbarClient({
-  collectorCode,
-  phone,
-  unreadNotifications = 0,
-  logoutAction,
-}: CollectorNavbarClientProps) {
-  const { textLanguage } = useVoice();
-  const isEn = textLanguage === "EN";
+const NAV: Array<{ href: string; label: Txt; Icon: typeof House; exact?: boolean; alerts?: boolean }> = [
+  { href: "/collector", label: { hi: "होम", en: "Home", mr: "होम" }, Icon: House, exact: true },
+  { href: "/collector/create-lot", label: { hi: "नया लॉट", en: "New lot", mr: "नवीन लॉट" }, Icon: PackagePlus },
+  { href: "/collector/ledger", label: { hi: "कमाई", en: "Earnings", mr: "कमाई" }, Icon: Wallet },
+  { href: "/collector/notifications", label: { hi: "सूचना", en: "Alerts", mr: "सूचना" }, Icon: Bell, alerts: true },
+];
+
+function useIsActive() {
+  const pathname = usePathname() || "";
+  return (href: string, exact?: boolean) => (exact ? pathname === href : pathname.startsWith(href));
+}
+
+function UnreadDot({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return <span className="c-nav-badge">{count > 9 ? "9+" : count}</span>;
+}
+
+/** Top bar: brand, desktop links, speaker, language, sign-out. */
+export function CollectorNavbarClient({ unreadNotifications = 0, logoutAction }: CollectorNavbarClientProps) {
+  const tx = useTxt();
+  const isActive = useIsActive();
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        gap: "1rem",
-        flexWrap: "wrap",
-      }}
-    >
-      {/* Left: Brand & Links */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-        <Link href="/collector" className="brand" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "1.35rem" }}>♻️</span>
-          <span>{isEn ? "KABADI WALA" : "कबाड़ीवाला"}</span>
-          {collectorCode && (
-            <span
-              style={{
-                fontSize: "0.725rem",
-                backgroundColor: "var(--primary-100)",
-                color: "var(--primary-800)",
-                padding: "0.15rem 0.55rem",
-                borderRadius: "999px",
-                fontWeight: 700,
-              }}
-            >
-              #{collectorCode}
-            </span>
-          )}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: "0.5rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", minWidth: 0 }}>
+        <Link href="/collector" className="brand" style={{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: 0 }}>
+          <Recycle size={22} aria-hidden="true" style={{ color: "var(--primary)", flexShrink: 0 }} />
+          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {tx({ hi: "कबाड़ीवाला", en: "Kabadi Wala", mr: "कबाडीवाला" })}
+          </span>
         </Link>
 
-        {/* Desktop Navigation Links */}
-        <nav className="desktop-only-flex" style={{ gap: "0.4rem", alignItems: "center" }}>
-          <Link href="/collector" className="nav-link">
-            {isEn ? "🏠 Dashboard" : "🏠 होम / Dashboard"}
-          </Link>
-          <Link
-            href="/collector/create-lot"
-            className="nav-link"
-            style={{ color: "var(--primary-700)", fontWeight: 700 }}
-          >
-            {isEn ? "📦 + Create Lot" : "📦 + नया लॉट बनाएं"}
-          </Link>
-          <Link href="/collector/prices" className="nav-link">
-            {isEn ? "📈 Scrap Rates" : "📈 आज के भाव"}
-          </Link>
-          <Link href="/collector/ledger" className="nav-link">
-            {isEn ? "💰 My Earnings" : "💰 मेरी कमाई (Ledger)"}
-          </Link>
-          <Link href="/collector/drop-points" className="nav-link">
-            {isEn ? "⛺ Drop Points" : "⛺ ड्रॉप बॉक्स"}
-          </Link>
-          <Link href="/collector/safety" className="nav-link">
-            {isEn ? "⚠️ Safety Rules" : "⚠️ सुरक्षा नियम"}
-          </Link>
+        <nav className="c-desktop-nav" aria-label="Main">
+          {NAV.map(({ href, label, Icon, exact, alerts }) => (
+            <Link key={href} href={href} className={`c-desktop-link ${isActive(href, exact) ? "active" : ""}`}>
+              <Icon size={18} aria-hidden="true" />
+              <span>{tx(label)}</span>
+              {alerts && <UnreadDot count={unreadNotifications} />}
+            </Link>
+          ))}
         </nav>
       </div>
 
-      {/* Right: Language Controls & User actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-        {/* Quick Toolbar */}
-        <CollectorControlToolbar compact={true} />
-
-        {/* Notifications */}
-        <Link
-          href="/collector/notifications"
-          style={{
-            position: "relative",
-            fontSize: "1.15rem",
-            textDecoration: "none",
-            padding: "0.35rem 0.5rem",
-            borderRadius: "8px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "var(--slate-100)",
-          }}
-          title={isEn ? "Notifications" : "सूचनाएं"}
-        >
-          🔔
-          {unreadNotifications > 0 && (
-            <span
-              style={{
-                position: "absolute",
-                top: "-2px",
-                right: "-2px",
-                backgroundColor: "var(--danger)",
-                color: "#ffffff",
-                fontSize: "0.65rem",
-                fontWeight: 800,
-                padding: "0.1rem 0.35rem",
-                borderRadius: "999px",
-                lineHeight: 1,
-              }}
-            >
-              {unreadNotifications}
-            </span>
-          )}
-        </Link>
-
-        {phone && (
-          <span className="desktop-only" style={{ fontSize: "0.825rem", color: "var(--slate-600)", fontWeight: 600 }}>
-            {phone}
-          </span>
-        )}
-
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+        <VoiceControls />
         <form action={logoutAction}>
           <button
             type="submit"
-            className="btn btn-sm btn-secondary"
-            style={{
-              color: "var(--danger)",
-              borderColor: "var(--slate-200)",
-              fontWeight: 600,
-              padding: "0.25rem 0.65rem",
-            }}
+            className="c-icon-btn"
+            aria-label={tx({ hi: "लॉगआउट", en: "Sign out", mr: "लॉगआउट" })}
+            title={tx({ hi: "लॉगआउट", en: "Sign out", mr: "लॉगआउट" })}
           >
-            {isEn ? "Sign Out" : "लॉगआउट"}
+            <LogOut size={18} aria-hidden="true" />
           </button>
         </form>
       </div>
@@ -147,3 +71,29 @@ export function CollectorNavbarClient({
   );
 }
 
+/** Mobile bottom navigation: 4 items. */
+export function CollectorBottomNav({ unreadNotifications = 0 }: { unreadNotifications?: number }) {
+  const tx = useTxt();
+  const isActive = useIsActive();
+
+  return (
+    <nav className="collector-bottom-nav mobile-only" aria-label="Main">
+      <div className="collector-bottom-nav-inner">
+        {NAV.map(({ href, label, Icon, exact, alerts }) => (
+          <Link
+            key={href}
+            href={href}
+            className={`collector-nav-item c-nav-item ${isActive(href, exact) ? "active" : ""}`}
+            aria-current={isActive(href, exact) ? "page" : undefined}
+          >
+            <span style={{ position: "relative", display: "inline-flex" }}>
+              <Icon size={24} aria-hidden="true" />
+              {alerts && <UnreadDot count={unreadNotifications} />}
+            </span>
+            <span>{tx(label)}</span>
+          </Link>
+        ))}
+      </div>
+    </nav>
+  );
+}

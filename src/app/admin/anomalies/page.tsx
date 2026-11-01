@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth/session";
+import { CircleCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { reviewAnomalyFormAction } from "../actions";
@@ -33,18 +34,13 @@ export default async function AdminAnomaliesPage({
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <div>
-          <h1 style={{ fontSize: "1.75rem", fontWeight: 700 }}>M3 Anomaly Alerts</h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-            Automated anomaly detection: price outliers, weight discrepancies, GPS distance, spoofing flags, and duplicate photos.
-          </p>
-        </div>
+        <h1 className="r-page-title">Alerts</h1>
       </div>
 
       {/* Filter Tabs */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
         <Link href="/admin/anomalies?status=OPEN" className={`btn ${status === "OPEN" ? "btn-primary" : "btn-secondary"}`}>
-          Open Alerts ({flags.filter((f) => f.status === "OPEN").length})
+          Open ({flags.filter((f) => f.status === "OPEN").length})
         </Link>
         <Link href="/admin/anomalies?status=REVIEWED" className={`btn ${status === "REVIEWED" ? "btn-primary" : "btn-secondary"}`}>
           Reviewed
@@ -57,8 +53,9 @@ export default async function AdminAnomaliesPage({
       {/* Alerts Feed */}
       <div className="card">
         {flags.length === 0 ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
-            ✓ No anomaly alerts matching filter &ldquo;{status}&rdquo;. Everything is within normal operational boundaries!
+          <div className="r-empty">
+            <CircleCheck size={28} aria-hidden="true" />
+            <div>No {status.toLowerCase()} alerts.</div>
           </div>
         ) : (
           <div className="table-responsive">
@@ -66,12 +63,12 @@ export default async function AdminAnomaliesPage({
               <thead>
                 <tr>
                   <th>Severity</th>
-                  <th>Rule / Trigger</th>
+                  <th>Rule</th>
                   <th>Lot Ref</th>
                   <th>Reason</th>
-                  <th>Detected At</th>
+                  <th>Date</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th aria-label="Actions"></th>
                 </tr>
               </thead>
               <tbody>

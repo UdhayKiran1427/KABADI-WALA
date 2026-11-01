@@ -53,37 +53,29 @@ export default async function AdminImpactPage() {
   return (
     <div>
       <div style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.75rem", fontWeight: 700 }}>M5 Impact Reports &amp; Unit Economics</h1>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-          Measure environmental diversion from unscientific burning/acid leaching and informal collector income uplift.
-        </p>
+        <h1 className="r-page-title">Impact</h1>
       </div>
 
-      {/* M5 Big Stat Cards */}
+      {/* Stat Cards */}
       <div className="grid-3">
         <div className="stat-box">
-          <div className="stat-label">Formal Kg Routed</div>
+          <div className="stat-label">Kg recycled</div>
           <div className="stat-value" style={{ color: "var(--primary)" }}>{totalKg.toLocaleString("en-IN")} kg</div>
-          <small style={{ color: "var(--text-muted)" }}>Diverted from unscientific burning</small>
         </div>
         <div className="stat-box">
-          <div className="stat-label">Collectors Uplifted</div>
+          <div className="stat-label">Collectors</div>
           <div className="stat-value">{collectorsCount}</div>
-          <small style={{ color: "var(--text-muted)" }}>Informal waste-pickers connected</small>
         </div>
         <div className="stat-box">
-          <div className="stat-label">Total Cash Payouts</div>
+          <div className="stat-label">Paid to collectors</div>
           <div className="stat-value" style={{ color: "#0284c7" }}>₹{totalPaidLakhs}L</div>
-          <small style={{ color: "var(--text-muted)" }}>₹{(totalPaidRupees).toLocaleString("en-IN")} received by collectors</small>
+          <small style={{ color: "var(--text-muted)" }}>₹{(totalPaidRupees).toLocaleString("en-IN")}</small>
         </div>
       </div>
 
       {/* Monthly Routed Volume Bar Chart */}
       <div className="card" style={{ marginTop: "1.5rem" }}>
-        <h2 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "0.5rem" }}>Kg Routed Per Month (Last 6 Months)</h2>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem", marginBottom: "1rem" }}>
-          Growth trajectory of e-waste safely collected and transferred to verified formal recyclers.
-        </p>
+        <h2 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "1rem" }}>Kg per month</h2>
 
         <div style={{ background: "#f8fafc", padding: "1.5rem", borderRadius: "8px" }}>
           <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-end", height: "160px", borderBottom: "2px solid #cbd5e1", paddingBottom: "0.5rem" }}>
@@ -115,7 +107,7 @@ export default async function AdminImpactPage() {
       <div className="grid-2">
         {/* Unit Economics Template */}
         <div className="card">
-          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Unit Economics &amp; Income Uplift</h2>
+          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Unit economics</h2>
           <div style={{ fontSize: "0.875rem", lineHeight: "1.8", color: "var(--text)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", padding: "0.5rem 0" }}>
               <span>Traditional Middleman Price (e.g. PCB):</span>
@@ -142,14 +134,11 @@ export default async function AdminImpactPage() {
 
         {/* Coverage Gap Heatmap (100m cells) */}
         <div className="card">
-          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Coverage Gap Demand Heatmap</h2>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem", marginBottom: "1rem" }}>
-            Unserviced areas where collectors requested pickups but no verified recycler covers the radius.
-          </p>
+          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "1rem" }}>Areas with no recycler</h2>
 
           {heatmapCells.length === 0 ? (
             <div style={{ padding: "1.5rem", textAlign: "center", background: "#f8fafc", borderRadius: "8px", color: "var(--text-muted)", fontSize: "0.875rem" }}>
-              No unmet coverage demand requests logged yet.
+              No uncovered areas yet.
             </div>
           ) : (
             <div className="table-responsive">
@@ -157,8 +146,8 @@ export default async function AdminImpactPage() {
                 <thead>
                   <tr>
                     <th>Cell (~100m)</th>
-                    <th>Demand Signals</th>
-                    <th>Est. Weight</th>
+                    <th>Requests</th>
+                    <th>Weight</th>
                   </tr>
                 </thead>
                 <tbody>

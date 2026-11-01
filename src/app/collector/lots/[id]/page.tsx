@@ -1,14 +1,31 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import {
+  ArrowRight,
+  Check,
+  CircleCheck,
+  CircleCheckBig,
+  LoaderCircle,
+  Lock,
+  MapPin,
+  Navigation,
+  Phone,
+  ReceiptText,
+  RefreshCw,
+  SearchX,
+  Trash,
+  TriangleAlert,
+} from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import {
-  collectorBargainOfferAction,
-  collectorAcceptBargainAction,
-  deleteLotAction,
-} from "../../actions";
-import { VoiceSpeaker } from "@/components/voice/VoiceSpeaker";
-import { CollectorControlToolbar } from "@/components/voice/CollectorControlToolbar";
+import { confirmLotAction, rebroadcastLotAction, selectRecyclerOfferAction, deleteLotAction } from "../../actions";
+import { AutoRefresh } from "@/components/AutoRefresh";
+import { DemoPaymentQr } from "@/components/payment/DemoPaymentQr";
+import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
+import { ConfirmSubmit, LotStatusBadge, PageTitle, PageVoice, T } from "../../ui";
+
+const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const spokenRupees = (paise: number) => (paise / 100).toFixed(0);
 
 export default async function CollectorLotDetailPage(props: {
   params: Promise<{ id: string }>;
@@ -23,9 +40,9 @@ export default async function CollectorLotDetailPage(props: {
     include: {
       category: true,
       collector: true,
-      handovers: { take: 1 },
-      transaction: true,
-      receiptTokens: { take: 1 },
+      transaction: { include: { recycler: true } },
+      receiptTokens: { orderBy: { createdAt: "desc" }, take: 1 },
+      offers: { include: { recycler: true }, orderBy: { distanceKm: "asc" } },
     },
   });
 
@@ -37,371 +54,222 @@ export default async function CollectorLotDetailPage(props: {
     redirect("/collector");
   }
 
-  let recycler = null;
-  if (lot.chosenRecyclerId) {
-    recycler = await prisma.recycler.findUnique({
-      where: { id: lot.chosenRecyclerId },
-      select: { name: true, contactPhone: true, address: true },
-    });
-  }
-
-  const isCompleted = lot.status === "COMPLETED";
-  const isHandedOver = lot.status === "HANDED_OVER";
-  const isMatched = lot.status === "MATCHED";
-
-  const firstHandover = lot.handovers[0];
-  const verificationCode = firstHandover?.verificationCode || "----";
-  const declaredKg = (lot.approxWeightGrams / 1000).toFixed(1);
-  const confirmedKg = firstHandover?.confirmedWeightGrams
-    ? (firstHandover.confirmedWeightGrams / 1000).toFixed(1)
-    : null;
-
-  const currentRateRupees = lot.quotedRatePaise
-    ? (lot.quotedRatePaise / 100).toFixed(0)
-    : "0";
-
-  const finalAmountRupees = lot.finalPricePaise
-    ? (lot.finalPricePaise / 100).toLocaleString("en-IN")
-    : lot.quotedRatePaise
-    ? ((lot.quotedRatePaise * lot.approxWeightGrams) / 100000).toLocaleString("en-IN")
-    : ((lot.estimatedValuePaise || 0) / 100).toLocaleString("en-IN");
-
-  const receiptToken = lot.receiptTokens[0]?.token;
-
-  // Bargain states
+  const kg = (lot.approxWeightGrams / 1000).toFixed(1);
+  const listedRate = lot.listedRatePerKgPaise ?? 0;
+  const listedTotal = lot.estimatedValuePaise ?? calculateLotValuePaise(listedRate, lot.approxWeightGrams);
+  const interested = lot.offers.filter((o) => o.status === "INTERESTED");
   const tx = lot.transaction;
-  const bargainStatus = tx?.bargainStatus || "NONE";
-  const bargainRateRupees = tx?.bargainRatePaise ? (tx.bargainRatePaise / 100).toFixed(0) : null;
-  const agreedRateRupees = tx?.agreedRatePaise ? (tx.agreedRatePaise / 100).toFixed(0) : null;
+  const recycler = tx?.recycler;
+  const dealRate = tx ? tx.agreedRatePaise ?? tx.quotedRatePerKgPaise : listedRate;
+  const dealTotal = tx?.finalPricePaise ?? calculateLotValuePaise(dealRate, lot.approxWeightGrams);
+  const payToken = lot.receiptTokens[0]?.token;
+  const canDelete = lot.status === "DRAFT" || lot.status === "READY";
+  const isPaid = tx?.paymentStatus === "PAID";
+  const rate = tx ? dealRate : listedRate;
+  const total = tx ? dealTotal : listedTotal;
 
-  const narration = {
-    en: `Lot handover pass. Lot reference: ${lot.lotRef}. Category: ${lot.category.nameEn}. Weight: ${declaredKg} kilograms. Status: ${lot.status}. Verification PIN is ${verificationCode}. Share this PIN with the recycler at the scale.`,
-    hi: `लॉट हैंडओवर पास। लॉट कोड: ${lot.lotRef}। सामग्री: ${lot.category.nameHi}। वजन: ${declaredKg} किलो। स्थिति: ${lot.status}। सत्यापन पिन: ${verificationCode}। तौल के समय रिसाइक्लर को यह पिन बताएं।`,
-    mr: `लॉट हँडओव्हर पास. लॉट कोड: ${lot.lotRef}. वर्गवारी: ${lot.category.nameMr || lot.category.nameHi}. वजन: ${declaredKg} किलो. स्थिती: ${lot.status}. पडताळणी पिन: ${verificationCode}. वजनाच्या वेळी रिसायकलरला हा कोड सांगा.`,
+  const material = { hi: lot.category.nameHi, en: lot.category.nameEn, mr: lot.category.nameMr };
+
+  // What the speaker reads depends on the step the collector is on.
+  const base = {
+    en: `${kg} kilo ${lot.category.nameEn}, ${spokenRupees(rate)} rupees per kilo, total ${spokenRupees(total)} rupees.`,
+    hi: `${kg} किलो ${lot.category.nameHi}, ${spokenRupees(rate)} रुपये किलो, कुल ${spokenRupees(total)} रुपये।`,
+    mr: `${kg} किलो ${lot.category.nameMr || lot.category.nameHi}, ${spokenRupees(rate)} रुपये किलो, एकूण ${spokenRupees(total)} रुपये.`,
   };
+  const step = isPaid
+    ? { en: "Payment received.", hi: "पैसे मिल गए।", mr: "पैसे मिळाले." }
+    : lot.status === "DRAFT"
+    ? { en: "Check and tap Confirm.", hi: "जांचें और पक्का करें दबाएं।", mr: "तपासा आणि निश्चित करा दाबा." }
+    : lot.status === "READY"
+    ? interested.length > 0
+      ? {
+          en: `${interested.length} buyers are ready. Choose one and tap Sell.`,
+          hi: `${interested.length} खरीदार तैयार हैं। एक चुनें और बेचें दबाएं।`,
+          mr: `${interested.length} खरेदीदार तयार आहेत. एक निवडा आणि विका दाबा.`,
+        }
+      : { en: "Waiting for buyers.", hi: "खरीदार का इंतज़ार है।", mr: "खरेदीदाराची वाट पाहत आहे." }
+    : lot.status === "MATCHED"
+    ? { en: "Show the QR code to the buyer to get paid.", hi: "पैसे लेने के लिए खरीदार को QR दिखाएं।", mr: "पैसे घेण्यासाठी खरेदीदाराला QR दाखवा." }
+    : { en: "", hi: "", mr: "" };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* Voice & Text Language Toolbar */}
-      <CollectorControlToolbar pageNarration={narration} narrationId="lot-detail-narration" />
+    <div className="c-page">
+      <PageVoice en={`${base.en} ${step.en}`} hi={`${base.hi} ${step.hi}`} mr={`${base.mr} ${step.mr}`} />
+      {(lot.status === "READY" || lot.status === "MATCHED") && <AutoRefresh />}
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-        <Link
-          href="/collector"
-          className="btn btn-secondary btn-sm"
-          style={{ width: "36px", height: "36px", padding: 0, borderRadius: "50%" }}
-        >
-          &larr;
-        </Link>
-        <div>
-          <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--slate-900)", margin: 0, letterSpacing: "-0.01em" }}>
-            हैंडओवर सत्यापन पास &bull; Gate Handover Pass
-          </h1>
-          <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>
-            लॉट कोड: <code>{lot.lotRef}</code> &bull; Status: <strong>{lot.status}</strong>
-          </div>
-        </div>
-      </div>
+      <PageTitle title={{ hi: "लॉट", en: "Lot", mr: "लॉट" }} back="/collector" sub={lot.lotRef} />
 
       {searchParams.success && (
-        <div className="alert alert-success">
-          ✓ {searchParams.success}
+        <div className="alert alert-success" style={{ marginBottom: 0 }}>
+          <CircleCheck size={18} aria-hidden="true" /> {searchParams.success}
         </div>
       )}
-
       {searchParams.error && (
-        <div className="alert alert-danger">
-          ⚠️ {searchParams.error}
+        <div className="alert alert-danger" style={{ marginBottom: 0 }}>
+          <TriangleAlert size={18} aria-hidden="true" /> {searchParams.error}
         </div>
       )}
 
-      {/* 2-Column Responsive Dashboard Grid (Fills 100% of desktop screens!) */}
-      <div className="collector-layout-wrapper">
-        {/* LEFT COLUMN: Main 4-Digit Pass & Bargain */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0 }}>
-          {/* 4-Digit Verification Code Card (C8 Wireframe) */}
-          <div
-            className="card"
-            style={{
-              textAlign: "center",
-              padding: "2rem 1.5rem",
-              border: isCompleted ? "2px solid var(--primary)" : "2px solid #0284c7",
-              boxShadow: isCompleted ? "0 8px 24px -4px rgba(5, 150, 105, 0.2)" : "0 8px 24px -4px rgba(2, 132, 199, 0.2)",
-            }}
-          >
-            <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--slate-700)" }}>
-              तौल ऑपरेटर को यह 4-अंकों का कोड बताएं
+      {/* Lot summary: "10 kg Plastic × ₹10/kg = ₹100" */}
+      <div className="card" style={{ padding: "1.25rem", textAlign: "center", border: lot.status === "DRAFT" ? "2px solid var(--primary)" : undefined }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.5rem" }}>
+          <LotStatusBadge status={lot.status} />
+        </div>
+        <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "var(--slate-900)" }}>
+          {kg} kg <T {...material} />
+        </div>
+        <div style={{ fontSize: "1rem", color: "var(--slate-600)", marginTop: "0.25rem" }}>
+          × {rupees(rate)}/kg
+        </div>
+        <div className="c-total">= {rupees(total)}</div>
+
+        {lot.status === "DRAFT" && (
+          <>
+            <form action={confirmLotAction} style={{ marginTop: "1rem" }}>
+              <input type="hidden" name="lotId" value={lot.id} />
+              <button type="submit" className="btn btn-primary btn-block btn-lg c-btn-xl">
+                <Check size={22} aria-hidden="true" />
+                <T hi="पक्का करें" en="Confirm" mr="निश्चित करा" />
+              </button>
+            </form>
+            <div className="c-hint" style={{ justifyContent: "center", marginTop: "0.6rem" }}>
+              <Lock size={14} aria-hidden="true" />
+              <T hi="आपका नंबर छुपा रहेगा" en="Your number stays hidden" mr="तुमचा नंबर लपलेला राहील" />
             </div>
-            <div style={{ fontSize: "0.775rem", color: "var(--slate-500)", marginTop: "0.15rem" }}>
-              Tell this 4-digit code to scale operator
+          </>
+        )}
+      </div>
+
+      {/* READY: recyclers who want to buy */}
+      {lot.status === "READY" && (
+        <section style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <h2 className="c-section-title" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <T hi="खरीदार" en="Buyers" mr="खरेदीदार" />
+            <span className="badge badge-neutral">{interested.length}</span>
+          </h2>
+
+          {interested.length === 0 ? (
+            <div className="card c-empty">
+              {lot.offers.length === 0 ? (
+                <>
+                  <SearchX size={32} aria-hidden="true" />
+                  <T hi="पास में कोई खरीदार नहीं" en="No buyer nearby" mr="जवळ खरेदीदार नाही" />
+                </>
+              ) : (
+                <>
+                  <LoaderCircle size={32} className="c-spin" aria-hidden="true" />
+                  <T hi="खरीदार का इंतज़ार…" en="Waiting for buyers…" mr="खरेदीदाराची वाट…" />
+                </>
+              )}
             </div>
-
-            <div
-              style={{
-                fontSize: "3.5rem",
-                fontWeight: 900,
-                letterSpacing: "0.75rem",
-                color: isCompleted ? "var(--primary-800)" : "#0369a1",
-                margin: "1rem 0",
-                fontFamily: "var(--font-mono)",
-                textIndent: "0.75rem",
-              }}
-            >
-              {verificationCode}
-            </div>
-
-            {/* Listen to Code Digit-by-Digit (Audio Accessibility) */}
-            {verificationCode !== "----" && (
-              <div style={{ marginBottom: "1rem" }}>
-                <VoiceSpeaker
-                  id={`code-speaker-${lot.id}`}
-                  textHi={`आपका 4 अंकों का सत्यापन कोड है ${verificationCode.split("").join(" ")}। तौल ऑपरेटर को यह कोड बताएं।`}
-                  textMr={`तुमचा 4 अंकी पडताळणी कोड आहे ${verificationCode.split("").join(" ")}. ऑपरेटरला हा कोड सांगा.`}
-                  size="sm"
-                  variant="pill"
-                  label="कोड बोलकर सुनें / Hear Code"
-                />
-              </div>
-            )}
-
-            <div>
-              <span
-                className={isCompleted ? "badge badge-success" : isHandedOver ? "badge badge-info" : "badge badge-warning"}
-                style={{ fontSize: "0.825rem", padding: "0.4rem 0.9rem" }}
-              >
-                {isCompleted
-                  ? "✓ तौल और नकद भुगतान पूरा हुआ (Paid)"
-                  : isHandedOver
-                  ? "⚖️ तौल सत्यापन जारी है (Weighing in Progress)"
-                  : "⏳ रिसाइक्लर के पास सामान ले जाएं (Take to Facility Gate)"}
-              </span>
-            </div>
-          </div>
-
-          {/* Price Bargaining Section */}
-          {!isCompleted && tx && (
-            <div
-              className="card"
-              style={{
-                border: bargainStatus === "AGREED" ? "2px solid var(--primary)" : "1.5px solid var(--slate-300)",
-                padding: "1.25rem",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem" }}>
-                <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--slate-900)" }}>
-                  💬 भाव मोल-भाव &bull; Price Negotiation
-                </h3>
-                {bargainStatus === "AGREED" ? (
-                  <span className="badge badge-success">✓ भाव तय हुआ</span>
-                ) : (
-                  <span className="badge badge-warning">मोल-भाव खुला है</span>
-                )}
-              </div>
-
-              {bargainStatus === "AGREED" ? (
-                <div className="alert alert-success" style={{ marginBottom: 0 }}>
-                  🎉 दोनों पक्षों ने <strong>₹{agreedRateRupees}/kg</strong> की दर पर सहमति दी है। तौल के समय इसी दर से भुगतान होगा।
-                </div>
-              ) : bargainStatus === "OFFER_BY_RECYCLER" ? (
-                <div
-                  style={{
-                    padding: "1rem",
-                    backgroundColor: "var(--warning-bg)",
-                    borderRadius: "var(--radius)",
-                    border: "1px solid var(--warning-border)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: "0.8rem", color: "#92400e", fontWeight: 600 }}>रिसाइक्लर का नया प्रस्ताव:</div>
-                    <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#b45309" }}>
-                      ₹{bargainRateRupees} / kg
+          ) : (
+            interested.map((offer) => {
+              const offerRate = offer.ratePerKgPaise ?? listedRate;
+              return (
+                <div key={offer.id} className="card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--slate-900)" }}>{offer.recycler.name}</div>
+                      <div className="c-hint">
+                        <MapPin size={14} aria-hidden="true" style={{ flexShrink: 0 }} />
+                        <span>
+                          {offer.distanceKm.toFixed(1)} km &middot; {offer.recycler.address}
+                        </span>
+                      </div>
                     </div>
-                    {tx.bargainNote && <div style={{ fontSize: "0.8rem", color: "#78350f" }}>नोट: "{tx.bargainNote}"</div>}
+                    <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "var(--primary-800)" }}>
+                        {rupees(calculateLotValuePaise(offerRate, lot.approxWeightGrams))}
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>{rupees(offerRate)}/kg</div>
+                    </div>
                   </div>
-
-                  <form action={collectorAcceptBargainAction}>
+                  <form action={selectRecyclerOfferAction}>
                     <input type="hidden" name="lotId" value={lot.id} />
-                    <button
-                      type="submit"
-                      className="btn btn-primary btn-block"
-                      style={{ backgroundColor: "var(--warning)", borderColor: "var(--warning)" }}
-                    >
-                      ✓ यह भाव स्वीकार करें / Accept Price &rarr;
+                    <input type="hidden" name="offerId" value={offer.id} />
+                    <button type="submit" className="btn btn-primary btn-block btn-lg">
+                      <T hi="इसे बेचें" en="Sell to this buyer" mr="याला विका" />
+                      <ArrowRight size={20} aria-hidden="true" />
                     </button>
                   </form>
                 </div>
-              ) : bargainStatus === "OFFER_BY_COLLECTOR" ? (
-                <div className="alert alert-info" style={{ marginBottom: 0 }}>
-                  ⏳ आपका <strong>₹{bargainRateRupees}/kg</strong> का मोल-भाव रिसाइक्लर के पास भेजा गया है। रिसाइक्लर के जवाब की प्रतीक्षा है।
-                </div>
-              ) : (
-                <div>
-                  <p style={{ fontSize: "0.825rem", color: "var(--slate-600)", margin: "0 0 0.85rem 0", lineHeight: 1.5 }}>
-                    यदि आपका माल अच्छी श्रेणी का है, तो आप अपनी इच्छित दर का प्रस्ताव रिसाइक्लर को भेज सकते हैं:
-                  </p>
-
-                  <form action={collectorBargainOfferAction} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                    <input type="hidden" name="lotId" value={lot.id} />
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <div style={{ flex: 1 }}>
-                        <input
-                          type="number"
-                          step="1"
-                          min="1"
-                          name="offerRateRupees"
-                          defaultValue={Number(currentRateRupees) + 10}
-                          placeholder="आपकी दर ₹/kg"
-                          required
-                          className="form-control"
-                          style={{ fontSize: "1rem", fontWeight: 700 }}
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        className="btn btn-primary"
-                        style={{ whiteSpace: "nowrap" }}
-                      >
-                        प्रस्ताव भेजें &rarr;
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      name="note"
-                      placeholder="टिप्पणी (जैसे: साफ़ किया हुआ माल / Clean sorted)"
-                      className="form-control"
-                      style={{ fontSize: "0.825rem" }}
-                    />
-                  </form>
-                </div>
-              )}
-            </div>
+              );
+            })
           )}
 
-          {/* Delete Lot Option */}
-          {!isCompleted && !isHandedOver && (
-            <div
-              style={{
-                padding: "1rem",
-                backgroundColor: "#fef2f2",
-                border: "1px dashed #f87171",
-                borderRadius: "var(--radius-md)",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: "0.8rem", color: "#991b1b", marginBottom: "0.5rem", fontWeight: 600 }}>
-                लॉट रद्द या हटाना चाहते हैं? / Cancel or Delete Lot
-              </div>
-              <form action={deleteLotAction}>
-                <input type="hidden" name="lotId" value={lot.id} />
-                <button
-                  type="submit"
-                  className="btn btn-danger btn-sm"
-                  style={{
-                    backgroundColor: "#dc2626",
-                    color: "#ffffff",
-                    padding: "0.45rem 1.25rem",
-                    borderRadius: "8px",
-                    fontSize: "0.85rem",
-                    fontWeight: 700,
-                  }}
-                >
-                  🗑️ लॉट हटाएं / Delete Lot
-                </button>
-              </form>
-            </div>
-          )}
+          <form action={rebroadcastLotAction}>
+            <input type="hidden" name="lotId" value={lot.id} />
+            <button type="submit" className="btn btn-secondary btn-block">
+              <RefreshCw size={18} aria-hidden="true" />
+              <T hi="फिर खोजें" en="Search again" mr="पुन्हा शोधा" />
+            </button>
+          </form>
+        </section>
+      )}
+
+      {/* MATCHED: get paid by QR */}
+      {lot.status === "MATCHED" && payToken && !isPaid && (
+        <div className="card" style={{ padding: "1.25rem", border: "2px solid #0284c7" }}>
+          <DemoPaymentQr token={payToken} amountPaise={dealTotal} caption="खरीदार से QR स्कैन करवाएं · Let the buyer scan" />
         </div>
+      )}
 
-        {/* RIGHT COLUMN: Lot Specification, Recycler Facility & Receipt (Fills Desktop Space!) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0 }}>
-          {/* Lot Summary Card */}
-          <div className="card" style={{ display: "flex", flexDirection: "column", gap: "0.85rem", padding: "1.25rem" }}>
-            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--slate-900)", marginBottom: "0.25rem" }}>
-              📋 लॉट विवरण &bull; Lot Specifications
-            </h3>
-
-            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.6rem" }}>
-              <span style={{ color: "var(--slate-500)", fontSize: "0.85rem" }}>सामग्री / Material</span>
-              <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--slate-900)" }}>
-                {lot.category.nameHi} ({lot.category.nameEn})
-              </span>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.6rem" }}>
-              <span style={{ color: "var(--slate-500)", fontSize: "0.85rem" }}>अनुमानित वजन / Declared</span>
-              <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{declaredKg} kg</span>
-            </div>
-
-            {confirmedKg && (
-              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.6rem" }}>
-                <span style={{ color: "var(--slate-500)", fontSize: "0.85rem" }}>कांटा तौल वजन / Scale Weight</span>
-                <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--primary-800)" }}>{confirmedKg} kg</span>
-              </div>
-            )}
-
-            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.6rem" }}>
-              <span style={{ color: "var(--slate-500)", fontSize: "0.85rem" }}>तय दर / Quoted Rate</span>
-              <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--slate-900)" }}>
-                ₹{currentRateRupees} / kg
-              </span>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "0.25rem" }}>
-              <span style={{ color: "var(--slate-500)", fontSize: "0.85rem", fontWeight: 600 }}>कुल भुगतान राशि / Total Payout</span>
-              <span style={{ fontWeight: 900, fontSize: "1.35rem", color: "var(--primary-800)" }}>₹{finalAmountRupees}</span>
-            </div>
+      {/* Paid */}
+      {isPaid && (
+        <div className="card" style={{ padding: "1.5rem", textAlign: "center", border: "2px solid var(--primary)" }}>
+          <CircleCheckBig size={56} aria-hidden="true" style={{ color: "var(--primary)" }} />
+          <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "var(--primary-800)", marginTop: "0.5rem" }}>
+            {rupees(dealTotal)} <T hi="मिले" en="received" mr="मिळाले" />
           </div>
-
-          {/* Recycler Facility Location & Contact */}
-          {recycler && (
-            <div className="card" style={{ padding: "1.25rem", borderTop: "3px solid #0284c7" }}>
-              <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--slate-900)", marginBottom: "0.5rem" }}>
-                🏢 रिसाइक्लर सुविधा &bull; Facility Info
-              </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.825rem", color: "var(--slate-600)" }}>
-                <div><strong>नाम:</strong> {recycler.name}</div>
-                <div><strong>पता:</strong> {recycler.address}</div>
-                <div><strong>संपर्क:</strong> 📞 {recycler.contactPhone}</div>
-              </div>
-
-              {isMatched && (
-                <div style={{ marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px solid var(--slate-200)" }}>
-                  <Link
-                    href={`/collector/lots/${lot.id}/match`}
-                    style={{ fontSize: "0.825rem", color: "var(--primary-700)", fontWeight: 700 }}
-                  >
-                    🔄 दूसरा रिसाइक्लर बदलें &rarr;
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Shareable Public Receipt Link */}
-          {receiptToken && (
-            <div className="card" style={{ padding: "1.25rem", backgroundColor: "var(--slate-50)" }}>
-              <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--slate-800)", marginBottom: "0.4rem" }}>
-                📄 डिजिटल रसीद &bull; Public Receipt
-              </h3>
-              <p style={{ fontSize: "0.775rem", color: "var(--slate-600)", lineHeight: 1.5, marginBottom: "0.75rem" }}>
-                यह रसीद सरकार एवं CPCB द्वारा मान्य है। इसे किसी को भी शेयर कर सकते हैं।
-              </p>
-              <Link
-                href={`/receipts/${receiptToken}`}
-                target="_blank"
-                className="btn btn-secondary btn-block"
-                style={{ padding: "0.75rem", fontSize: "0.85rem" }}
-              >
-                रसीद खोलें / View Receipt &rarr;
-              </Link>
-            </div>
+          {payToken && (
+            <Link href={`/invoice/${payToken}`} className="btn btn-secondary btn-block btn-lg" style={{ marginTop: "1rem" }}>
+              <ReceiptText size={20} aria-hidden="true" />
+              <T hi="बिल देखें" en="View bill" mr="बिल पहा" />
+            </Link>
           )}
         </div>
-      </div>
+      )}
+
+      {/* Buyer details once chosen */}
+      {recycler && (
+        <div className="card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div className="c-hint" style={{ fontWeight: 700 }}>
+            <T hi="खरीदार" en="Buyer" mr="खरेदीदार" />
+          </div>
+          <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "var(--slate-900)" }}>{recycler.name}</div>
+          <div style={{ fontSize: "0.875rem", color: "var(--slate-600)" }}>
+            {[recycler.address, recycler.area, recycler.district].filter(Boolean).join(", ")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+            <a href={`tel:${recycler.contactPhone}`} className="btn btn-secondary btn-lg">
+              <Phone size={18} aria-hidden="true" />
+              <T hi="कॉल" en="Call" mr="कॉल" />
+            </a>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${recycler.latitude},${recycler.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-secondary btn-lg"
+            >
+              <Navigation size={18} aria-hidden="true" />
+              <T hi="रास्ता" en="Map" mr="रस्ता" />
+            </a>
+          </div>
+        </div>
+      )}
+
+      {canDelete && (
+        <form action={deleteLotAction} style={{ textAlign: "center" }}>
+          <input type="hidden" name="lotId" value={lot.id} />
+          <ConfirmSubmit
+            className="btn btn-secondary btn-sm c-danger-text"
+            question={{ hi: "यह लॉट हटाएं?", en: "Delete this lot?", mr: "हा लॉट हटवायचा?" }}
+          >
+            <Trash size={16} aria-hidden="true" />
+            <T hi="लॉट हटाएं" en="Delete lot" mr="लॉट हटवा" />
+          </ConfirmSubmit>
+        </form>
+      )}
     </div>
   );
 }

@@ -1,0 +1,140 @@
+import { prisma } from "../prisma";
+import { hashPassword } from "../auth/password";
+import { isValidCoordinate } from "../domain/lotBroadcast";
+import { FlowError } from "./lotFlowService";
+
+export interface CreateRecyclerInput {
+  name: string;
+  contactPhone: string;
+  authorizationNo: string;
+  authorizationValidTill?: Date;
+  address: string;
+  area: string;
+  district?: string;
+  state?: string;
+  latitude: number;
+  longitude: number;
+  serviceRadiusKm?: number;
+  staffPhone: string;
+  staffPassword: string;
+}
+
+/**
+ * Adds a verified recycler facility with one staff login.
+ */
+export async function createRecycler(input: CreateRecyclerInput) {
+  if (!input.name || !input.address || !input.area || !input.authorizationNo || !input.contactPhone) {
+    throw new FlowError("VALIDATION_ERROR", "Please fill in all required facility fields");
+  }
+  if (!isValidCoordinate(input.latitude, input.longitude)) {
+    throw new FlowError("VALIDATION_ERROR", "Please enter the facility's latitude and longitude (used for the 5 km collector match)");
+  }
+  if (!/^\d{10}$/.test(input.staffPhone || "")) {
+    throw new FlowError("VALIDATION_ERROR", "Staff phone must be a 10-digit number");
+  }
+  if (!input.staffPassword || input.staffPassword.length < 6) {
+    throw new FlowError("VALIDATION_ERROR", "Staff password must be at least 6 characters");
+  }
+  if (await prisma.user.findUnique({ where: { phone: input.staffPhone }, select: { id: true } })) {
+    throw new FlowError("DUPLICATE", "A user with this staff phone already exists", 409);
+  }
+  if (await prisma.recycler.findUnique({ where: { authorizationNo: input.authorizationNo }, select: { id: true } })) {
+    throw new FlowError("DUPLICATE", "A recycler with this authorization number already exists", 409);
+  }
+
+  const staffPasswordHash = await hashPassword(input.staffPassword);
+
+  return prisma.$transaction(async (tx) => {
+    const recycler = await tx.recycler.create({
+      data: {
+        name: input.name,
+        contactPhone: input.contactPhone,
+        address: input.address,
+        area: input.area,
+        district: input.district || "Mumbai",
+        state: input.state || "Maharashtra",
+        latitude: input.latitude,
+        longitude: input.longitude,
+        authorizationNo: input.authorizationNo,
+        authorizationStatus: "VERIFIED",
+        authorizationValidTill: input.authorizationValidTill ?? new Date("2028-12-31"),
+        serviceRadiusKm: Number.isFinite(input.serviceRadiusKm) ? input.serviceRadiusKm : 15,
+        verifiedAt: new Date(),
+      },
+    });
+
+    const staffUser = await tx.user.create({
+      data: { phone: input.staffPhone, pinHash: staffPasswordHash, role: "RECYCLER", language: "EN" },
+    });
+
+    await tx.recyclerStaff.create({ data: { userId: staffUser.id, recyclerId: recycler.id } });
+
+    // Initial default rates for all categories
+    const categories = await tx.materialCategory.findMany();
+    for (const cat of categories) {
+      await tx.recyclerRate.create({
+        data: { recyclerId: recycler.id, categoryId: cat.id, ratePerKgPaise: 3500, isCurrent: true },
+      });
+    }
+
+    return recycler;
+  });
+}
+
+/**
+ * Records today's price (paise/kg) for the given categories. New lots are valued at these rates.
+ */
+export async function setTodayPrices(adminUserId: string, prices: Array<{ categoryId: number; ratePerKgPaise: number }>) {
+  const valid = prices.filter((p) => Number.isInteger(p.ratePerKgPaise) && p.ratePerKgPaise > 0);
+  if (valid.length === 0) {
+    throw new FlowError("VALIDATION_ERROR", "Enter at least one price");
+  }
+
+  const activeIds = new Set(
+    (await prisma.materialCategory.findMany({ where: { isActive: true }, select: { id: true } })).map((c) => c.id)
+  );
+  const unknown = valid.find((p) => !activeIds.has(p.categoryId));
+  if (unknown) {
+    throw new FlowError("VALIDATION_ERROR", `Unknown or inactive category ${unknown.categoryId}`);
+  }
+
+  const now = new Date();
+  await prisma.pricePoint.createMany({
+    data: valid.map((p) => ({
+      id: `PRICE-TODAY-${p.categoryId}-${now.getTime()}`,
+      categoryId: p.categoryId,
+      buyingPricePaise: p.ratePerKgPaise,
+      area: "All Areas",
+      district: "All",
+      recordedAt: now,
+      source: "ADMIN" as const,
+      buyerType: "PLATFORM_DAILY",
+      recordedById: adminUserId,
+    })),
+  });
+
+  return valid.length;
+}
+
+/**
+ * Approves, suspends or expires a recycler and records the review.
+ */
+export async function setRecyclerStatus(
+  adminUserId: string,
+  recyclerId: string,
+  status: "VERIFIED" | "SUSPENDED" | "EXPIRED",
+  notes?: string
+) {
+  const recycler = await prisma.recycler.findUnique({ where: { id: recyclerId }, select: { id: true } });
+  if (!recycler) throw new FlowError("NOT_FOUND", "Recycler not found", 404);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.recycler.update({
+      where: { id: recyclerId },
+      data: { authorizationStatus: status, verifiedAt: status === "VERIFIED" ? new Date() : undefined },
+    });
+    await tx.recyclerVerification.create({
+      data: { recyclerId, reviewedById: adminUserId, status, notes: notes || "Admin updated status to " + status },
+    });
+  });
+}

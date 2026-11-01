@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
     if (!auth) {
       return apiError("UNAUTHORIZED", "Missing or invalid authorization", 401);
     }
+    if (auth.role !== "ADMIN") {
+      return apiError("FORBIDDEN", "Only admins can send notifications", 403);
+    }
 
     const body = await req.json();
     const parsed = CreateNotificationSchema.safeParse(body);

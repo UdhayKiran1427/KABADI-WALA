@@ -7,6 +7,7 @@ import { generateUniqueShortCode } from "@/lib/services/collectorService";
 import { z } from "zod";
 
 const RegisterSchema = z.object({
+  name: z.string().trim().min(2, "Name is required"),
   phone: z.string().regex(/^\d{10}$/, "Phone must be a valid 10-digit number"),
   pin: z.string().regex(/^\d{4}$/, "PIN must be a 4-digit number"),
   preferredLanguage: z.enum(["HI", "MR", "EN"]).default("HI"),
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400, parsed.error.format());
     }
 
-    const { phone, pin, preferredLanguage, operatingArea, district, consent } = parsed.data;
+    const { name, phone, pin, preferredLanguage, operatingArea, district, consent } = parsed.data;
 
     // Check if phone is already registered
     const existing = await prisma.user.findUnique({ where: { phone } });
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
       const collector = await tx.collector.create({
         data: {
           userId: user.id,
+          name,
           shortCode,
           preferredLanguage,
           operatingArea,
@@ -93,6 +95,7 @@ export async function POST(req: NextRequest) {
         profile: {
           collectorId: result.collector.id,
           userId: result.user.id,
+          name: result.collector.name,
           shortCode: result.collector.shortCode,
           preferredLanguage: result.collector.preferredLanguage,
           operatingArea: result.collector.operatingArea,

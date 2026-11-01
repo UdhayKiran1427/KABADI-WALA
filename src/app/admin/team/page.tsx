@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth/session";
+import { Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { createTeamUserAction } from "../actions";
 
@@ -15,10 +16,7 @@ export default async function AdminTeamPage() {
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       <div style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.75rem", fontWeight: 700 }}>Team &amp; Field Agent Management</h1>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-          Create and manage system administrators and field agents (F1–F3 ground collectors and price surveyors).
-        </p>
+        <h1 className="r-page-title">Team</h1>
       </div>
 
       <div className="grid-2">
@@ -27,32 +25,32 @@ export default async function AdminTeamPage() {
           <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Add Team Member</h2>
           <form action={createTeamUserAction}>
             <div className="form-group">
-              <label className="form-label" htmlFor="phone">Phone Number / Login ID</label>
+              <label className="form-label" htmlFor="phone">Phone</label>
               <input id="phone" name="phone" type="text" placeholder="10-digit phone" className="form-control" required />
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="pin">Password / PIN</label>
+              <label className="form-label" htmlFor="pin">Password or PIN</label>
               <input id="pin" name="pin" type="password" placeholder="Password or 4-digit PIN" className="form-control" required />
             </div>
 
             <div className="form-group">
               <label className="form-label" htmlFor="role">Role</label>
               <select id="role" name="role" className="form-control" defaultValue="FIELD_AGENT">
-                <option value="FIELD_AGENT">FIELD_AGENT (F1 Onboard, F2 Price Log, F3 Photo Capture)</option>
-                <option value="ADMIN">ADMIN (Full Platform Superuser Access)</option>
+                <option value="FIELD_AGENT">Field agent</option>
+                <option value="ADMIN">Admin</option>
               </select>
             </div>
 
-            <button type="submit" className="btn btn-primary" style={{ width: "100%", background: "#0284c7" }}>
-              + Create Account
+            <button type="submit" className="btn btn-primary btn-block">
+              <Plus size={16} aria-hidden="true" /> Add member
             </button>
           </form>
         </div>
 
         {/* Members List */}
         <div className="card">
-          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Active Members ({teamUsers.length})</h2>
+          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.5rem" }}>Members ({teamUsers.length})</h2>
           <div className="table-responsive">
             <table>
               <thead>

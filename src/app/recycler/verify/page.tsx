@@ -70,11 +70,11 @@ export default async function VerifyHandoverPage({
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Link href="/recycler" style={{ color: "var(--slate-500)", textDecoration: "none" }}>
-              &larr; R1 Dashboard
+              &larr; Dashboard
             </Link>
             <span style={{ color: "var(--slate-300)" }}>/</span>
             <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--slate-900)", letterSpacing: "-0.02em" }}>
-              R2 Verify Gate Handover &bull; Weighbridge Inward
+              Verify Handover
             </h1>
           </div>
           <p style={{ color: "var(--slate-500)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
@@ -83,7 +83,7 @@ export default async function VerifyHandoverPage({
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <span className="badge badge-success">✓ SPCB Form 6 Automated</span>
+          <span className="badge badge-success">SPCB Form 6 Automated</span>
         </div>
       </div>
 
@@ -111,13 +111,13 @@ export default async function VerifyHandoverPage({
                 required
               />
               <button type="submit" className="btn btn-primary btn-lg" style={{ whiteSpace: "nowrap" }}>
-                🔍 Search Gate Lot
+                Search Gate Lot
               </button>
             </form>
 
             {query && !lot && (
               <div className="alert alert-danger" style={{ marginTop: "1rem" }}>
-                ⚠️ No scrap lot found matching &ldquo;{query}&rdquo;. Confirm the collector has selected your facility and generated a handover pass.
+                No scrap lot found matching &ldquo;{query}&rdquo;. Confirm the collector has selected your facility and generated a handover pass.
               </div>
             )}
           </div>
@@ -213,7 +213,7 @@ export default async function VerifyHandoverPage({
                             }}
                           />
                         ) : (
-                          <span style={{ fontSize: "0.75rem", color: "var(--slate-500)" }}>📷 Photo</span>
+                          <span style={{ fontSize: "0.75rem", color: "var(--slate-500)" }}>Photo</span>
                         )}
                       </div>
                     ))}
@@ -256,7 +256,7 @@ export default async function VerifyHandoverPage({
                       required
                     />
                     <div style={{ fontSize: "0.75rem", color: "var(--slate-500)", marginTop: "0.35rem" }}>
-                      Rule: Variance within &plusmn;5% auto-accepted. Variance &ge;25% logs automated M3 audit flag.
+                      Rule: Variance within &plusmn;5% auto-accepted. Variance &ge;25% is flagged for review.
                     </div>
                   </div>
                 </div>
@@ -301,8 +301,8 @@ export default async function VerifyHandoverPage({
                         Payment Method
                       </label>
                       <select id="paymentMethod" name="paymentMethod" className="form-control" defaultValue="CASH">
-                        <option value="CASH">💵 Cash (Handed over at counter)</option>
-                        <option value="UPI">📱 UPI Transfer / Scan QR</option>
+                        <option value="CASH">Cash (Handed over at counter)</option>
+                        <option value="UPI">UPI Transfer / Scan QR</option>
                       </select>
                     </div>
                     <div>
@@ -335,7 +335,7 @@ export default async function VerifyHandoverPage({
                     className="btn btn-primary btn-lg"
                     style={{ flex: 2, padding: "0.85rem" }}
                   >
-                    ✓ Confirm Scale Weight &amp; Complete Handover
+                    Confirm Scale Weight &amp; Complete Handover
                   </button>
                   <button
                     type="submit"
@@ -344,7 +344,7 @@ export default async function VerifyHandoverPage({
                     className="btn btn-danger"
                     style={{ flex: 1, padding: "0.85rem" }}
                   >
-                    ⚠️ Dispute Lot
+                    Dispute Lot
                   </button>
                 </div>
               </form>
@@ -357,7 +357,7 @@ export default async function VerifyHandoverPage({
           {/* Gate Verification SOP Card */}
           <div className="card" style={{ padding: "1.25rem" }}>
             <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--slate-900)", marginBottom: "0.75rem" }}>
-              📋 Gate Verification SOP
+              Gate Verification SOP
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", fontSize: "0.825rem", color: "var(--slate-600)" }}>
               <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -383,7 +383,7 @@ export default async function VerifyHandoverPage({
           <div className="card" style={{ padding: "1.25rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem" }}>
               <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--slate-900)" }}>
-                🕒 Recent Scale Handovers
+                Recent Scale Handovers
               </h3>
               <span className="badge badge-neutral" style={{ fontSize: "0.7rem" }}>Today</span>
             </div>
@@ -431,7 +431,7 @@ export default async function VerifyHandoverPage({
             }}
           >
             <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--slate-800)", marginBottom: "0.5rem" }}>
-              📜 SPCB Form 6 Audit Record
+              SPCB Form 6 Audit Record
             </h3>
             <p style={{ fontSize: "0.775rem", color: "var(--slate-600)", lineHeight: 1.5 }}>
               Every completed gate handover automatically generates a signed electronic manifest conforming to E-Waste Management Rules 2022. Weights feed straight to your facility quarterly return log.

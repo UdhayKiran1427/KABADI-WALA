@@ -1,38 +1,57 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthCollector } from "@/lib/auth/getAuthCollector";
-import { apiError, apiSuccess } from "@/lib/apiResponse";
+import { requireApiUser } from "@/lib/auth/getAuthUser";
+import { apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
 
+/**
+ * Profile of the signed-in user. `collector` is set for collectors, `recycler` for recycler staff.
+ */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await getAuthCollector(req);
-    if (!auth) {
-      return apiError("UNAUTHORIZED", "Missing or invalid bearer authorization", 401);
-    }
+    const { user, response } = await requireApiUser(req, ["COLLECTOR", "RECYCLER", "ADMIN", "FIELD_AGENT"]);
+    if (response) return response;
 
-    const user = await prisma.user.findUnique({
-      where: { id: auth.user.userId },
-      include: {
-        collector: true,
-      },
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.userId },
+      include: { collector: true, recyclerStaff: { include: { recycler: true } } },
     });
-
-    if (!user || !user.collector) {
-      return apiError("NOT_FOUND", "Collector profile not found", 404);
-    }
+    const collector = dbUser?.collector;
+    const recycler = dbUser?.recyclerStaff?.recycler;
 
     return apiSuccess({
-      collectorId: user.collector.id,
-      userId: user.id,
+      userId: user.userId,
       phone: user.phone,
-      shortCode: user.collector.shortCode,
-      preferredLanguage: user.collector.preferredLanguage,
-      operatingArea: user.collector.operatingArea,
-      district: user.collector.district,
+      role: user.role,
+      language: dbUser?.language,
+      // Kept at the top level for existing collector app builds
+      collectorId: collector?.id,
+      shortCode: collector?.shortCode,
+      preferredLanguage: collector?.preferredLanguage,
+      operatingArea: collector?.operatingArea,
+      district: collector?.district,
+      collector: collector
+        ? {
+            id: collector.id,
+            name: collector.name,
+            shortCode: collector.shortCode,
+            preferredLanguage: collector.preferredLanguage,
+            operatingArea: collector.operatingArea,
+            district: collector.district,
+          }
+        : null,
+      recycler: recycler
+        ? {
+            id: recycler.id,
+            name: recycler.name,
+            address: recycler.address,
+            contactPhone: recycler.contactPhone,
+            authorizationStatus: recycler.authorizationStatus,
+            latitude: recycler.latitude,
+            longitude: recycler.longitude,
+          }
+        : null,
     });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return apiError("INTERNAL_ERROR", errorMsg, 500);
+  } catch (err) {
+    return apiErrorFrom(err);
   }
 }
-

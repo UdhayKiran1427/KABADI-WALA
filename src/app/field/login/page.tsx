@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Camera, ClipboardList, Globe2, Recycle, Tags, TriangleAlert, UserRound } from "lucide-react";
 import { fieldLoginAction } from "../actions";
 import { LanguageSwitcher } from "@/components/voice/LanguageSwitcher";
 
@@ -29,7 +30,7 @@ export default async function FieldAgentLoginPage(props: {
               textDecoration: "none",
             }}
           >
-            <span style={{ fontSize: "1.3rem" }}>♻️</span>
+            <Recycle size={22} aria-hidden="true" />
             <span>KABADI WALA &bull; Field Operations</span>
           </Link>
 
@@ -88,7 +89,7 @@ export default async function FieldAgentLoginPage(props: {
                   flexShrink: 0,
                 }}
               >
-                👤
+                <UserRound size={22} aria-hidden="true" />
               </div>
               <div>
                 <strong style={{ fontSize: "1rem", color: "#ffffff" }}>F1: Rapid Ground Onboarding</strong>
@@ -112,7 +113,7 @@ export default async function FieldAgentLoginPage(props: {
                   flexShrink: 0,
                 }}
               >
-                🏷️
+                <Tags size={22} aria-hidden="true" />
               </div>
               <div>
                 <strong style={{ fontSize: "1rem", color: "#ffffff" }}>F2: Ground Market Price Logging</strong>
@@ -136,7 +137,7 @@ export default async function FieldAgentLoginPage(props: {
                   flexShrink: 0,
                 }}
               >
-                📷
+                <Camera size={22} aria-hidden="true" />
               </div>
               <div>
                 <strong style={{ fontSize: "1rem", color: "#ffffff" }}>F3: AI Dataset Photo Collection</strong>
@@ -173,7 +174,7 @@ export default async function FieldAgentLoginPage(props: {
                 marginBottom: "1rem",
               }}
             >
-              📋
+              <ClipboardList size={30} aria-hidden="true" />
             </div>
             <h2 style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--slate-900)", letterSpacing: "-0.02em" }}>
               Field Agent Hub
@@ -188,14 +189,14 @@ export default async function FieldAgentLoginPage(props: {
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.75rem", marginTop: "1rem" }}>
               <LanguageSwitcher />
               <Link href="/field/language" style={{ fontSize: "0.75rem", color: "var(--primary-700)", fontWeight: 700, textDecoration: "none" }}>
-                🌐 Select Language
+                <Globe2 size={14} aria-hidden="true" /> Select Language
               </Link>
             </div>
           </div>
 
           {searchParams.error && (
             <div className="alert alert-danger" style={{ marginBottom: "1.5rem" }}>
-              ⚠️ {searchParams.error}
+              <TriangleAlert size={16} aria-hidden="true" /> {searchParams.error}
             </div>
           )}
 
@@ -216,15 +217,11 @@ export default async function FieldAgentLoginPage(props: {
                 <input
                   type="tel"
                   name="phone"
-                  defaultValue="9820000010"
                   required
                   placeholder="10-digit mobile number"
                   className="form-control"
                   style={{ fontSize: "1rem", padding: "0.75rem 0.9rem" }}
                 />
-                <div style={{ fontSize: "0.75rem", color: "var(--slate-500)", marginTop: "0.35rem" }}>
-                  Demo Field Agent: <code>9820000010</code>
-                </div>
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -234,15 +231,11 @@ export default async function FieldAgentLoginPage(props: {
                 <input
                   type="password"
                   name="password"
-                  defaultValue="agent123"
                   required
                   placeholder="••••••••"
                   className="form-control"
                   style={{ fontSize: "1rem", padding: "0.75rem 0.9rem" }}
                 />
-                <div style={{ fontSize: "0.75rem", color: "var(--slate-500)", marginTop: "0.35rem" }}>
-                  Demo Default: <code>agent123</code>
-                </div>
               </div>
 
               <button

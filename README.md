@@ -60,13 +60,9 @@ npm run build
 
 ---
 
-## 🔑 Demo Login Credentials (from Seed)
+## Local test accounts
 
-| Role | Portal URL | Username / Phone | Password / PIN |
-| :--- | :--- | :--- | :--- |
-| **Super Admin** | `/admin/login` | `9999999999` | `admin123` |
-| **Recycler Staff** | `/recycler/login` | `9876543210` | `password123` |
-| **Mobile Collector** | Mobile API / C2 | `9820000001` | `1234` |
+The database seed script creates development test accounts. Do not use seeded accounts in production; replace or remove them before deploying.
 
 ---
 

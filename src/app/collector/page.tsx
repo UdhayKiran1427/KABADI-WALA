@@ -2,58 +2,31 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { CollectorDashboardClient } from "./CollectorDashboardClient";
 
+const LOTS_SHOWN = 10;
+
 export default async function CollectorDashboardPage() {
   const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
 
   const collector = await prisma.collector.findFirst({
     where: { userId: user.userId },
+    select: { id: true },
   });
 
-  const collectorId = collector?.id;
-
-  // 1. Fetch recent lots for collector
-  const recentLots = collectorId
+  const lots = collector
     ? await prisma.lot.findMany({
-        where: { collectorId },
+        where: { collectorId: collector.id },
         orderBy: { collectedAt: "desc" },
-        take: 5,
-        include: {
-          category: true,
-          handovers: { select: { verificationCode: true, status: true }, take: 1 },
+        take: LOTS_SHOWN + 1,
+        select: {
+          id: true,
+          approxWeightGrams: true,
+          status: true,
+          estimatedValuePaise: true,
+          finalPricePaise: true,
+          category: { select: { nameEn: true, nameHi: true, nameMr: true } },
         },
       })
     : [];
 
-  const activeCount = recentLots.filter(
-    (l) => l.status !== "COMPLETED" && l.status !== "CANCELLED" && l.status !== "REJECTED"
-  ).length;
-
-  // 2. Fetch categories and live rates for desktop sidebar
-  const categories = await prisma.materialCategory.findMany({
-    orderBy: { id: "asc" },
-    take: 6,
-  });
-
-  const currentRates = await prisma.recyclerRate.findMany({
-    where: { isCurrent: true },
-    select: { categoryId: true, ratePerKgPaise: true },
-  });
-
-  // 3. Fetch verified recyclers for desktop sidebar
-  const verifiedRecyclers = await prisma.recycler.findMany({
-    where: { authorizationStatus: "VERIFIED" },
-    take: 2,
-    select: { id: true, name: true, address: true, contactPhone: true, pickupAvailable: true },
-  });
-
-  return (
-    <CollectorDashboardClient
-      collector={collector ? { shortCode: collector.shortCode, operatingArea: collector.operatingArea } : null}
-      activeCount={activeCount}
-      recentLots={recentLots}
-      categories={categories}
-      currentRates={currentRates}
-      verifiedRecyclers={verifiedRecyclers}
-    />
-  );
+  return <CollectorDashboardClient lots={lots.slice(0, LOTS_SHOWN)} hasMore={lots.length > LOTS_SHOWN} />;
 }
