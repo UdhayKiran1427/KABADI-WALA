@@ -9,13 +9,18 @@ import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
  */
 export async function PUT(req: NextRequest) {
   try {
+    const key = req.nextUrl.searchParams.get("key");
+    const cleanKey = sanitizeStorageKey(key || "");
+    if (!key || !cleanKey) {
+      return apiError("INVALID_KEY", "Use the upload URL returned by /uploads/presign", 400);
+    }
+
     const user = await getAuthUser(req);
     if (!user) {
       return apiError("UNAUTHORIZED", "Missing or invalid authorization", 401);
     }
 
-    const key = req.nextUrl.searchParams.get("key");
-    if (!key || !validateStorageKey(key, user.userId)) {
+    if (!validateStorageKey(key, user.userId)) {
       return apiError("INVALID_KEY", "Use the upload URL returned by /uploads/presign", 400);
     }
 
@@ -29,7 +34,6 @@ export async function PUT(req: NextRequest) {
       return apiError("INVALID_SIZE", "Photo must be smaller than 5 MB", 413);
     }
 
-    const cleanKey = sanitizeStorageKey(key)!;
     await saveLocalFile(cleanKey, buffer);
     return apiSuccess({
       message: "File uploaded successfully to local storage",
