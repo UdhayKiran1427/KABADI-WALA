@@ -65,7 +65,9 @@ export function sortMutations(mutations: SyncMutationInput[]): SyncMutationInput
       return a.op === "create" ? -1 : 1;
     }
 
-    return new Date(a.clientTimestamp).getTime() - new Date(b.clientTimestamp).getTime();
+    const timeA = new Date(a.clientTimestamp || 0).getTime() || 0;
+    const timeB = new Date(b.clientTimestamp || 0).getTime() || 0;
+    return timeA - timeB;
   });
 }
 
@@ -243,6 +245,19 @@ async function handleLotMutation(
         code: "DUPLICATE_LOT_REF",
         message: "Lot reference already exists",
         serverState: existingRef,
+      };
+    }
+
+    const categoryExists = await tx.materialCategory.findUnique({
+      where: { id: Number(payload.categoryId) },
+    });
+    if (!categoryExists) {
+      return {
+        clientMutationId: "",
+        status: "REJECTED",
+        code: "CATEGORY_NOT_FOUND",
+        message: `Material category #${payload.categoryId} does not exist`,
+        retryable: false,
       };
     }
 
@@ -576,7 +591,10 @@ async function handleHandoverMutation(
   const handoverRef = payload.handoverRef || `HO-${lot.lotRef.replace("LOT-", "")}`;
 
   // Evaluate location proof
-  const facility = lot.transaction?.recycler;
+  let facility: any = lot.transaction?.recycler;
+  if (!facility && lot.chosenRecyclerId) {
+    facility = await tx.recycler.findUnique({ where: { id: lot.chosenRecyclerId } });
+  }
   const locProof = classifyLocationProof(
     payload.latitude,
     payload.longitude,

@@ -38,9 +38,14 @@ export default function HomePage() {
             <div style={{ marginBottom: "1rem", fontSize: "0.8rem", color: "#64748b" }}>
               Demo: <code>9820000001</code> / PIN <code>1234</code>
             </div>
-            <Link href="/collector" className="btn btn-primary" style={{ backgroundColor: "#059669", width: "100%", textAlign: "center" }}>
-              Open Collector Portal &rarr;
-            </Link>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <Link href="/collector" className="btn btn-primary" style={{ backgroundColor: "#059669", width: "100%", textAlign: "center" }}>
+                Sign In &rarr;
+              </Link>
+              <Link href="/collector/register" className="btn btn-secondary" style={{ width: "100%", textAlign: "center", fontSize: "0.85rem" }}>
+                + Register New Collector
+              </Link>
+            </div>
           </div>
 
           <div className="card" style={{ border: "2px solid #3b82f6", backgroundColor: "#eff6ff" }}>
@@ -53,9 +58,14 @@ export default function HomePage() {
             <div style={{ marginBottom: "1rem", fontSize: "0.8rem", color: "#64748b" }}>
               Demo: <code>9830000001</code> / <code>agent123</code>
             </div>
-            <Link href="/field" className="btn btn-primary" style={{ backgroundColor: "#2563eb", width: "100%", textAlign: "center" }}>
-              Open Field Agent Hub &rarr;
-            </Link>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <Link href="/field" className="btn btn-primary" style={{ backgroundColor: "#2563eb", width: "100%", textAlign: "center" }}>
+                Agent Sign In &rarr;
+              </Link>
+              <Link href="/field/register" className="btn btn-secondary" style={{ width: "100%", textAlign: "center", fontSize: "0.85rem" }}>
+                + Register New Agent
+              </Link>
+            </div>
           </div>
 
           <div className="card">
@@ -66,9 +76,14 @@ export default function HomePage() {
             <div style={{ marginBottom: "1rem", fontSize: "0.8rem", color: "#64748b" }}>
               Demo: <code>9876543210</code> / <code>password123</code>
             </div>
-            <Link href="/recycler" className="btn btn-secondary" style={{ width: "100%", textAlign: "center" }}>
-              Enter Recycler Portal &rarr;
-            </Link>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <Link href="/recycler" className="btn btn-secondary" style={{ width: "100%", textAlign: "center" }}>
+                Recycler Sign In &rarr;
+              </Link>
+              <Link href="/recycler/register" className="btn btn-secondary" style={{ width: "100%", textAlign: "center", fontSize: "0.85rem", borderColor: "#059669", color: "#059669" }}>
+                + Register New Facility
+              </Link>
+            </div>
           </div>
 
           <div className="card">

@@ -22,7 +22,7 @@ export default async function MatchRecyclerPage(props: {
     notFound();
   }
 
-  if (lot.collector.userId !== user.userId) {
+  if (user.role !== "ADMIN" && lot.collector.userId !== user.userId) {
     redirect("/collector");
   }
 

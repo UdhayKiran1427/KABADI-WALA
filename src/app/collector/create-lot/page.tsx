@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { createCollectorLotAction } from "../actions";
+import { WeightSelector } from "./WeightSelector";
 
 export default async function CreateLotPage(props: {
   searchParams: Promise<{ error?: string }>;
@@ -95,32 +96,7 @@ export default async function CreateLotPage(props: {
           <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 700, marginBottom: "0.5rem" }}>
             2. अनुमानित वजन (किलो) / Approx Weight (kg)
           </label>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
-            {[1, 5, 10, 25, 50].map((w) => (
-              <button
-                type="button"
-                key={w}
-                className="btn btn-secondary"
-                style={{ flex: 1, padding: "0.4rem 0.2rem", fontSize: "0.8rem", fontWeight: 700 }}
-                // @ts-expect-error inline helper
-                onClick={`document.getElementById('weightInput').value = ${w}`}
-              >
-                {w} kg
-              </button>
-            ))}
-          </div>
-          <input
-            id="weightInput"
-            type="number"
-            step="0.1"
-            min="0.1"
-            name="weightKg"
-            defaultValue="5"
-            required
-            placeholder="वजन किलो में"
-            className="input"
-            style={{ fontSize: "1.2rem", fontWeight: 700, padding: "0.75rem", textAlign: "center" }}
-          />
+          <WeightSelector defaultValue="5" />
         </div>
 
         {/* Cash Notice */}

@@ -114,6 +114,13 @@ export default async function CollectorLoginPage(props: {
           </button>
         </form>
 
+        <div style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.9rem" }}>
+          नया कलेक्टर खाता बनाएं? / New Collector?{" "}
+          <Link href="/collector/register" style={{ color: "var(--primary)", fontWeight: 700, textDecoration: "underline" }}>
+            पंजीकरण करें / Register Now &rarr;
+          </Link>
+        </div>
+
         <div
           style={{
             marginTop: "1.5rem",

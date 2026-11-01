@@ -124,7 +124,7 @@ export async function selectRecyclerForLotAction(formData: FormData) {
     include: { collector: true },
   });
 
-  if (!lot || lot.collector.userId !== user.userId) {
+  if (!lot || (user.role !== "ADMIN" && lot.collector.userId !== user.userId)) {
     redirect(`/collector?error=Lot not found or access denied`);
   }
 
@@ -204,7 +204,7 @@ export async function collectorBargainOfferAction(formData: FormData) {
     include: { collector: true, transaction: true },
   });
 
-  if (!lot || lot.collector.userId !== user.userId || !lot.transaction) {
+  if (!lot || (user.role !== "ADMIN" && lot.collector.userId !== user.userId) || !lot.transaction) {
     redirect(`/collector?error=Lot or transaction not found`);
   }
 
@@ -247,7 +247,7 @@ export async function collectorAcceptBargainAction(formData: FormData) {
     include: { collector: true, transaction: true },
   });
 
-  if (!lot || lot.collector.userId !== user.userId || !lot.transaction || !lot.transaction.bargainRatePaise) {
+  if (!lot || (user.role !== "ADMIN" && lot.collector.userId !== user.userId) || !lot.transaction || !lot.transaction.bargainRatePaise) {
     redirect(`/collector?error=No active price offer to accept`);
   }
 
@@ -289,4 +289,87 @@ export async function collectorAcceptBargainAction(formData: FormData) {
   }
 
   redirect(`/collector/lots/${lotId}?success=Agreed price of ₹${(agreedRatePaise / 100).toFixed(0)}/kg confirmed!`);
+}
+
+
+export async function collectorRegisterAction(formData: FormData) {
+  const phone = (formData.get("phone") as string)?.trim();
+  const pin = (formData.get("pin") as string)?.trim();
+  const confirmPin = (formData.get("confirmPin") as string)?.trim();
+  const preferredLanguage = ((formData.get("preferredLanguage") as string)?.toUpperCase() || "HI") as "HI" | "MR" | "EN";
+  const operatingArea = (formData.get("operatingArea") as string)?.trim() || "Dharavi";
+  const district = (formData.get("district") as string)?.trim() || "Mumbai";
+  const hasConsent = formData.get("hasConsent") === "on" || formData.get("hasConsent") === "true";
+
+  if (!phone || !/^\d{10}$/.test(phone)) {
+    redirect("/collector/register?error=Please enter a valid 10-digit mobile number");
+  }
+
+  if (!pin || !/^\d{4}$/.test(pin)) {
+    redirect("/collector/register?error=PIN must be exactly 4 digits");
+  }
+
+  if (pin !== confirmPin) {
+    redirect("/collector/register?error=PIN and Confirm PIN do not match");
+  }
+
+  if (!hasConsent) {
+    redirect("/collector/register?error=You must accept the terms and consent to register");
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { phone },
+  });
+
+  if (existing) {
+    redirect("/collector/register?error=This phone number is already registered. Please log in.");
+  }
+
+  const { hashPin } = await import("@/lib/auth/password");
+  const { generateUniqueShortCode } = await import("@/lib/services/collectorService");
+  const { createSessionCookie } = await import("@/lib/auth/session");
+
+  const pinHash = await hashPin(pin);
+  const shortCode = await generateUniqueShortCode();
+
+  const created = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        phone,
+        pinHash,
+        role: "COLLECTOR",
+        language: preferredLanguage,
+      },
+    });
+
+    const collector = await tx.collector.create({
+      data: {
+        userId: user.id,
+        shortCode,
+        preferredLanguage,
+        operatingArea,
+        district,
+        consentAt: new Date(),
+      },
+    });
+
+    await tx.consentRecord.create({
+      data: {
+        userId: user.id,
+        version: "1.0-WEB",
+        language: preferredLanguage,
+        locationConsent: true,
+      },
+    });
+
+    return { user, collector };
+  });
+
+  await createSessionCookie({
+    userId: created.user.id,
+    phone: created.user.phone,
+    role: "COLLECTOR",
+  });
+
+  redirect("/collector?welcome=true");
 }

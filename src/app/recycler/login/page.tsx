@@ -51,8 +51,21 @@ export default async function RecyclerLoginPage({
           </button>
         </form>
 
+        <div style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.9rem" }}>
+          New Recycler Facility?{" "}
+          <a href="/recycler/register" style={{ color: "var(--primary)", fontWeight: 700, textDecoration: "underline" }}>
+            Register Your Facility &rarr;
+          </a>
+        </div>
+
         <div style={{ marginTop: "1.5rem", padding: "0.75rem", background: "#f8fafc", borderRadius: "6px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
           Demo Recycler Login: <code>9876543210</code> / <code>password123</code> (available once seeded)
+        </div>
+
+        <div style={{ marginTop: "1rem", textAlign: "center", fontSize: "0.85rem" }}>
+          <a href="/" style={{ color: "var(--text-muted)", textDecoration: "underline" }}>
+            &larr; Back to Platform Home
+          </a>
         </div>
       </div>
     </div>

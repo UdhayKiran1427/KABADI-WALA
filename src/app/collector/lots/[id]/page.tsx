@@ -27,7 +27,7 @@ export default async function CollectorLotDetailPage(props: {
     notFound();
   }
 
-  if (lot.collector.userId !== user.userId) {
+  if (user.role !== "ADMIN" && lot.collector.userId !== user.userId) {
     redirect("/collector");
   }
 

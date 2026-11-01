@@ -22,10 +22,26 @@ export interface PresignedUploadResponse {
   expiresInSeconds: number;
 }
 
+export function sanitizeStorageKey(storageKey: string): string | null {
+  if (!storageKey || typeof storageKey !== "string") return null;
+  // Disallow any path traversal characters and null bytes
+  if (storageKey.includes("..") || storageKey.includes("\0") || storageKey.startsWith("/") || storageKey.startsWith("\\")) {
+    return null;
+  }
+  // Normalize path and ensure it does not escape
+  const normalized = path.normalize(storageKey).replace(/\\/g, "/");
+  if (normalized.startsWith("../") || normalized.includes("/../") || path.isAbsolute(normalized)) {
+    return null;
+  }
+  return normalized;
+}
+
 export function validateStorageKey(storageKey: string, userId: string): boolean {
   if (!storageKey || typeof storageKey !== "string") return false;
+  const sanitized = sanitizeStorageKey(storageKey);
+  if (!sanitized) return false;
   const expectedPrefix = `images/${userId}/`;
-  return storageKey.startsWith(expectedPrefix);
+  return sanitized.startsWith(expectedPrefix);
 }
 
 export async function getPresignedUploadUrl(
@@ -63,14 +79,26 @@ export async function getPresignedUploadUrl(
 }
 
 export async function saveLocalFile(storageKey: string, buffer: Buffer): Promise<void> {
-  const fullPath = path.join(process.cwd(), STORAGE_LOCAL_DIR, storageKey);
+  const cleanKey = sanitizeStorageKey(storageKey);
+  if (!cleanKey) {
+    throw new Error("Invalid or unsafe storage key");
+  }
+  const baseDir = path.resolve(process.cwd(), STORAGE_LOCAL_DIR);
+  const fullPath = path.resolve(baseDir, cleanKey);
+  if (!fullPath.startsWith(baseDir)) {
+    throw new Error("Directory traversal detected");
+  }
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, buffer);
 }
 
 export async function readLocalFile(storageKey: string): Promise<Buffer | null> {
   try {
-    const fullPath = path.join(process.cwd(), STORAGE_LOCAL_DIR, storageKey);
+    const cleanKey = sanitizeStorageKey(storageKey);
+    if (!cleanKey) return null;
+    const baseDir = path.resolve(process.cwd(), STORAGE_LOCAL_DIR);
+    const fullPath = path.resolve(baseDir, cleanKey);
+    if (!fullPath.startsWith(baseDir)) return null;
     return await fs.readFile(fullPath);
   } catch {
     return null;

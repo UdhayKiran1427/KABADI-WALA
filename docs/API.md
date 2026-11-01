@@ -337,3 +337,404 @@ class SyncApiClient {
 3. **OTP-Free PIN Recovery**: Implemented shortCode + operatingArea verification to eliminate costly SMS OTP dependencies for low-income collectors.
 4. **Coordinate Precision**: All coordinates stored with full precision on transactions, but truncated to 3 decimals (~100m) for analytics and coverage gap queries.
 
+
+
+---
+
+## 8. Collector, Field Agent, Notification & Bargaining REST APIs
+
+### 8.1 Collector & Lot Management Endpoints
+
+#### `POST /api/v1/lots`
+Creates a new e-waste lot for collection.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Request Body**:
+```json
+{
+  "id": "c7a84091-6453-48b4-934d-17688dbba142", // Optional client UUID
+  "categoryId": 1,                               // Material category (e.g. 1 = Copper)
+  "approxWeightGrams": 5000,                     // Integer grams (5.00 kg)
+  "conditionNotes": "Clean sorted wire strips",  // Optional notes
+  "deviceLat": 19.0434,                          // Optional device latitude
+  "deviceLng": 72.8567,                          // Optional device longitude
+  "photos": ["images/usr_1/lot1.jpg"]            // Optional storage keys
+}
+```
+- **Response `201 Created`**:
+```json
+{
+  "data": {
+    "message": "Lot created successfully",
+    "lot": {
+      "id": "c7a84091-6453-48b4-934d-17688dbba142",
+      "lotRef": "LOT-261101-4921",
+      "categoryId": 1,
+      "categoryName": "Pure Copper / Wire",
+      "approxWeightGrams": 5000,
+      "weightKg": "5.00",
+      "quotedRatePaise": 4000,
+      "quotedRateRupees": 40,
+      "status": "DRAFT",
+      "collectedAt": "2026-11-01T15:00:00.000Z"
+    }
+  }
+}
+```
+
+#### `POST /api/v1/lots/{id}/match-recycler`
+Assigns the selected authorized recycler facility to the lot and initializes the transaction.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Request Body**:
+```json
+{
+  "recyclerId": "rec-mumbai-01",
+  "quotedRatePaise": 4500 // Optional custom agreed benchmark rate (₹45.00/kg)
+}
+```
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "message": "Recycler matched and transaction initialized",
+    "lotId": "c7a84091-6453-48b4-934d-17688dbba142",
+    "transactionId": "TX-c7a84091-8841",
+    "recycler": {
+      "id": "rec-mumbai-01",
+      "name": "EcoRecycle Mumbai Hub",
+      "contactPhone": "9876543210",
+      "address": "Plot 12, Dharavi Link Road, Mumbai"
+    },
+    "quotedRatePaise": 4500,
+    "quotedRateRupees": 45,
+    "quotedPricePaise": 22500,
+    "quotedPriceRupees": 225
+  }
+}
+```
+
+#### `GET /api/v1/lots/{id}/handover`
+Retrieves handover verification code, QR payload string, and facility verification details for screen C13-C15.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "lotId": "c7a84091-6453-48b4-934d-17688dbba142",
+    "lotRef": "LOT-261101-4921",
+    "category": "Pure Copper / Wire",
+    "declaredWeightGrams": 5000,
+    "declaredWeightKg": "5.00",
+    "verificationCode": "4921",
+    "qrPayload": "EWASTE:c7a84091-6453-48b4-934d-17688dbba142:4921:5000",
+    "status": "MATCHED",
+    "transaction": {
+      "id": "TX-c7a84091-8841",
+      "status": "QUOTED",
+      "quotedRatePaise": 4500,
+      "quotedRateRupees": 45,
+      "bargainStatus": "AGREED"
+    }
+  }
+}
+```
+
+#### `POST /api/v1/lots/{id}/handover`
+Executes digital scale weighing, runs weight tolerance ($5\%/25\%/40\%$) and location proof (`MATCH`/`NEAR`/`FAR`), updates the transaction to `PAID`, marks lot `COMPLETED`, logs the payment, and triggers immediate notification.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Request Body**:
+```json
+{
+  "verificationCode": "4921",
+  "scaleWeightGrams": 5100,
+  "paymentMode": "CASH", // "CASH" | "UPI"
+  "latitude": 19.0435,
+  "longitude": 72.8568,
+  "gpsAccuracyMeters": 15,
+  "mockLocationFlag": false
+}
+```
+- **Response `201 Created`**:
+```json
+{
+  "data": {
+    "message": "Handover completed and payment recorded successfully",
+    "lotId": "c7a84091-6453-48b4-934d-17688dbba142",
+    "lotRef": "LOT-261101-4921",
+    "confirmedWeightGrams": 5100,
+    "confirmedWeightKg": "5.10",
+    "tolerance": {
+      "declaredWeightGrams": 5000,
+      "confirmedWeightGrams": 5100,
+      "differenceGrams": 100,
+      "percentageDiff": 2.0,
+      "autoAccepted": true,
+      "requiresReview": false,
+      "anomalySeverity": 0
+    },
+    "locationProof": {
+      "locationClass": "MATCH",
+      "distanceToRecyclerMeters": 42,
+      "spoofFlags": [],
+      "isFlagged": false
+    },
+    "payment": {
+      "id": "PAY-c7a84091-9123",
+      "amountPaise": 22950,
+      "amountRupees": 229.5,
+      "method": "CASH",
+      "status": "PAID"
+    },
+    "handoverId": "HO-c7a84091-9123"
+  }
+}
+```
+
+---
+
+### 8.2 Bargaining & Price Negotiation Endpoints
+
+#### `GET /api/v1/lots/{id}/bargain`
+Inspects current negotiation state, active offer, who made the offer, and whether the caller can accept or counter.
+- **Headers**: `Authorization: Bearer <JWT>` (or cookie session)
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "lotId": "c7a84091-6453-48b4-934d-17688dbba142",
+    "lotRef": "LOT-261101-4921",
+    "category": "Pure Copper / Wire",
+    "approxWeightGrams": 5000,
+    "weightKg": "5.00",
+    "transactionId": "TX-c7a84091-8841",
+    "transactionStatus": "QUOTED",
+    "quotedRatePerKgPaise": 4000,
+    "quotedRatePerKgRupees": 40,
+    "quotedPricePaise": 20000,
+    "quotedPriceRupees": 200,
+    "bargainStatus": "OFFER_BY_COLLECTOR",
+    "bargainRatePaise": 4500,
+    "bargainRateRupees": 45,
+    "bargainBy": "COLLECTOR",
+    "bargainNote": "Strip wire grade 1 high purity",
+    "agreedRatePaise": null,
+    "agreedRateRupees": null,
+    "callerRole": "RECYCLER",
+    "canAccept": true,
+    "canCounter": true
+  }
+}
+```
+
+#### `POST /api/v1/lots/{id}/bargain/offer`
+Submits a price offer or counter-offer (callable by either Collector or Recycler). Sends an instant notification to the opposing party.
+- **Headers**: `Authorization: Bearer <JWT>` (or cookie session)
+- **Request Body**:
+```json
+{
+  "offerRateRupees": 48.0, // Or "offerRatePaise": 4800
+  "note": "Can meet at ₹48/kg if delivered before 4 PM"
+}
+```
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "message": "Price offer of ₹48.00/kg submitted successfully",
+    "bargain": {
+      "lotId": "c7a84091-6453-48b4-934d-17688dbba142",
+      "transactionId": "TX-c7a84091-8841",
+      "bargainRatePaise": 4800,
+      "bargainRateRupees": 48,
+      "bargainBy": "RECYCLER",
+      "bargainStatus": "OFFER_BY_RECYCLER",
+      "bargainNote": "Can meet at ₹48/kg if delivered before 4 PM"
+    }
+  }
+}
+```
+
+#### `POST /api/v1/lots/{id}/bargain/accept`
+Accepts the active counter-offer from the opposing party. Locks `agreedRatePaise`, recalculates `agreedPricePaise`, updates `quotedRatePaise`, and notifies both participants.
+- **Headers**: `Authorization: Bearer <JWT>` (or cookie session)
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "message": "Price successfully agreed and locked at ₹48.00/kg",
+    "agreedDeal": {
+      "lotId": "c7a84091-6453-48b4-934d-17688dbba142",
+      "transactionId": "TX-c7a84091-8841",
+      "agreedRatePaise": 4800,
+      "agreedRateRupees": 48,
+      "agreedPricePaise": 24000,
+      "agreedPriceRupees": 240,
+      "bargainStatus": "AGREED"
+    }
+  }
+}
+```
+
+---
+
+### 8.3 Unified Notifications REST APIs
+
+#### `GET /api/v1/notifications`
+Fetches user notifications with total unread count. Works for all roles (Collector, Field Agent, Recycler, Admin).
+- **Headers**: `Authorization: Bearer <JWT>` (or cookie session)
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "unreadCount": 2,
+    "notifications": [
+      {
+        "id": "notif-001",
+        "title": "🎉 Price Agreed by Recycler!",
+        "body": "Recycler accepted your price of ₹48/kg for Lot LOT-261101-4921!",
+        "isRead": false,
+        "dataJson": "{\"lotId\":\"c7a84091\",\"agreedRatePaise\":4800}",
+        "createdAt": "2026-11-01T15:10:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+#### `POST /api/v1/notifications/{id}/read`
+Marks a specific notification as read.
+- **Headers**: `Authorization: Bearer <JWT>` (or cookie session)
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "message": "Notification marked as read"
+  }
+}
+```
+
+#### `POST /api/v1/notifications/read-all`
+Marks all unread notifications for the caller as read.
+- **Headers**: `Authorization: Bearer <JWT>` (or cookie session)
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "message": "Marked 3 notifications as read",
+    "count": 3
+  }
+}
+```
+
+---
+
+### 8.4 Field Agent Endpoints (F1 - F3)
+
+#### `POST /api/v1/field/collectors` (F1)
+Onboards a new informal collector with digital consent.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Request Body**:
+```json
+{
+  "phone": "9819999001",
+  "pin": "1234",
+  "preferredLanguage": "MR",
+  "operatingArea": "Kurla West Scrap Yard",
+  "district": "Mumbai",
+  "hasConsent": true
+}
+```
+- **Response `201 Created`**:
+```json
+{
+  "data": {
+    "message": "Collector onboarded successfully by field agent",
+    "collector": {
+      "id": "col-uuid",
+      "userId": "usr-uuid",
+      "shortCode": "KW42",
+      "phone": "9819999001",
+      "preferredLanguage": "MR",
+      "operatingArea": "Kurla West Scrap Yard"
+    }
+  }
+}
+```
+
+#### `GET /api/v1/field/collectors`
+Lists collectors onboarded by this field agent.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "count": 12,
+    "collectors": [ ... ]
+  }
+}
+```
+
+#### `POST /api/v1/field/prices` (F2)
+Logs physical ground spot prices from local scrap shops.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Request Body**:
+```json
+{
+  "categoryId": 1,
+  "subCategory": "Armature wire",
+  "buyingPricePaise": 4400, // ₹44.00/kg
+  "buyerType": "SCRAP_DEALER",
+  "area": "Dharavi 60 Feet Road",
+  "district": "Mumbai",
+  "latitude": 19.041,
+  "longitude": 72.859
+}
+```
+- **Response `201 Created`**:
+```json
+{
+  "data": {
+    "message": "Market price logged successfully",
+    "pricePoint": { ... }
+  }
+}
+```
+
+#### `GET /api/v1/field/prices`
+Lists market prices logged by the field agent.
+- **Headers**: `Authorization: Bearer <JWT>`
+
+#### `POST /api/v1/field/training-photos` (F3)
+Logs photo metadata and category label for ML classification training.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Request Body**:
+```json
+{
+  "categoryId": 2,
+  "storageKey": "training/agent_1/motherboard_close_up.jpg",
+  "labelConfidence": 1.0
+}
+```
+
+#### `GET /api/v1/field/stats`
+Returns personal productivity metrics for the field agent.
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Response `200 OK`**:
+```json
+{
+  "data": {
+    "agent": {
+      "userId": "fa-user-1",
+      "phone": "9830000001",
+      "role": "FIELD_AGENT"
+    },
+    "stats": {
+      "totalCollectorsOnboarded": 15,
+      "collectorsOnboardedToday": 3,
+      "totalPricesLogged": 42,
+      "pricesLoggedToday": 8,
+      "totalTrainingPhotos": 30,
+      "trainingPhotosToday": 10
+    }
+  }
+}
+```

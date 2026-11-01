@@ -42,9 +42,12 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ---
 
 ## 🧪 Testing & Validation
-Run all 29 pure domain unit tests:
+For full end-to-end user journey walkthroughs, test cases, and edge-case validation, see:
+📘 **[Manual Testing Guide](docs/MANUAL_TESTING_GUIDE.md)**
+
+Run all pure domain unit tests:
 ```bash
-npm test
+npx tsx --test "tests/unit/**/*.test.ts"
 ```
 Run TypeScript strict type checking:
 ```bash

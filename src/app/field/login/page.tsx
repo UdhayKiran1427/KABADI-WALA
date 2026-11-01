@@ -102,6 +102,13 @@ export default async function FieldAgentLoginPage(props: {
           </button>
         </form>
 
+        <div style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.9rem" }}>
+          New Field Agent?{" "}
+          <Link href="/field/register" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline" }}>
+            Register as Field Agent &rarr;
+          </Link>
+        </div>
+
         <div
           style={{
             marginTop: "1.5rem",

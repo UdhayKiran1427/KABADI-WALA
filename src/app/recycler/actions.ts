@@ -69,6 +69,12 @@ export async function acceptLotAction(lotId: string) {
   revalidatePath("/recycler");
 }
 
+export async function acceptLotFormAction(formData: FormData) {
+  const lotId = formData.get("lotId") as string;
+  if (!lotId) return;
+  await acceptLotAction(lotId);
+}
+
 /**
  * Update pickup request status (R1).
  */
@@ -84,6 +90,13 @@ export async function updatePickupStatusAction(requestId: string, newStatus: str
   });
 
   revalidatePath("/recycler");
+}
+
+export async function updatePickupStatusFormAction(formData: FormData) {
+  const requestId = formData.get("requestId") as string;
+  const newStatus = formData.get("status") as string;
+  if (!requestId || !newStatus) return;
+  await updatePickupStatusAction(requestId, newStatus);
 }
 
 /**
@@ -444,4 +457,134 @@ export async function recyclerCounterBargainAction(formData: FormData) {
   });
 
   revalidatePath("/recycler");
+}
+
+
+export async function recyclerRegisterAction(formData: FormData): Promise<void> {
+  const name = (formData.get("name") as string)?.trim();
+  const authorizationNo = (formData.get("authorizationNo") as string)?.trim();
+  const contactPhone = (formData.get("contactPhone") as string)?.trim();
+  const password = (formData.get("password") as string)?.trim();
+  const confirmPassword = (formData.get("confirmPassword") as string)?.trim();
+  const address = (formData.get("address") as string)?.trim();
+  const area = (formData.get("area") as string)?.trim() || "Industrial Area";
+  const district = (formData.get("district") as string)?.trim() || "Mumbai";
+  const state = (formData.get("state") as string)?.trim() || "Maharashtra";
+  const latitude = parseFloat(formData.get("latitude") as string) || 19.076;
+  const longitude = parseFloat(formData.get("longitude") as string) || 72.8777;
+  const pickupAvailable = formData.get("pickupAvailable") === "on" || formData.get("pickupAvailable") === "true";
+  const serviceRadiusKm = parseFloat(formData.get("serviceRadiusKm") as string) || 15;
+  const minimumWeightKg = parseFloat(formData.get("minimumWeightKg") as string) || 10;
+  const pickupChargeRupees = parseFloat(formData.get("pickupChargeRupees") as string) || 0;
+
+  if (!name || !authorizationNo || !contactPhone || !password || !address) {
+    redirect("/recycler/register?error=Please fill in all required fields");
+  }
+
+  if (!/^\d{10}$/.test(contactPhone)) {
+    redirect("/recycler/register?error=Contact phone must be 10 digits");
+  }
+
+  if (password.length < 6) {
+    redirect("/recycler/register?error=Password must be at least 6 characters long");
+  }
+
+  if (password !== confirmPassword) {
+    redirect("/recycler/register?error=Passwords do not match");
+  }
+
+  const existingUser = await prisma.user.findUnique({
+    where: { phone: contactPhone },
+  });
+
+  if (existingUser) {
+    redirect("/recycler/register?error=A user with this phone number already exists. Please sign in.");
+  }
+
+  const existingAuth = await prisma.recycler.findUnique({
+    where: { authorizationNo },
+  });
+
+  if (existingAuth) {
+    redirect("/recycler/register?error=A facility with this authorization number is already registered.");
+  }
+
+  const { hashPassword } = await import("@/lib/auth/password");
+  const passwordHash = await hashPassword(password);
+
+  const minimumWeightGrams = Math.round(minimumWeightKg * 1000);
+  const pickupChargePaise = Math.round(pickupChargeRupees * 100);
+
+  const validTill = new Date();
+  validTill.setFullYear(validTill.getFullYear() + 2); // 2 years valid by default
+
+  const result = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        phone: contactPhone,
+        pinHash: passwordHash,
+        role: "RECYCLER",
+        language: "EN",
+      },
+    });
+
+    const recycler = await tx.recycler.create({
+      data: {
+        name,
+        authorizationNo,
+        authorizationStatus: "VERIFIED", // Verified for immediate demo readiness
+        authorizationValidTill: validTill,
+        contactPhone,
+        address,
+        area,
+        district,
+        state,
+        latitude,
+        longitude,
+        pickupAvailable,
+        serviceRadiusKm,
+        minimumWeightGrams,
+        pickupChargePaise,
+      },
+    });
+
+    const staff = await tx.recyclerStaff.create({
+      data: {
+        userId: user.id,
+        recyclerId: recycler.id,
+      },
+    });
+
+    // Populate initial default rates for categories 1-7
+    const defaultRates = [
+      { categoryId: 1, rate: 4500 }, // Copper ₹45/kg
+      { categoryId: 2, rate: 1200 }, // PCB ₹12/kg
+      { categoryId: 3, rate: 2500 }, // Battery ₹25/kg
+      { categoryId: 4, rate: 800 },  // Display ₹8/kg
+      { categoryId: 5, rate: 600 },  // Cables ₹6/kg
+      { categoryId: 6, rate: 200 },  // Plastic ₹2/kg
+      { categoryId: 7, rate: 500 },  // Mixed ₹5/kg
+    ];
+
+    await tx.recyclerRate.createMany({
+      data: defaultRates.map((r) => ({
+        recyclerId: recycler.id,
+        categoryId: r.categoryId,
+        ratePerKgPaise: r.rate,
+        effectiveFrom: new Date(),
+        isCurrent: true,
+      })),
+    });
+
+    return { user, recycler, staff };
+  });
+
+  await createSessionCookie({
+    userId: result.user.id,
+    phone: result.user.phone,
+    role: "RECYCLER",
+    recyclerId: result.recycler.id,
+  });
+
+  redirect("/recycler?welcome=true");
 }

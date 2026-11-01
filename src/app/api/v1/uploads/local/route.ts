@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveLocalFile, readLocalFile } from "@/lib/storage";
+import { saveLocalFile, readLocalFile, sanitizeStorageKey } from "@/lib/storage";
 import { apiError, apiSuccess } from "@/lib/apiResponse";
 
 export async function PUT(req: NextRequest) {
@@ -10,14 +10,19 @@ export async function PUT(req: NextRequest) {
       return apiError("MISSING_KEY", "Storage key is required as query parameter ?key=...", 400);
     }
 
+    const cleanKey = sanitizeStorageKey(key);
+    if (!cleanKey) {
+      return apiError("INVALID_KEY", "Invalid or unsafe storage key provided", 400);
+    }
+
     const arrayBuffer = await req.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    await saveLocalFile(key, buffer);
+    await saveLocalFile(cleanKey, buffer);
 
     return apiSuccess({
       message: "File uploaded successfully to local storage",
-      storageKey: key,
+      storageKey: cleanKey,
       bytes: buffer.length,
     });
   } catch (err: unknown) {
@@ -34,7 +39,12 @@ export async function GET(req: NextRequest) {
       return apiError("MISSING_KEY", "Storage key is required", 400);
     }
 
-    const fileBuffer = await readLocalFile(key);
+    const cleanKey = sanitizeStorageKey(key);
+    if (!cleanKey) {
+      return apiError("INVALID_KEY", "Invalid or unsafe storage key", 400);
+    }
+
+    const fileBuffer = await readLocalFile(cleanKey);
     if (!fileBuffer) {
       return apiError("NOT_FOUND", "File not found", 404);
     }

@@ -221,3 +221,55 @@ export async function uploadTrainingPhotoAction(formData: FormData) {
 
   redirect(`/field/training?success=Training sample logged and labeled for category #${categoryId}`);
 }
+
+
+export async function fieldRegisterAction(formData: FormData): Promise<void> {
+  const phone = (formData.get("phone") as string)?.trim();
+  const password = (formData.get("password") as string)?.trim();
+  const confirmPassword = (formData.get("confirmPassword") as string)?.trim();
+  const language = ((formData.get("language") as string)?.toUpperCase() || "EN") as Language;
+  const assignedArea = (formData.get("assignedArea") as string)?.trim() || "Mumbai Central Hub";
+
+  if (!phone || !password) {
+    redirect("/field/register?error=Phone and password are required");
+  }
+
+  if (!/^\d{10}$/.test(phone)) {
+    redirect("/field/register?error=Mobile phone must be 10 digits");
+  }
+
+  if (password.length < 6) {
+    redirect("/field/register?error=Password must be at least 6 characters");
+  }
+
+  if (password !== confirmPassword) {
+    redirect("/field/register?error=Passwords do not match");
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { phone },
+  });
+
+  if (existing) {
+    redirect("/field/register?error=A user with this phone number already exists. Please sign in.");
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  const user = await prisma.user.create({
+    data: {
+      phone,
+      pinHash: passwordHash,
+      role: "FIELD_AGENT",
+      language,
+    },
+  });
+
+  await createSessionCookie({
+    userId: user.id,
+    phone: user.phone,
+    role: "FIELD_AGENT",
+  });
+
+  redirect("/field?welcome=true");
+}

@@ -18,6 +18,19 @@ export async function GET(req: NextRequest) {
     const lng = parseFloat(lngStr);
     const radiusKm = parseFloat(radiusStr);
 
+    if (
+      isNaN(lat) ||
+      isNaN(lng) ||
+      isNaN(radiusKm) ||
+      radiusKm <= 0 ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return apiError("INVALID_PARAMS", "Invalid numeric parameters or out-of-range coordinates", 400);
+    }
+
     const recyclers = await prisma.recycler.findMany({
       where: { authorizationStatus: "VERIFIED" },
       select: {

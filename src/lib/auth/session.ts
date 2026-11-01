@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { NextRequest } from "next/server";
 import { prisma } from "../prisma";
 import { Role } from "@prisma/client";
 
@@ -38,15 +39,35 @@ export async function clearSessionCookie() {
   cookieStore.delete(COOKIE_NAME);
 }
 
-export async function getSession(): Promise<SessionPayload | null> {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(COOKIE_NAME);
-  if (!sessionCookie || !sessionCookie.value) {
+export async function getSession(req?: NextRequest): Promise<SessionPayload | null> {
+  let token: string | undefined;
+
+  if (req) {
+    token = req.cookies.get(COOKIE_NAME)?.value;
+    if (!token) {
+      const authHeader = req.headers.get("authorization");
+      if (authHeader?.startsWith("Bearer ")) {
+        token = authHeader.substring(7).trim();
+      }
+    }
+  }
+
+  if (!token) {
+    try {
+      const cookieStore = await cookies();
+      const sessionCookie = cookieStore.get(COOKIE_NAME);
+      token = sessionCookie?.value;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!token) {
     return null;
   }
 
   try {
-    const { payload } = await jwtVerify(sessionCookie.value, SECRET_KEY);
+    const { payload } = await jwtVerify(token, SECRET_KEY);
     return {
       userId: String(payload.userId),
       phone: String(payload.phone),

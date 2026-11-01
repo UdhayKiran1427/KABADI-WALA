@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import {
   acceptLotAction,
+  acceptLotFormAction,
   updatePickupStatusAction,
+  updatePickupStatusFormAction,
   recyclerAcceptBargainAction,
   recyclerCounterBargainAction,
 } from "./actions";
@@ -158,7 +160,8 @@ export default async function RecyclerDashboardPage() {
                     </td>
                     <td style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                       <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <form action={acceptLotAction.bind(null, lot.id)}>
+                        <form action={acceptLotFormAction}>
+                          <input type="hidden" name="lotId" value={lot.id} />
                           <button type="submit" className="btn btn-primary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
                             Accept
                           </button>
@@ -228,11 +231,8 @@ export default async function RecyclerDashboardPage() {
                       </span>
                     </td>
                     <td>
-                      <form action={async (formData: FormData) => {
-                        "use server";
-                        const newStatus = formData.get("status") as string;
-                        await updatePickupStatusAction(req.id, newStatus);
-                      }} style={{ display: "flex", gap: "0.25rem" }}>
+                      <form action={updatePickupStatusFormAction} style={{ display: "flex", gap: "0.25rem" }}>
+                        <input type="hidden" name="requestId" value={req.id} />
                         <select name="status" defaultValue={req.status} className="form-control" style={{ width: "auto", padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
                           <option value="ACCEPTED">ACCEPTED</option>
                           <option value="ON_THE_WAY">ON_THE_WAY</option>

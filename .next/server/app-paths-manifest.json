@@ -1,1 +1,8 @@
-{}
+{
+  "/field/page": "app/field/page.js",
+  "/recycler/page": "app/recycler/page.js",
+  "/collector/page": "app/collector/page.js",
+  "/field/onboard/page": "app/field/onboard/page.js",
+  "/field/prices/page": "app/field/prices/page.js",
+  "/field/training/page": "app/field/training/page.js"
+}

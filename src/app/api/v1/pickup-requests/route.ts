@@ -17,7 +17,12 @@ export async function POST(req: NextRequest) {
       return apiError("UNAUTHORIZED", "Sign-in required", 401);
     }
 
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return apiError("INVALID_JSON", "Malformed JSON request body", 400);
+    }
     const parsed = PickupRequestSchema.safeParse(body);
     if (!parsed.success) {
       return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 400);

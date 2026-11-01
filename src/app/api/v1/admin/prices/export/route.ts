@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(["ADMIN"]);
+    const session = await getSession(req);
+    if (!session || session.role !== "ADMIN") {
+      return new NextResponse(
+        JSON.stringify({ error: { code: "UNAUTHORIZED", message: "Admin role required to export prices" } }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     const prices = await prisma.pricePoint.findMany({
       orderBy: { recordedAt: "desc" },
