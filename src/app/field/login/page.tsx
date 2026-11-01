@@ -14,8 +14,8 @@ export default async function FieldAgentLoginPage(props: {
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
-        padding: "1.5rem",
-        backgroundColor: "#f1f5f9",
+        padding: "1.5rem 1rem",
+        backgroundColor: "var(--bg)",
       }}
     >
       <div
@@ -23,108 +23,108 @@ export default async function FieldAgentLoginPage(props: {
         style={{
           width: "100%",
           maxWidth: "420px",
-          padding: "2rem",
-          borderRadius: "16px",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.06)",
+          padding: "2rem 1.75rem",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-lg)",
+          border: "1px solid var(--slate-200)",
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📋</div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "#1e293b" }}>
-            फील्ड एजेंट पोर्टल / Field Agent
+        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+          <div
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "16px",
+              backgroundColor: "#f5f3ff",
+              color: "#7c3aed",
+              fontSize: "1.75rem",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: "0.75rem",
+            }}
+          >
+            📋
+          </div>
+          <h1 style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--slate-900)", letterSpacing: "-0.02em" }}>
+            Field Agent Hub
           </h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem", marginTop: "0.25rem" }}>
-            Ground Operations: Onboarding, Price Logging & AI Training Photos
+          <p style={{ color: "var(--slate-500)", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+            फील्ड साथी लॉगिन &bull; Operations F1–F3
           </p>
+          <div style={{ marginTop: "0.75rem" }}>
+            <span className="badge badge-neutral">Ground Operations</span>
+          </div>
         </div>
 
         {searchParams.error && (
-          <div
-            style={{
-              padding: "0.75rem 1rem",
-              backgroundColor: "#fee2e2",
-              color: "#b91c1c",
-              borderRadius: "8px",
-              fontSize: "0.875rem",
-              marginBottom: "1.25rem",
-              textAlign: "center",
-            }}
-          >
+          <div className="alert alert-danger" style={{ textAlign: "center", justifyContent: "center" }}>
             ⚠️ {searchParams.error}
           </div>
         )}
 
         <form action={fieldLoginAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-              Mobile Phone
-            </label>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" htmlFor="phone">Mobile Phone</label>
             <input
-              type="tel"
+              id="phone"
               name="phone"
+              type="tel"
+              className="form-control"
               defaultValue="9830000001"
+              placeholder="e.g. 9830000001"
               required
-              placeholder="10-digit mobile number"
-              className="input"
-              style={{ fontSize: "1rem", padding: "0.75rem", borderRadius: "8px" }}
+              style={{ fontSize: "1rem", padding: "0.75rem" }}
             />
           </div>
 
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-              Password
-            </label>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" htmlFor="password">Password</label>
             <input
-              type="password"
+              id="password"
               name="password"
+              type="password"
+              className="form-control"
               defaultValue="agent123"
+              placeholder="••••••••"
               required
-              placeholder="Enter password"
-              className="input"
-              style={{ fontSize: "1rem", padding: "0.75rem", borderRadius: "8px" }}
+              style={{ fontSize: "1rem", padding: "0.75rem" }}
             />
           </div>
 
           <button
             type="submit"
-            className="btn btn-primary"
-            style={{
-              width: "100%",
-              padding: "0.875rem",
-              fontSize: "1.05rem",
-              fontWeight: 700,
-              borderRadius: "10px",
-              marginTop: "0.5rem",
-              backgroundColor: "#2563eb",
-            }}
+            className="btn btn-primary btn-block btn-lg"
+            style={{ marginTop: "0.5rem", backgroundColor: "#7c3aed" }}
           >
             Agent Sign In &rarr;
           </button>
         </form>
 
-        <div style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.9rem" }}>
+        <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.85rem", color: "var(--slate-600)" }}>
           New Field Agent?{" "}
-          <Link href="/field/register" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline" }}>
-            Register as Field Agent &rarr;
+          <Link href="/field/register" style={{ color: "#7c3aed", fontWeight: 700 }}>
+            Register as Agent &rarr;
           </Link>
         </div>
 
         <div
           style={{
             marginTop: "1.5rem",
-            padding: "0.75rem",
-            backgroundColor: "#eff6ff",
-            borderRadius: "8px",
-            border: "1px solid #bfdbfe",
-            fontSize: "0.8rem",
-            color: "#1e40af",
+            padding: "0.875rem",
+            backgroundColor: "var(--slate-50)",
+            borderRadius: "var(--radius)",
+            border: "1px solid var(--slate-200)",
+            fontSize: "0.775rem",
+            color: "var(--slate-600)",
+            lineHeight: 1.5,
           }}
         >
-          🔑 <strong>Demo Field Agent:</strong> Phone: <code>9830000001</code> | Password: <code>agent123</code>
+          <strong>Demo Agent:</strong> <code>9830000001</code> / <code>agent123</code>
         </div>
 
-        <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.85rem" }}>
-          <Link href="/" style={{ color: "var(--text-muted)", textDecoration: "underline" }}>
+        <div style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.825rem" }}>
+          <Link href="/" style={{ color: "var(--slate-500)", textDecoration: "none" }}>
             &larr; Back to Platform Home
           </Link>
         </div>
@@ -132,4 +132,3 @@ export default async function FieldAgentLoginPage(props: {
     </div>
   );
 }
-

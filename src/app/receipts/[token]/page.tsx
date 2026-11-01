@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { buildPublicReceipt } from "@/lib/domain/anonymization";
+import Link from "next/link";
 
 export default async function PublicReceiptPage({
   params,
@@ -14,6 +15,7 @@ export default async function PublicReceiptPage({
       lot: {
         include: {
           category: true,
+          collector: true,
           transaction: { include: { recycler: true } },
           handovers: { where: { status: "CONFIRMED" }, take: 1 },
         },
@@ -25,8 +27,14 @@ export default async function PublicReceiptPage({
     return (
       <div style={{ maxWidth: "500px", margin: "4rem auto", padding: "1rem" }}>
         <div className="card" style={{ textAlign: "center" }}>
-          <h2>Receipt Not Found</h2>
-          <p className="text-muted">This transaction receipt link is invalid or has expired.</p>
+          <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>📄</div>
+          <h2>रसीद नहीं मिली &bull; Receipt Not Found</h2>
+          <p className="text-muted" style={{ marginTop: "0.5rem" }}>
+            This transaction receipt link is invalid, expired, or has been revoked.
+          </p>
+          <Link href="/" className="btn btn-secondary" style={{ marginTop: "1.5rem" }}>
+            Return to Platform Home
+          </Link>
         </div>
       </div>
     );
@@ -47,53 +55,110 @@ export default async function PublicReceiptPage({
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8fafc", padding: "2rem 1rem" }}>
-      <div style={{ maxWidth: "550px", margin: "0 auto", background: "white", borderRadius: "12px", border: "1px solid var(--border)", padding: "2rem", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)" }}>
-        <div style={{ textAlign: "center", borderBottom: "2px dashed #cbd5e1", paddingBottom: "1.5rem", marginBottom: "1.5rem" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "0.25rem" }}>♻️</div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 800 }}>Formal Traceability Receipt</h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>Government-Compliant E-Waste Handover Verification</p>
-          <div style={{ marginTop: "0.5rem" }}>
-            <span className="badge badge-success">✓ Verified Transaction</span>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", padding: "2rem 1rem 4rem" }}>
+      <div
+        className="card"
+        style={{
+          maxWidth: "540px",
+          margin: "0 auto",
+          background: "#ffffff",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid var(--slate-200)",
+          padding: "2rem 1.75rem",
+          boxShadow: "var(--shadow-xl)",
+          position: "relative",
+        }}
+      >
+        {/* Certificate Header */}
+        <div style={{ textAlign: "center", borderBottom: "2px dashed var(--slate-300)", paddingBottom: "1.75rem", marginBottom: "1.75rem" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "var(--primary-700)", fontWeight: 800, fontSize: "1.2rem", marginBottom: "0.5rem" }}>
+            <span>♻️</span> KABADI WALA
+          </div>
+          <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--slate-900)", letterSpacing: "-0.01em" }}>
+            Formal Traceability Receipt
+          </h1>
+          <p style={{ color: "var(--slate-500)", fontSize: "0.775rem", marginTop: "0.2rem" }}>
+            Government-Compliant E-Waste Handover Verification &bull; EPR Proof
+          </p>
+          <div style={{ marginTop: "0.75rem" }}>
+            <span className="badge badge-success" style={{ fontSize: "0.75rem", padding: "0.3rem 0.75rem" }}>
+              ✓ Verified &amp; Settled Transaction
+            </span>
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.9375rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>Lot Reference:</span>
+        {/* Receipt Details */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem", fontSize: "0.9rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.5rem" }}>
+            <span style={{ color: "var(--slate-500)" }}>Lot Reference</span>
             <strong><code>{receipt.lotRef}</code></strong>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>Material:</span>
-            <strong>{receipt.categoryName}</strong>
+
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.5rem" }}>
+            <span style={{ color: "var(--slate-500)" }}>Scrap Material</span>
+            <strong style={{ color: "var(--slate-900)" }}>{receipt.categoryName}</strong>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>Scale Confirmed Weight:</span>
-            <strong>{receipt.weightKg} kg</strong>
+
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.5rem" }}>
+            <span style={{ color: "var(--slate-500)" }}>Scale Confirmed Weight</span>
+            <strong style={{ color: "var(--primary-800)", fontSize: "1rem" }}>{receipt.weightKg} kg</strong>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>Settlement Amount:</span>
-            <strong style={{ fontSize: "1.25rem", color: "var(--primary)" }}>{receipt.finalPriceRupees}</strong>
+
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.5rem" }}>
+            <span style={{ color: "var(--slate-500)" }}>Settlement Amount</span>
+            <strong style={{ fontSize: "1.35rem", color: "var(--primary-800)" }}>{receipt.finalPriceRupees}</strong>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>Authorized Recycler:</span>
-            <strong>{receipt.recyclerName}</strong>
+
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.5rem", alignItems: "flex-start" }}>
+            <span style={{ color: "var(--slate-500)" }}>Authorized Recycler</span>
+            <strong style={{ textAlign: "right", color: "var(--slate-900)" }}>{receipt.recyclerName}</strong>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>CPCB/SPCB Auth No:</span>
+
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.5rem" }}>
+            <span style={{ color: "var(--slate-500)" }}>CPCB / SPCB Auth No</span>
             <code>{receipt.authorizationNo}</code>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem" }}>
-            <span style={{ color: "var(--text-muted)" }}>Verified At:</span>
-            <span>{new Date(receipt.confirmedAt).toLocaleString("en-IN")}</span>
+
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--slate-100)", paddingBottom: "0.5rem" }}>
+            <span style={{ color: "var(--slate-500)" }}>Collector Short Code</span>
+            <span className="badge badge-neutral">#{lot.collector.shortCode}</span>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "0.25rem" }}>
+            <span style={{ color: "var(--slate-500)" }}>Verification Timestamp</span>
+            <span style={{ color: "var(--slate-700)", fontSize: "0.825rem" }}>
+              {new Date(receipt.confirmedAt).toLocaleString("en-IN", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </span>
           </div>
         </div>
 
-        <div style={{ marginTop: "2rem", padding: "0.75rem", background: "#f8fafc", borderRadius: "6px", textAlign: "center", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-          🔒 Privacy Protected: No personal collector data or phone numbers are exposed on public receipts.
+        {/* Privacy Note */}
+        <div
+          style={{
+            marginTop: "1.75rem",
+            padding: "0.875rem",
+            backgroundColor: "var(--slate-50)",
+            borderRadius: "var(--radius)",
+            textAlign: "center",
+            fontSize: "0.75rem",
+            color: "var(--slate-500)",
+            lineHeight: 1.5,
+            border: "1px solid var(--slate-200)",
+          }}
+        >
+          🔒 <strong>Zero-PII Privacy Protection:</strong> Personal phone numbers, home locations, and banking identifiers are strictly excluded from public receipts.
+        </div>
+
+        {/* Navigation & Print */}
+        <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", justifyContent: "center" }}>
+          <Link href="/" className="btn btn-secondary btn-sm">
+            &larr; Platform Home
+          </Link>
         </div>
       </div>
     </div>
   );
 }
-

@@ -99,6 +99,47 @@ export async function updatePickupStatusFormAction(formData: FormData) {
   await updatePickupStatusAction(requestId, newStatus);
 }
 
+export async function dispatchPickupFormAction(formData: FormData) {
+  const { dbUser } = await requireRole(["RECYCLER", "ADMIN"]);
+  const lotId = formData.get("lotId") as string;
+  if (!lotId || !dbUser.recyclerId) return;
+
+  const lot = await prisma.lot.findUnique({
+    where: { id: lotId },
+    include: { collector: true },
+  });
+
+  if (!lot) return;
+
+  const existing = await prisma.pickupRequest.findFirst({
+    where: { lotId, status: { notIn: ["CANCELLED", "EXPIRED"] } },
+  });
+
+  if (!existing) {
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await prisma.pickupRequest.create({
+      data: {
+        collectorId: lot.collector.userId,
+        recyclerId: dbUser.recyclerId,
+        lotId,
+        slot: new Date(),
+        status: "REQUESTED",
+        expiresAt,
+      },
+    });
+
+    const { sendNotification } = await import("@/lib/services/notificationService");
+    await sendNotification({
+      userId: lot.collector.userId,
+      title: "🚚 Doorstep Pickup Dispatched!",
+      body: `Recycler dispatched a field agent with vehicle and portable scale to pick up Lot ${lot.lotRef}.`,
+      dataJson: { lotId, status: "REQUESTED" },
+    });
+  }
+
+  revalidatePath("/recycler");
+}
+
 /**
  * Confirm or dispute handover with confirmed weight and mark payment (R2).
  */

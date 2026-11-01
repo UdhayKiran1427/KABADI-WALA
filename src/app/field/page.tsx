@@ -5,13 +5,16 @@ import { prisma } from "@/lib/prisma";
 export default async function FieldAgentDashboardPage(props: {
   searchParams: Promise<{ success?: string; error?: string }>;
 }) {
-  const { user } = await requireRole(["FIELD_AGENT", "ADMIN"]);
+  await requireRole(["FIELD_AGENT", "ADMIN"]);
   const searchParams = await props.searchParams;
 
   // Counts
   const collectorCount = await prisma.collector.count();
   const spotPriceCount = await prisma.pricePoint.count({ where: { source: "FIELD_AGENT" } });
   const trainingSampleCount = await prisma.trainingSample.count();
+  const activePickupCount = await prisma.pickupRequest.count({
+    where: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
+  });
 
   // Recent onboarded collectors
   const recentCollectors = await prisma.collector.findMany({
@@ -19,6 +22,16 @@ export default async function FieldAgentDashboardPage(props: {
     orderBy: { createdAt: "desc" },
     include: {
       user: { select: { phone: true } },
+    },
+  });
+
+  // Recent active pickups
+  const recentPickups = await prisma.pickupRequest.findMany({
+    take: 3,
+    orderBy: { slot: "desc" },
+    include: {
+      lot: { include: { category: true } },
+      recycler: { select: { name: true } },
     },
   });
 
@@ -71,14 +84,18 @@ export default async function FieldAgentDashboardPage(props: {
               Field Operations Console
             </div>
             <h1 style={{ fontSize: "1.6rem", fontWeight: 800, marginTop: "0.2rem" }}>
-              Ground Agent Tools (F1–F3)
+              Ground Operations &amp; Doorstep Logistics (F1–F4)
             </h1>
-            <p style={{ fontSize: "0.85rem", opacity: 0.9, marginTop: "0.25rem", maxWidth: "550px" }}>
-              Onboard informal scrap pickers, log scrap dealer spot market rates, and collect labeled photos for the computer vision classifier.
+            <p style={{ fontSize: "0.85rem", opacity: 0.9, marginTop: "0.25rem", maxWidth: "600px" }}>
+              Pick up heavy lots from collectors, weigh on portable scales, pay instant cash, and transport e-waste to authorized recyclers.
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: "0.75rem" }}>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <div style={{ backgroundColor: "rgba(255,255,255,0.15)", padding: "0.5rem 1rem", borderRadius: "10px", textAlign: "center" }}>
+              <div style={{ fontSize: "0.75rem", opacity: 0.8 }}>Pending Pickups</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#fef08a" }}>{activePickupCount}</div>
+            </div>
             <div style={{ backgroundColor: "rgba(255,255,255,0.15)", padding: "0.5rem 1rem", borderRadius: "10px", textAlign: "center" }}>
               <div style={{ fontSize: "0.75rem", opacity: 0.8 }}>Collectors</div>
               <div style={{ fontSize: "1.25rem", fontWeight: 800 }}>{collectorCount}</div>
@@ -87,12 +104,41 @@ export default async function FieldAgentDashboardPage(props: {
               <div style={{ fontSize: "0.75rem", opacity: 0.8 }}>Spot Rates</div>
               <div style={{ fontSize: "1.25rem", fontWeight: 800 }}>{spotPriceCount}</div>
             </div>
-            <div style={{ backgroundColor: "rgba(255,255,255,0.15)", padding: "0.5rem 1rem", borderRadius: "10px", textAlign: "center" }}>
-              <div style={{ fontSize: "0.75rem", opacity: 0.8 }}>AI Samples</div>
-              <div style={{ fontSize: "1.25rem", fontWeight: 800 }}>{trainingSampleCount}</div>
-            </div>
           </div>
         </div>
+      </div>
+
+      {/* Primary Logistics Action Card: F4 Doorstep Pickups */}
+      <div
+        className="card"
+        style={{
+          border: "2px solid #3b82f6",
+          backgroundColor: "#f8fafc",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "1rem",
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+            <span style={{ fontSize: "1.8rem" }}>🚚</span>
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#1e3a8a", margin: 0 }}>
+              F4: Doorstep Pickups &amp; Cash Handover (घर से उठाव व नकद भुगतान)
+            </h2>
+          </div>
+          <p style={{ color: "#475569", fontSize: "0.85rem", margin: 0, maxWidth: "650px" }}>
+            Go to collectors with a vehicle &amp; portable digital scale. Weigh scrap on-site, verify 4-digit code, disburse cash to collector, and transport e-waste back to the recycler facility.
+          </p>
+        </div>
+        <Link
+          href="/field/pickups"
+          className="btn btn-primary"
+          style={{ backgroundColor: "#2563eb", padding: "0.75rem 1.5rem", fontSize: "0.95rem", fontWeight: 700 }}
+        >
+          View Pickup Tasks ({activePickupCount}) &rarr;
+        </Link>
       </div>
 
       {/* 3 Core Tools Grid (F1-F3) */}
@@ -108,7 +154,7 @@ export default async function FieldAgentDashboardPage(props: {
               Quickly register informal scrap collectors with zero identity documents. Generates instant 4-digit PIN and shortCode.
             </p>
           </div>
-          <Link href="/field/onboard" className="btn btn-primary" style={{ textAlign: "center", backgroundColor: "#2563eb" }}>
+          <Link href="/field/onboard" className="btn btn-secondary" style={{ textAlign: "center" }}>
             Open Onboarding Form &rarr;
           </Link>
         </div>
@@ -160,39 +206,34 @@ export default async function FieldAgentDashboardPage(props: {
             No collectors onboarded yet.
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="table" style={{ fontSize: "0.85rem" }}>
-              <thead>
-                <tr>
-                  <th>Short Code</th>
-                  <th>Mobile Phone</th>
-                  <th>Area</th>
-                  <th>District</th>
-                  <th>Language</th>
-                  <th>Onboarded At</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentCollectors.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <span className="badge" style={{ backgroundColor: "#e0f2fe", color: "#0369a1", fontWeight: 700 }}>
-                        {c.shortCode}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{c.user.phone}</td>
-                    <td>{c.operatingArea}</td>
-                    <td>{c.district || "Mumbai"}</td>
-                    <td>{c.preferredLanguage}</td>
-                    <td>{new Date(c.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {recentCollectors.map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "0.75rem",
+                  backgroundColor: "#f8fafc",
+                  borderRadius: "8px",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <div>
+                  <span className="badge" style={{ backgroundColor: "#dbeafe", color: "#1e40af", fontWeight: 700, marginRight: "0.5rem" }}>
+                    #{c.shortCode}
+                  </span>
+                  <span>{c.user.phone}</span>
+                </div>
+                <div style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                  {c.operatingArea} &bull; {new Date(c.createdAt).toLocaleDateString("en-IN")}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
     </div>
   );
 }
-

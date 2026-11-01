@@ -31,171 +31,121 @@ export default async function CollectorDashboardPage() {
       {/* Welcome Banner */}
       <div
         style={{
-          background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+          background: "linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%)",
           color: "#ffffff",
-          padding: "1.25rem",
-          borderRadius: "16px",
-          boxShadow: "0 4px 12px rgba(5, 150, 105, 0.2)",
+          padding: "1.5rem",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "0 8px 20px -4px rgba(5, 150, 105, 0.3)",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
           <div>
-            <div style={{ fontSize: "0.85rem", opacity: 0.9 }}>नमस्ते / Welcome</div>
-            <h1 style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "0.1rem" }}>
+            <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255, 255, 255, 0.8)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              नमस्ते &bull; Welcome
+            </div>
+            <h1 style={{ fontSize: "1.45rem", fontWeight: 800, letterSpacing: "-0.01em", marginTop: "0.15rem" }}>
               {collector?.shortCode ? `कलेक्टर #${collector.shortCode}` : "कबाड़ीवाला मित्र"}
             </h1>
           </div>
           <span
             style={{
-              backgroundColor: "rgba(255, 255, 255, 0.2)",
-              padding: "0.3rem 0.6rem",
+              backgroundColor: "rgba(255, 255, 255, 0.18)",
+              backdropFilter: "blur(4px)",
+              padding: "0.3rem 0.65rem",
               borderRadius: "999px",
               fontSize: "0.75rem",
               fontWeight: 700,
+              border: "1px solid rgba(255, 255, 255, 0.25)",
             }}
           >
             📍 {collector?.operatingArea || "Mumbai"}
           </span>
         </div>
 
-        <div style={{ marginTop: "1rem", display: "flex", gap: "1rem", fontSize: "0.85rem" }}>
-          <div style={{ backgroundColor: "rgba(255,255,255,0.15)", padding: "0.5rem 0.75rem", borderRadius: "10px", flex: 1 }}>
-            <div style={{ opacity: 0.8, fontSize: "0.75rem" }}>सक्रिय लॉट / Active</div>
-            <div style={{ fontSize: "1.2rem", fontWeight: 800 }}>{activeCount}</div>
+        <div style={{ marginTop: "1.25rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+          <div style={{ backgroundColor: "rgba(255,255,255,0.14)", padding: "0.75rem 0.875rem", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.15)" }}>
+            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.725rem", fontWeight: 600 }}>सक्रिय लॉट / Active Lots</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 800, marginTop: "0.15rem" }}>{activeCount}</div>
           </div>
-          <div style={{ backgroundColor: "rgba(255,255,255,0.15)", padding: "0.5rem 0.75rem", borderRadius: "10px", flex: 1 }}>
-            <div style={{ opacity: 0.8, fontSize: "0.75rem" }}>भुगतान / Payment</div>
-            <div style={{ fontSize: "1.2rem", fontWeight: 800 }}>💵 नकद (Cash)</div>
+          <div style={{ backgroundColor: "rgba(255,255,255,0.14)", padding: "0.75rem 0.875rem", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.15)" }}>
+            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.725rem", fontWeight: 600 }}>भुगतान विधि / Payout</div>
+            <div style={{ fontSize: "1.1rem", fontWeight: 800, marginTop: "0.25rem" }}>💵 नकद / UPI</div>
           </div>
         </div>
       </div>
 
-      {/* 4 Main Action Tiles (C3 Wireframe) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-        <Link
-          href="/collector/create-lot"
-          style={{
-            backgroundColor: "#ffffff",
-            padding: "1.25rem 1rem",
-            borderRadius: "14px",
-            border: "2px solid #10b981",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            textAlign: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <span style={{ fontSize: "2.25rem" }}>📦</span>
-          <span style={{ fontSize: "1rem", fontWeight: 800, color: "#065f46" }}>नया लॉट बनाएं</span>
-          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Create New Lot</span>
+      {/* 4 Main Action Tiles */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.875rem" }}>
+        <Link href="/collector/create-lot" className="action-tile" style={{ borderColor: "var(--primary-border)", background: "#ffffff" }}>
+          <div className="action-tile-icon" style={{ backgroundColor: "var(--primary-100)", color: "var(--primary-800)" }}>
+            📦
+          </div>
+          <div className="action-tile-title" style={{ color: "var(--primary-800)" }}>नया लॉट बनाएं</div>
+          <div className="action-tile-subtitle">Create New Scrap Lot</div>
         </Link>
 
-        <Link
-          href="/collector/prices"
-          style={{
-            backgroundColor: "#ffffff",
-            padding: "1.25rem 1rem",
-            borderRadius: "14px",
-            border: "1px solid #e2e8f0",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            textAlign: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <span style={{ fontSize: "2.25rem" }}>📈</span>
-          <span style={{ fontSize: "1rem", fontWeight: 800, color: "#1e293b" }}>आज के भाव</span>
-          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Today's Scrap Rates</span>
+        <Link href="/collector/prices" className="action-tile">
+          <div className="action-tile-icon" style={{ backgroundColor: "#eff6ff", color: "#1d4ed8" }}>
+            📈
+          </div>
+          <div className="action-tile-title">आज के भाव</div>
+          <div className="action-tile-subtitle">Today's Scrap Rates</div>
         </Link>
 
-        <Link
-          href="/collector/ledger"
-          style={{
-            backgroundColor: "#ffffff",
-            padding: "1.25rem 1rem",
-            borderRadius: "14px",
-            border: "1px solid #e2e8f0",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            textAlign: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <span style={{ fontSize: "2.25rem" }}>💰</span>
-          <span style={{ fontSize: "1rem", fontWeight: 800, color: "#1e293b" }}>मेरी कमाई</span>
-          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Earnings & Ledger</span>
+        <Link href="/collector/ledger" className="action-tile">
+          <div className="action-tile-icon" style={{ backgroundColor: "#fef3c7", color: "#b45309" }}>
+            💰
+          </div>
+          <div className="action-tile-title">मेरी कमाई</div>
+          <div className="action-tile-subtitle">Earnings &amp; Payouts</div>
         </Link>
 
-        <Link
-          href="/collector/safety"
-          style={{
-            padding: "1.25rem 1rem",
-            borderRadius: "14px",
-            border: "1px solid #fecaca",
-            backgroundColor: "#fff5f5",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            textAlign: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <span style={{ fontSize: "2.25rem" }}>⚠️</span>
-          <span style={{ fontSize: "1rem", fontWeight: 800, color: "#991b1b" }}>सुरक्षा नियम</span>
-          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Safety Guide (4 Rules)</span>
+        <Link href="/collector/safety" className="action-tile" style={{ borderColor: "#fecaca" }}>
+          <div className="action-tile-icon" style={{ backgroundColor: "#fee2e2", color: "#b91c1c" }}>
+            ⚠️
+          </div>
+          <div className="action-tile-title" style={{ color: "#991b1b" }}>सुरक्षा नियम</div>
+          <div className="action-tile-subtitle">4 Critical Safety Rules</div>
         </Link>
       </div>
 
-      {/* Geolocation Shortcuts (C21 & C22) */}
+      {/* Geolocation Shortcuts */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
         <Link
           href="/collector/drop-points"
+          className="card card-interactive"
           style={{
-            backgroundColor: "#ffffff",
-            padding: "0.75rem",
-            borderRadius: "12px",
-            border: "1px solid #cbd5e1",
+            padding: "0.875rem 0.75rem",
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
-            fontSize: "0.8rem",
-            color: "#334155",
-            fontWeight: 700,
+            gap: "0.6rem",
+            textDecoration: "none",
           }}
         >
-          <span style={{ fontSize: "1.25rem" }}>⛺</span>
+          <span style={{ fontSize: "1.4rem" }}>⛺</span>
           <div>
-            <div>ड्रॉप बॉक्स / कैंप (C21)</div>
-            <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 500 }}>Nearby Drop Points</div>
+            <div style={{ fontSize: "0.825rem", fontWeight: 700, color: "var(--slate-800)" }}>ड्रॉप बॉक्स / कैंप</div>
+            <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>Nearby Drop Points</div>
           </div>
         </Link>
 
         <Link
           href="/collector/pickup-requests"
+          className="card card-interactive"
           style={{
-            backgroundColor: "#ffffff",
-            padding: "0.75rem",
-            borderRadius: "12px",
-            border: "1px solid #cbd5e1",
+            padding: "0.875rem 0.75rem",
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
-            fontSize: "0.8rem",
-            color: "#334155",
-            fontWeight: 700,
+            gap: "0.6rem",
+            textDecoration: "none",
           }}
         >
-          <span style={{ fontSize: "1.25rem" }}>🚚</span>
+          <span style={{ fontSize: "1.4rem" }}>🚚</span>
           <div>
-            <div>पिकअप स्थिति (C22)</div>
-            <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 500 }}>Pickup Status Timeline</div>
+            <div style={{ fontSize: "0.825rem", fontWeight: 700, color: "var(--slate-800)" }}>पिकअप स्थिति</div>
+            <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>Pickup Requests</div>
           </div>
         </Link>
       </div>
@@ -203,8 +153,10 @@ export default async function CollectorDashboardPage() {
       {/* Active Lots Section */}
       <div style={{ marginTop: "0.5rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-          <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#1e293b" }}>हाल के लॉट / Recent Lots</h2>
-          <Link href="/collector/create-lot" style={{ fontSize: "0.8rem", color: "var(--primary)", fontWeight: 600 }}>
+          <h2 style={{ fontSize: "1rem", fontWeight: 800, color: "var(--slate-900)" }}>
+            हाल के लॉट &bull; Recent Lots
+          </h2>
+          <Link href="/collector/create-lot" style={{ fontSize: "0.8rem", color: "var(--primary)", fontWeight: 700 }}>
             + नया जोड़ें
           </Link>
         </div>
@@ -212,35 +164,45 @@ export default async function CollectorDashboardPage() {
         {recentLots.length === 0 ? (
           <div
             style={{
-              padding: "2rem",
+              padding: "2.5rem 1.5rem",
               backgroundColor: "#ffffff",
-              borderRadius: "12px",
+              borderRadius: "var(--radius-md)",
               textAlign: "center",
-              color: "#64748b",
-              border: "1px dashed #cbd5e1",
+              color: "var(--slate-500)",
+              border: "1.5px dashed var(--slate-300)",
             }}
           >
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📦</div>
-            <div>कोई लॉट नहीं मिला / No active lots</div>
+            <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>📦</div>
+            <div style={{ fontWeight: 600, color: "var(--slate-700)" }}>कोई लॉट नहीं मिला / No active lots</div>
+            <div style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>आपने अभी तक कोई स्क्रैप लॉट दर्ज नहीं किया है।</div>
             <Link
               href="/collector/create-lot"
-              className="btn btn-primary"
-              style={{ marginTop: "0.75rem", display: "inline-block", fontSize: "0.85rem" }}
+              className="btn btn-sm btn-primary"
+              style={{ marginTop: "1rem", display: "inline-block" }}
             >
-              पहला लॉट बनाएं / Create First Lot
+              पहला लॉट बनाएं / Create First Lot &rarr;
             </Link>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
             {recentLots.map((lot) => {
               const statusColor =
                 lot.status === "COMPLETED"
-                  ? "#059669"
+                  ? "var(--success)"
                   : lot.status === "HANDED_OVER"
-                  ? "#0284c7"
+                  ? "var(--info)"
                   : lot.status === "MATCHED"
-                  ? "#d97706"
-                  : "#64748b";
+                  ? "var(--warning)"
+                  : "var(--slate-500)";
+
+              const statusBadge =
+                lot.status === "COMPLETED"
+                  ? "badge badge-success"
+                  : lot.status === "HANDED_OVER"
+                  ? "badge badge-info"
+                  : lot.status === "MATCHED"
+                  ? "badge badge-warning"
+                  : "badge badge-neutral";
 
               const statusText =
                 lot.status === "COMPLETED"
@@ -257,41 +219,38 @@ export default async function CollectorDashboardPage() {
                 <Link
                   key={lot.id}
                   href={`/collector/lots/${lot.id}`}
+                  className="card card-interactive"
                   style={{
-                    backgroundColor: "#ffffff",
-                    borderRadius: "12px",
                     padding: "0.875rem 1rem",
-                    border: "1px solid #e2e8f0",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.02)",
+                    textDecoration: "none",
                   }}
                 >
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                      <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#1e293b" }}>
-                        {lot.category.nameHi} ({lot.category.nameEn})
-                      </span>
+                    <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--slate-900)" }}>
+                      {lot.category.nameHi} ({lot.category.nameEn})
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem" }}>
-                      {lot.lotRef} • {(lot.approxWeightGrams / 1000).toFixed(1)} kg
+                    <div style={{ fontSize: "0.775rem", color: "var(--slate-500)", marginTop: "0.15rem" }}>
+                      <code>{lot.lotRef}</code> &bull; {(lot.approxWeightGrams / 1000).toFixed(1)} kg
                     </div>
                   </div>
 
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "0.75rem", fontWeight: 700, color: statusColor }}>
+                    <span className={statusBadge} style={{ fontSize: "0.7rem" }}>
                       {statusText}
-                    </div>
+                    </span>
                     {firstHandover?.verificationCode && (
                       <div
                         style={{
-                          fontSize: "0.8rem",
+                          fontSize: "0.75rem",
                           fontWeight: 800,
-                          backgroundColor: "#f1f5f9",
+                          backgroundColor: "var(--slate-100)",
+                          border: "1px solid var(--slate-200)",
                           padding: "0.1rem 0.4rem",
                           borderRadius: "4px",
-                          marginTop: "0.25rem",
+                          marginTop: "0.3rem",
                           display: "inline-block",
                         }}
                       >

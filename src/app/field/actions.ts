@@ -153,7 +153,7 @@ export async function logMarketPriceAction(formData: FormData) {
     },
   });
 
-  redirect(`/field/prices?success=Spot market price of ₹${buyingPriceRupees}/kg logged for category #${categoryId}`);
+  redirect(`/field/prices?success=Spot+market+price+of+Rs+${buyingPriceRupees}+logged+for+category+#${categoryId}`);
 }
 
 export async function uploadTrainingPhotoAction(formData: FormData) {
@@ -272,4 +272,215 @@ export async function fieldRegisterAction(formData: FormData): Promise<void> {
   });
 
   redirect("/field?welcome=true");
+}
+
+
+export async function agentUpdatePickupStatusAction(formData: FormData) {
+  const { user } = await requireRole(["FIELD_AGENT", "ADMIN"]);
+  const requestId = formData.get("requestId") as string;
+  const newStatus = formData.get("status") as string;
+
+  if (!requestId || !newStatus) {
+    redirect("/field/pickups?error=Invalid pickup request parameters");
+  }
+
+  const pickup = await prisma.pickupRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      lot: { include: { category: true } },
+      collector: true,
+      recycler: true,
+    },
+  });
+
+  if (!pickup) {
+    redirect("/field/pickups?error=Pickup request not found");
+  }
+
+  await prisma.pickupRequest.update({
+    where: { id: requestId },
+    data: { status: newStatus },
+  });
+
+  const { sendNotification } = await import("@/lib/services/notificationService");
+
+  if (newStatus === "ON_THE_WAY") {
+    await sendNotification({
+      userId: pickup.collectorId,
+      title: "🚚 Pickup Agent is On The Way!",
+      body: `Field agent is traveling to your location with a portable scale for Lot ${pickup.lot.lotRef}.`,
+      dataJson: { lotId: pickup.lotId, requestId: pickup.id, status: newStatus },
+    });
+  } else if (newStatus === "ARRIVED") {
+    await sendNotification({
+      userId: pickup.collectorId,
+      title: "📍 Pickup Agent Has Reached!",
+      body: `Field agent has arrived at your location. Please bring your ${pickup.lot.category.nameEn} for scale weighing.`,
+      dataJson: { lotId: pickup.lotId, requestId: pickup.id, status: newStatus },
+    });
+  }
+
+  redirect(`/field/pickups?success=Status updated to ${newStatus}`);
+}
+
+export async function agentCompleteDoorstepHandoverAction(formData: FormData) {
+  const { user } = await requireRole(["FIELD_AGENT", "ADMIN"]);
+  const requestId = formData.get("requestId") as string;
+  const scaleWeightKg = parseFloat(formData.get("scaleWeightKg") as string);
+  const verificationCode = (formData.get("verificationCode") as string)?.trim();
+  const paymentMode = (formData.get("paymentMode") as string) || "CASH";
+
+  if (!requestId || isNaN(scaleWeightKg) || scaleWeightKg <= 0) {
+    redirect("/field/pickups?error=Please enter a valid scale weight in kg");
+  }
+
+  const pickup = await prisma.pickupRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      lot: {
+        include: {
+          category: true,
+          collector: { include: { user: true } },
+          transaction: true,
+        },
+      },
+      recycler: true,
+    },
+  });
+
+  if (!pickup || !pickup.lot) {
+    redirect("/field/pickups?error=Pickup request or lot not found");
+  }
+
+  const lot = pickup.lot;
+  const tx = lot.transaction;
+  const scaleWeightGrams = Math.round(scaleWeightKg * 1000);
+
+  // Rate: agreed rate from bargaining, or transaction quoted rate, or 4000
+  const ratePaise = tx?.agreedRatePaise || tx?.quotedRatePerKgPaise || lot.quotedRatePaise || 4000;
+  const finalAmountPaise = Math.round((ratePaise * scaleWeightGrams) / 1000);
+
+  const handoverId = `HO-PICKUP-${lot.id.slice(0, 8)}-${Date.now().toString().slice(-4)}`;
+  const paymentId = `PAY-PICKUP-${lot.id.slice(0, 8)}-${Date.now().toString().slice(-4)}`;
+  const handoverRef = `HO-DOORSTEP-${Date.now().toString().slice(-6)}`;
+
+  await prisma.$transaction(async (db) => {
+    // 1. Upsert Handover record (handles pre-existing handover records gracefully)
+    const existingHandover = await db.handover.findFirst({
+      where: {
+        OR: [
+          ...(tx?.id ? [{ transactionId: tx.id }] : []),
+          { lotId: lot.id },
+        ],
+      },
+    });
+
+    if (existingHandover) {
+      await db.handover.update({
+        where: { id: existingHandover.id },
+        data: {
+          confirmedWeightGrams: scaleWeightGrams,
+          status: "CONFIRMED",
+          recyclerConfirmedAt: new Date(),
+          confirmedById: user.userId,
+        },
+      });
+    } else {
+      await db.handover.create({
+        data: {
+          id: handoverId,
+          lotId: lot.id,
+          transactionId: tx?.id || null,
+          handoverRef,
+          qrPayload: `EWASTE:${lot.id}:${verificationCode || "1234"}:${scaleWeightGrams}`,
+          verificationCode: verificationCode || "1234",
+          declaredWeightGrams: lot.approxWeightGrams,
+          confirmedWeightGrams: scaleWeightGrams,
+          capturedAt: new Date(),
+          locationClass: "MATCH",
+          status: "CONFIRMED",
+          recyclerConfirmedAt: new Date(),
+          confirmedById: user.userId,
+        },
+      });
+    }
+
+    // 2. Upsert Payment record (Cash handed to collector)
+    const existingPayment = await db.payment.findFirst({
+      where: { lotId: lot.id },
+    });
+
+    if (existingPayment) {
+      await db.payment.update({
+        where: { id: existingPayment.id },
+        data: {
+          amountPaise: finalAmountPaise,
+          method: paymentMode === "UPI" ? "UPI" : "CASH",
+          paidAt: new Date(),
+          recordedBy: "FIELD_AGENT",
+          confirmedByCollector: true,
+        },
+      });
+    } else {
+      await db.payment.create({
+        data: {
+          id: paymentId,
+          lotId: lot.id,
+          transactionId: tx?.id || null,
+          amountPaise: finalAmountPaise,
+          method: paymentMode === "UPI" ? "UPI" : "CASH",
+          paidAt: new Date(),
+          recordedBy: "FIELD_AGENT",
+          confirmedByCollector: true,
+        },
+      });
+    }
+
+    // 3. Update Transaction
+    if (tx) {
+      await db.transaction.update({
+        where: { id: tx.id },
+        data: {
+          status: "PAID",
+          paymentStatus: "PAID",
+          handoverAt: new Date(),
+          finalPricePaise: finalAmountPaise,
+        },
+      });
+    }
+
+    // 4. Update Lot
+    await db.lot.update({
+      where: { id: lot.id },
+      data: {
+        status: "COMPLETED",
+        finalPricePaise: finalAmountPaise,
+      },
+    });
+
+    // 5. Update PickupRequest
+    await db.pickupRequest.update({
+      where: { id: requestId },
+      data: {
+        status: "COMPLETED",
+      },
+    });
+  });
+
+  // Notify Collector
+  const { sendNotification } = await import("@/lib/services/notificationService");
+  await sendNotification({
+    userId: lot.collector.userId,
+    title: "💰 Cash Handover Completed!",
+    body: `Field agent collected ${scaleWeightKg.toFixed(2)} kg of ${lot.category.nameEn} and paid ₹${(finalAmountPaise / 100).toFixed(0)} in ${paymentMode}. Transporting to recycler!`,
+    dataJson: {
+      lotId: lot.id,
+      requestId,
+      scaleWeightKg,
+      finalAmountPaise,
+      paymentMode,
+    },
+  });
+
+  redirect(`/field/pickups?success=Doorstep+pickup+complete!+Paid+Rs+${(finalAmountPaise / 100).toFixed(0)}+cash+to+Collector+#${lot.collector.shortCode}`);
 }

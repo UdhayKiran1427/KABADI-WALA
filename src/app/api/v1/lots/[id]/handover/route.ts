@@ -165,42 +165,80 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const qrPayload = `EWASTE:${lot.id}:${expectedCode}:${scaleWeightGrams}`;
 
     const result = await prisma.$transaction(async (db) => {
-      // Create handover record
-      const handover = await db.handover.create({
-        data: {
-          id: handoverId,
-          lotId: lot.id,
-          transactionId: tx.id,
-          handoverRef,
-          qrPayload,
-          verificationCode: expectedCode,
-          declaredWeightGrams: lot.approxWeightGrams,
-          confirmedWeightGrams: scaleWeightGrams,
-          capturedAt: new Date(),
-          latitude: latitude || null,
-          longitude: longitude || null,
-          accuracy: gpsAccuracyMeters || null,
-          locationClass: locationProof.locationClass,
-          mockLocationFlag: mockLocationFlag || false,
-          status: "CONFIRMED",
-          recyclerConfirmedAt: new Date(),
-          disputeReason: locationProof.spoofFlags.join("; ") || (tolerance.requiresReview ? `WEIGHT_MISMATCH_${tolerance.percentageDiff}%` : null),
+      // Upsert handover record
+      const existingHandover = await db.handover.findFirst({
+        where: {
+          OR: [{ transactionId: tx.id }, { lotId: lot.id }],
         },
       });
 
-      // Create payment record
-      const payment = await db.payment.create({
-        data: {
-          id: paymentId,
-          lotId: lot.id,
-          transactionId: tx.id,
-          amountPaise: finalAmountPaise,
-          method: paymentMode as PaymentMethod,
-          paidAt: new Date(),
-          recordedBy: "RECYCLER",
-          upiRef: paymentMode === "UPI" ? (paymentRef || `UPI-${Date.now().toString().slice(-6)}`) : null,
-        },
+      let handover;
+      if (existingHandover) {
+        handover = await db.handover.update({
+          where: { id: existingHandover.id },
+          data: {
+            confirmedWeightGrams: scaleWeightGrams,
+            status: "CONFIRMED",
+            recyclerConfirmedAt: new Date(),
+            locationClass: locationProof.locationClass,
+            disputeReason: locationProof.spoofFlags.join("; ") || (tolerance.requiresReview ? `WEIGHT_MISMATCH_${tolerance.percentageDiff}%` : null),
+          },
+        });
+      } else {
+        handover = await db.handover.create({
+          data: {
+            id: handoverId,
+            lotId: lot.id,
+            transactionId: tx.id,
+            handoverRef,
+            qrPayload,
+            verificationCode: expectedCode,
+            declaredWeightGrams: lot.approxWeightGrams,
+            confirmedWeightGrams: scaleWeightGrams,
+            capturedAt: new Date(),
+            latitude: latitude || null,
+            longitude: longitude || null,
+            accuracy: gpsAccuracyMeters || null,
+            locationClass: locationProof.locationClass,
+            mockLocationFlag: mockLocationFlag || false,
+            status: "CONFIRMED",
+            recyclerConfirmedAt: new Date(),
+            disputeReason: locationProof.spoofFlags.join("; ") || (tolerance.requiresReview ? `WEIGHT_MISMATCH_${tolerance.percentageDiff}%` : null),
+          },
+        });
+      }
+
+      // Upsert payment record
+      const existingPayment = await db.payment.findFirst({
+        where: { lotId: lot.id },
       });
+
+      let payment;
+      if (existingPayment) {
+        payment = await db.payment.update({
+          where: { id: existingPayment.id },
+          data: {
+            amountPaise: finalAmountPaise,
+            method: paymentMode as PaymentMethod,
+            paidAt: new Date(),
+            recordedBy: "RECYCLER",
+            upiRef: paymentMode === "UPI" ? (paymentRef || `UPI-${Date.now().toString().slice(-6)}`) : null,
+          },
+        });
+      } else {
+        payment = await db.payment.create({
+          data: {
+            id: paymentId,
+            lotId: lot.id,
+            transactionId: tx.id,
+            amountPaise: finalAmountPaise,
+            method: paymentMode as PaymentMethod,
+            paidAt: new Date(),
+            recordedBy: "RECYCLER",
+            upiRef: paymentMode === "UPI" ? (paymentRef || `UPI-${Date.now().toString().slice(-6)}`) : null,
+          },
+        });
+      }
 
       // Update transaction
       await db.transaction.update({

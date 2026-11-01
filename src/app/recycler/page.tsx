@@ -6,6 +6,7 @@ import {
   acceptLotFormAction,
   updatePickupStatusAction,
   updatePickupStatusFormAction,
+  dispatchPickupFormAction,
   recyclerAcceptBargainAction,
   recyclerCounterBargainAction,
 } from "./actions";
@@ -159,7 +160,7 @@ export default async function RecyclerDashboardPage() {
                       )}
                     </td>
                     <td style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                         <form action={acceptLotFormAction}>
                           <input type="hidden" name="lotId" value={lot.id} />
                           <button type="submit" className="btn btn-primary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
@@ -169,6 +170,22 @@ export default async function RecyclerDashboardPage() {
                         <Link href={`/recycler/verify?query=${lot.lotRef}`} className="btn btn-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
                           Review
                         </Link>
+                        <form action={dispatchPickupFormAction}>
+                          <input type="hidden" name="lotId" value={lot.id} />
+                          <button
+                            type="submit"
+                            className="btn btn-secondary"
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.75rem",
+                              borderColor: "#2563eb",
+                              color: "#2563eb",
+                            }}
+                            title="Dispatch a field agent to pick up scrap directly from collector"
+                          >
+                            🚚 Dispatch Pickup
+                          </button>
+                        </form>
                       </div>
 
                       {lot.transaction && lot.transaction.bargainStatus === "OFFER_BY_COLLECTOR" && (

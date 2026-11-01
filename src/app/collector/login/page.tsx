@@ -14,8 +14,8 @@ export default async function CollectorLoginPage(props: {
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
-        padding: "1.5rem",
-        backgroundColor: "#f4f6f8",
+        padding: "1.5rem 1rem",
+        backgroundColor: "var(--bg)",
       }}
     >
       <div
@@ -23,45 +23,53 @@ export default async function CollectorLoginPage(props: {
         style={{
           width: "100%",
           maxWidth: "420px",
-          padding: "2rem",
-          borderRadius: "16px",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.06)",
+          padding: "2rem 1.75rem",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-lg)",
+          border: "1px solid var(--slate-200)",
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📱</div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--primary)" }}>
-            कबाड़ीवाला / KabadiWala
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+          <div
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "16px",
+              backgroundColor: "var(--primary-100)",
+              color: "var(--primary-800)",
+              fontSize: "1.75rem",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: "0.75rem",
+            }}
+          >
+            ♻️
+          </div>
+          <h1 style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--slate-900)", letterSpacing: "-0.02em" }}>
+            कबाड़ीवाला &bull; KabadiWala
           </h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem", marginTop: "0.25rem" }}>
+          <p style={{ color: "var(--slate-500)", fontSize: "0.85rem", marginTop: "0.25rem" }}>
             कलेक्टर लॉगिन / Collector Sign In
           </p>
-          <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", marginTop: "0.75rem" }}>
-            <span className="badge" style={{ backgroundColor: "#e2e8f0", color: "#334155" }}>हिंदी (Hindi)</span>
-            <span className="badge" style={{ backgroundColor: "#e2e8f0", color: "#334155" }}>मराठी (Marathi)</span>
-            <span className="badge" style={{ backgroundColor: "#e2e8f0", color: "#334155" }}>English</span>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: "0.4rem", marginTop: "0.85rem" }}>
+            <span className="badge badge-success">हिन्दी</span>
+            <span className="badge badge-neutral">मराठी</span>
+            <span className="badge badge-neutral">English</span>
           </div>
         </div>
 
         {searchParams.error && (
-          <div
-            style={{
-              padding: "0.75rem 1rem",
-              backgroundColor: "#fee2e2",
-              color: "#b91c1c",
-              borderRadius: "8px",
-              fontSize: "0.875rem",
-              marginBottom: "1.25rem",
-              textAlign: "center",
-            }}
-          >
+          <div className="alert alert-danger" style={{ textAlign: "center", justifyContent: "center" }}>
             ⚠️ {searchParams.error}
           </div>
         )}
 
         <form action={collectorLoginAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">
               फ़ोन नंबर / Mobile Phone
             </label>
             <input
@@ -70,13 +78,13 @@ export default async function CollectorLoginPage(props: {
               defaultValue="9820000001"
               required
               placeholder="10-digit mobile number"
-              className="input"
-              style={{ fontSize: "1.1rem", padding: "0.75rem", borderRadius: "8px" }}
+              className="form-control"
+              style={{ fontSize: "1.05rem", padding: "0.75rem" }}
             />
           </div>
 
-          <div>
-            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">
               4-अंकों का पिन / 4-Digit Security PIN
             </label>
             <input
@@ -87,56 +95,50 @@ export default async function CollectorLoginPage(props: {
               pattern="\d{4}"
               required
               placeholder="••••"
-              className="input"
+              className="form-control"
               style={{
                 fontSize: "1.5rem",
-                letterSpacing: "0.4rem",
+                letterSpacing: "0.5rem",
                 textAlign: "center",
-                padding: "0.75rem",
-                borderRadius: "8px",
+                padding: "0.6rem",
+                fontWeight: 800,
               }}
             />
           </div>
 
           <button
             type="submit"
-            className="btn btn-primary"
-            style={{
-              width: "100%",
-              padding: "0.875rem",
-              fontSize: "1.1rem",
-              fontWeight: 700,
-              borderRadius: "10px",
-              marginTop: "0.5rem",
-            }}
+            className="btn btn-primary btn-block btn-lg"
+            style={{ marginTop: "0.5rem" }}
           >
             लॉगिन करें / Sign In &rarr;
           </button>
         </form>
 
-        <div style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.9rem" }}>
-          नया कलेक्टर खाता बनाएं? / New Collector?{" "}
-          <Link href="/collector/register" style={{ color: "var(--primary)", fontWeight: 700, textDecoration: "underline" }}>
-            पंजीकरण करें / Register Now &rarr;
+        <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.85rem", color: "var(--slate-600)" }}>
+          नया कलेक्टर खाता बनाएं?{" "}
+          <Link href="/collector/register" style={{ color: "var(--primary-700)", fontWeight: 700 }}>
+            पंजीकरण करें &rarr;
           </Link>
         </div>
 
         <div
           style={{
             marginTop: "1.5rem",
-            padding: "0.75rem",
-            backgroundColor: "#ecfdf5",
-            borderRadius: "8px",
-            border: "1px solid #a7f3d0",
-            fontSize: "0.8rem",
-            color: "#065f46",
+            padding: "0.875rem",
+            backgroundColor: "var(--primary-50)",
+            borderRadius: "var(--radius)",
+            border: "1px solid var(--primary-border)",
+            fontSize: "0.775rem",
+            color: "var(--primary-900)",
+            lineHeight: 1.5,
           }}
         >
-          🔒 <strong>Privacy by Design:</strong> Zero personal data or identity documents stored. Cash payments guaranteed directly by authorized recyclers.
+          🔒 <strong>Privacy by Design:</strong> Zero personal identity documents required. Direct cash &amp; UPI payouts guaranteed by authorized recyclers.
         </div>
 
-        <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.85rem" }}>
-          <Link href="/" style={{ color: "var(--text-muted)", textDecoration: "underline" }}>
+        <div style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.825rem" }}>
+          <Link href="/" style={{ color: "var(--slate-500)", textDecoration: "none" }}>
             &larr; Back to Platform Home
           </Link>
         </div>
@@ -144,4 +146,3 @@ export default async function CollectorLoginPage(props: {
     </div>
   );
 }
-

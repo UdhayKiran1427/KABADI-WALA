@@ -56,62 +56,125 @@ export default async function CollectorPriceBoardPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <Link href="/collector" style={{ fontSize: "1.2rem", textDecoration: "none" }}>
+      {/* Page Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <Link
+          href="/collector"
+          className="btn btn-secondary btn-sm"
+          style={{ width: "36px", height: "36px", padding: 0, borderRadius: "50%" }}
+        >
           &larr;
         </Link>
         <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#1e293b", margin: 0 }}>
-            आज के ई-कचरा भाव / Daily Rates
+          <h1 style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--slate-900)", margin: 0, letterSpacing: "-0.01em" }}>
+            आज के ई-कचरा भाव &bull; Daily Rates
           </h1>
-          <div style={{ fontSize: "0.8rem", color: "#64748b" }}>मुम्बई मार्केट एवं रिसाइक्लर भाव / Mumbai District</div>
+          <div style={{ fontSize: "0.775rem", color: "var(--slate-500)" }}>
+            मुम्बई स्क्रैप मार्केट एवं अधिकृत रिसाइक्लर स्पॉट रेट
+          </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+      {/* Info Notice */}
+      <div
+        style={{
+          padding: "0.75rem 1rem",
+          backgroundColor: "#ffffff",
+          borderRadius: "var(--radius)",
+          border: "1px solid var(--slate-200)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontSize: "0.8rem",
+          color: "var(--slate-600)",
+        }}
+      >
+        <span>📅 अपडेट: {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+        <span className="badge badge-success">✓ Live Rates</span>
+      </div>
+
+      {/* Rate Cards List */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {boardData.map(({ category, board }) => {
           const rateRupees = (board.currentMedianPaise / 100).toFixed(0);
           const lowRupees = (board.marketLowPaise / 100).toFixed(0);
           const highRupees = (board.marketHighPaise / 100).toFixed(0);
 
-          const trendIcon = board.trend === "UP" ? "🟢 ↑" : board.trend === "DOWN" ? "🔴 ↓" : "⚪ ↔";
-          const trendColor = board.trend === "UP" ? "#059669" : board.trend === "DOWN" ? "#dc2626" : "#64748b";
+          const trendBadge =
+            board.trend === "UP"
+              ? "badge badge-success"
+              : board.trend === "DOWN"
+              ? "badge badge-danger"
+              : "badge badge-neutral";
+
+          const trendLabel =
+            board.trend === "UP" ? "↑ चढ़ रहा (Up)" : board.trend === "DOWN" ? "↓ गिर रहा (Down)" : "↔ स्थिर (Stable)";
 
           return (
             <div
               key={category.id}
+              className="card"
               style={{
-                backgroundColor: "#ffffff",
-                borderRadius: "14px",
-                padding: "1rem",
-                border: "1px solid #e2e8f0",
+                padding: "1.1rem",
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.02)",
+                flexDirection: "column",
+                gap: "0.6rem",
               }}
             >
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  <span style={{ fontWeight: 800, fontSize: "1rem", color: "#1e293b" }}>{category.nameHi}</span>
-                  {category.isHazardous && <span title="Hazardous Material">⚠️</span>}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--slate-900)" }}>
+                      {category.nameHi}
+                    </span>
+                    {category.isHazardous && (
+                      <span className="badge badge-danger" style={{ fontSize: "0.65rem", padding: "0.1rem 0.4rem" }}>
+                        खतरनाक
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "0.775rem", color: "var(--slate-500)", marginTop: "0.15rem" }}>
+                    {category.nameEn} &bull; {category.nameMr}
+                  </div>
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.15rem" }}>
-                  {category.nameEn} • {category.nameMr}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "0.25rem" }}>
-                  बाजार रेंज: ₹{lowRupees} - ₹{highRupees} / kg
+
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--primary-800)", lineHeight: 1.1 }}>
+                    ₹{rateRupees}
+                    <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "var(--slate-500)" }}> /kg</span>
+                  </div>
+                  <div style={{ marginTop: "0.25rem" }}>
+                    <span className={trendBadge} style={{ fontSize: "0.675rem" }}>
+                      {trendLabel}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#065f46" }}>
-                  ₹{rateRupees}
-                  <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "#64748b" }}>/kg</span>
+              {/* Range & Action */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  paddingTop: "0.6rem",
+                  borderTop: "1px solid var(--slate-100)",
+                  fontSize: "0.75rem",
+                }}
+              >
+                <div style={{ color: "var(--slate-500)" }}>
+                  बाजार रेंज: <strong>₹{lowRupees} &ndash; ₹{highRupees}</strong> / kg
                 </div>
-                <div style={{ fontSize: "0.75rem", fontWeight: 700, color: trendColor, marginTop: "0.15rem" }}>
-                  {trendIcon} {board.trend}
-                </div>
+                <Link
+                  href={`/collector/create-lot?categoryId=${category.id}`}
+                  style={{
+                    color: "var(--primary-700)",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                  }}
+                >
+                  + लॉट बनाएं &rarr;
+                </Link>
               </div>
             </div>
           );

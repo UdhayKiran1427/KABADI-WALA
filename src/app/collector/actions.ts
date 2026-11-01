@@ -235,7 +235,7 @@ export async function collectorBargainOfferAction(formData: FormData) {
     });
   }
 
-  redirect(`/collector/lots/${lotId}?success=Price offer of ₹${offerRateRupees}/kg sent to recycler!`);
+  redirect(`/collector/lots/${lotId}?success=Price+offer+of+Rs+${offerRateRupees}+sent+to+recycler`);
 }
 
 export async function collectorAcceptBargainAction(formData: FormData) {
@@ -288,7 +288,7 @@ export async function collectorAcceptBargainAction(formData: FormData) {
     });
   }
 
-  redirect(`/collector/lots/${lotId}?success=Agreed price of ₹${(agreedRatePaise / 100).toFixed(0)}/kg confirmed!`);
+  redirect(`/collector/lots/${lotId}?success=Agreed+price+of+Rs+${(agreedRatePaise / 100).toFixed(0)}+confirmed`);
 }
 
 
@@ -372,4 +372,45 @@ export async function collectorRegisterAction(formData: FormData) {
   });
 
   redirect("/collector?welcome=true");
+}
+
+
+export async function deleteLotAction(formData: FormData) {
+  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  const lotId = formData.get("lotId") as string;
+
+  if (!lotId) {
+    redirect("/collector?error=Lot ID is required");
+  }
+
+  const lot = await prisma.lot.findUnique({
+    where: { id: lotId },
+    include: { collector: true },
+  });
+
+  if (!lot) {
+    redirect("/collector?error=Lot not found");
+  }
+
+  if (user.role !== "ADMIN" && lot.collector.userId !== user.userId) {
+    redirect("/collector?error=You do not have permission to delete this lot");
+  }
+
+  if (lot.status === "COMPLETED" || lot.status === "HANDED_OVER") {
+    redirect(`/collector/lots/${lotId}?error=Cannot delete a lot that has already been handed over or paid`);
+  }
+
+  await prisma.$transaction(async (db) => {
+    await db.lotImage.deleteMany({ where: { lotId } });
+    await db.pickupRequest.deleteMany({ where: { lotId } });
+    await db.dispute.deleteMany({ where: { lotId } });
+    await db.matchSuggestion.deleteMany({ where: { lotId } });
+    await db.receiptShareToken.deleteMany({ where: { lotId } });
+    await db.payment.deleteMany({ where: { lotId } });
+    await db.handover.deleteMany({ where: { lotId } });
+    await db.transaction.deleteMany({ where: { lotId } });
+    await db.lot.delete({ where: { id: lotId } });
+  });
+
+  redirect("/collector?success=Lot+deleted+successfully");
 }
