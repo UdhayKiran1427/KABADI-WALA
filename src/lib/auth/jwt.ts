@@ -20,7 +20,7 @@ export async function signMobileToken(payload: MobileTokenPayload): Promise<stri
 
 export async function verifyMobileToken(token: string): Promise<MobileTokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(SECRET_KEY, token);
+    const { payload } = await jwtVerify(token, SECRET_KEY);
     return {
       userId: String(payload.userId),
       phone: String(payload.phone),
@@ -31,3 +31,4 @@ export async function verifyMobileToken(token: string): Promise<MobileTokenPaylo
     return null;
   }
 }
+

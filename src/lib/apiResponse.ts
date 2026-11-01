@@ -22,3 +22,4 @@ export function apiError(code: string, message: string, status: number = 400, de
     { status }
   );
 }
+

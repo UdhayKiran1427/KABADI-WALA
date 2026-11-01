@@ -126,3 +126,4 @@ export function computePercentile(sortedNumbers: number[], percentile: number): 
   const weight = index - lower;
   return Math.round(sortedNumbers[lower] * (1 - weight) + sortedNumbers[upper] * weight);
 }
+

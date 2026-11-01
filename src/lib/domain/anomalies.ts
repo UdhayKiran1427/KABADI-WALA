@@ -160,3 +160,4 @@ export function checkDuplicatePhotoAnomaly(existingLotId: string, sha256: string
     details: { existingLotId, sha256 },
   };
 }
+

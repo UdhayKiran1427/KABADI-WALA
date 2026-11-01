@@ -159,3 +159,4 @@ When a handover is recorded at `(lat, lng)` against a recycler facility:
 - `mockLocationFlag`: Device reported mocked GPS.
 - GPS Accuracy > 500 meters.
 - Implausible velocity: >=2 handovers >50 km apart within 10 minutes.
+

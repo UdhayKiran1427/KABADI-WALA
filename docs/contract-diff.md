@@ -212,3 +212,4 @@ Field agent submissions (F2) queue in `PendingPrices` and sync to `PricePoint` w
 16. **`CoverageRequest`**: Demand signal when no recycler serves a collector's area.
 17. **`PlatformFeeConfig`**: Unit economics and commission configuration.
 18. **`DatasetCard` & `DataValidationResult`**: ML dataset governance and quality monitoring.
+

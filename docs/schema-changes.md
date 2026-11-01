@@ -32,3 +32,4 @@
   - `CoverageRequest`: Unserviced area demand telemetry.
   - `PlatformFeeConfig`: Platform fee and commission rates.
   - `DatasetCard` & `DataValidationResult`: Anomaly tracking and AI dataset health.
+

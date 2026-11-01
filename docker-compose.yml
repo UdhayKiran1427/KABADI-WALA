@@ -54,3 +54,4 @@ services:
 volumes:
   mongo-data:
   minio-data:
+

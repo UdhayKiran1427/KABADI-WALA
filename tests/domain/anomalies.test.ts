@@ -60,3 +60,4 @@ test("checkDuplicatePhotoAnomaly generates flag descriptor with SHA256", () => {
   assert.equal(dup.ruleCode, "DUPLICATE_PHOTO_SHA256");
   assert.ok(dup.reason.includes("lot-123"));
 });
+

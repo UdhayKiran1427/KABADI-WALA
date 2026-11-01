@@ -42,3 +42,4 @@ export function validateLotRef(lotRef: string, expectedShortCode: string): { val
 
   return { valid: true };
 }
+

@@ -31,3 +31,4 @@ test("checkServerOwnedFields flags forbidden client mutations", () => {
   assert.equal(checkServerOwnedFields({ paymentStatus: "PAID" }).forbidden, true);
   assert.equal(checkServerOwnedFields({ approxWeightGrams: 5000, description: "Old PC" }).forbidden, false);
 });
+

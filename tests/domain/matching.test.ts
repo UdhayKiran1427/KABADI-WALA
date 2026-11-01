@@ -88,3 +88,4 @@ test("matchRecyclers excludes unverified or expired recyclers and ranks by score
   assert.equal(result.recyclers[0].rank, 1);
   assert.ok(result.recyclers[0].score > result.recyclers[1].score);
 });
+

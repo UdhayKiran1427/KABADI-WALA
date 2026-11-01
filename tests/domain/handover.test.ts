@@ -67,3 +67,4 @@ test("generateVerificationCode produces a valid 4-digit code", () => {
   assert.equal(validateVerificationCode(code, code), true);
   assert.equal(validateVerificationCode("0000", code === "0000" ? "1111" : code), false);
 });
+

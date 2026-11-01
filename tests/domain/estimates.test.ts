@@ -38,3 +38,4 @@ test("calculateEstimate falls back to recycler rates if price history is empty",
   assert.equal(res.medianRatePaisePerKg, 5500);
   assert.equal(res.estimatedValuePaise, 11000); // 5500 * 2kg = 11000 paise
 });
+

@@ -57,3 +57,4 @@ export function generateCategoryPriceBoard(
     recyclerMaxRatePaise: recyclerMax,
   };
 }
+

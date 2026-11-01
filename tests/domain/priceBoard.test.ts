@@ -22,3 +22,4 @@ test("generateCategoryPriceBoard summarizes market vs recycler range", () => {
   assert.equal(board.recyclerMinRatePaise, 3100);
   assert.equal(board.recyclerMaxRatePaise, 3500);
 });
+

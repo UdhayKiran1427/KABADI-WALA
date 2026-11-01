@@ -32,3 +32,4 @@ test("buildPublicReceipt creates public shareable receipt with zero PII", () => 
   assert.equal(receipt.finalPriceRupees, "₹1600.00");
   assert.equal(receipt.recyclerName, "EcoRecycle Hub");
 });
+

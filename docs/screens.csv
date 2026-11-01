@@ -30,3 +30,4 @@ M5,Platform admin,Impact reports,Web,Views volume routed to authorized recyclers
 F1,Field agent,Onboard collector,Android app,Creates a collector profile with minimal details on the collector's behalf,Later,Not started,,
 F2,Field agent,Log market price,Android app,"Records the price a local dealer is paying for a material, with date and place",Should,Not started,,
 F3,Field agent,Photo capture for training,Android app,Takes labelled material photos for the AI dataset,Should,Not started,,
+

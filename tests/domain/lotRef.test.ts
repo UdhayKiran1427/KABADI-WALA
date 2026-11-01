@@ -23,3 +23,4 @@ test("validateLotRef rejects malformed lotRef", () => {
   assert.equal(validateLotRef("INVALID", "AB12").valid, false);
   assert.equal(validateLotRef("LOT-AB12-INVALID-001", "AB12").valid, false);
 });
+

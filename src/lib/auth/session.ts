@@ -7,6 +7,8 @@ const SESSION_SECRET_STRING = process.env.SESSION_SECRET || "super-secret-sessio
 const SECRET_KEY = new TextEncoder().encode(SESSION_SECRET_STRING);
 const COOKIE_NAME = "ewaste_session";
 
+import { redirect } from "next/navigation";
+
 export interface SessionPayload {
   userId: string;
   phone: string;
@@ -44,7 +46,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   }
 
   try {
-    const { payload } = await jwtVerify(SECRET_KEY, sessionCookie.value);
+    const { payload } = await jwtVerify(sessionCookie.value, SECRET_KEY);
     return {
       userId: String(payload.userId),
       phone: String(payload.phone),
@@ -58,11 +60,18 @@ export async function getSession(): Promise<SessionPayload | null> {
 
 /**
  * Re-checks user role directly against the database on every server action or page load.
+ * Redirects unauthenticated visitors directly to their respective login page.
  */
-export async function requireRole(allowedRoles: Role[]): Promise<{ user: SessionPayload; dbUser: { id: string; phone: string; role: Role; recyclerId?: string } }> {
+export async function requireRole(
+  allowedRoles: Role[],
+  customRedirect?: string
+): Promise<{ user: SessionPayload; dbUser: { id: string; phone: string; role: Role; recyclerId?: string } }> {
   const session = await getSession();
+
+  const fallbackLogin = customRedirect || (allowedRoles.includes("ADMIN") ? "/admin/login" : "/recycler/login");
+
   if (!session) {
-    throw new Error("UNAUTHORIZED: Sign-in required");
+    redirect(fallbackLogin);
   }
 
   // Double check directly from DB to prevent privilege escalation or revoked access
@@ -72,11 +81,11 @@ export async function requireRole(allowedRoles: Role[]): Promise<{ user: Session
   });
 
   if (!dbUser || !dbUser.isActive) {
-    throw new Error("UNAUTHORIZED: User account inactive or not found");
+    redirect(fallbackLogin);
   }
 
   if (!allowedRoles.includes(dbUser.role)) {
-    throw new Error(`FORBIDDEN: Required role ${allowedRoles.join(" or ")}, but got ${dbUser.role}`);
+    redirect(fallbackLogin);
   }
 
   return {
@@ -89,3 +98,4 @@ export async function requireRole(allowedRoles: Role[]): Promise<{ user: Session
     },
   };
 }
+
