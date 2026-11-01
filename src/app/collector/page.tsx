@@ -153,6 +153,53 @@ export default async function CollectorDashboardPage() {
         </Link>
       </div>
 
+      {/* Geolocation Shortcuts (C21 & C22) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+        <Link
+          href="/collector/drop-points"
+          style={{
+            backgroundColor: "#ffffff",
+            padding: "0.75rem",
+            borderRadius: "12px",
+            border: "1px solid #cbd5e1",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            fontSize: "0.8rem",
+            color: "#334155",
+            fontWeight: 700,
+          }}
+        >
+          <span style={{ fontSize: "1.25rem" }}>⛺</span>
+          <div>
+            <div>ड्रॉप बॉक्स / कैंप (C21)</div>
+            <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 500 }}>Nearby Drop Points</div>
+          </div>
+        </Link>
+
+        <Link
+          href="/collector/pickup-requests"
+          style={{
+            backgroundColor: "#ffffff",
+            padding: "0.75rem",
+            borderRadius: "12px",
+            border: "1px solid #cbd5e1",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            fontSize: "0.8rem",
+            color: "#334155",
+            fontWeight: 700,
+          }}
+        >
+          <span style={{ fontSize: "1.25rem" }}>🚚</span>
+          <div>
+            <div>पिकअप स्थिति (C22)</div>
+            <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 500 }}>Pickup Status Timeline</div>
+          </div>
+        </Link>
+      </div>
+
       {/* Active Lots Section */}
       <div style={{ marginTop: "0.5rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>

@@ -128,6 +128,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/collector/drop-points/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/collector/drop-points">> = Specific
+  const handler = {} as typeof import("../../src/app/collector/drop-points/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/collector/ledger/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/collector/ledger">> = Specific
@@ -177,6 +186,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends AppPageConfig<"/collector">> = Specific
   const handler = {} as typeof import("../../src/app/collector/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/collector/pickup-requests/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/collector/pickup-requests">> = Specific
+  const handler = {} as typeof import("../../src/app/collector/pickup-requests/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
