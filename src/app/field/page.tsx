@@ -11,7 +11,6 @@ export default async function FieldAgentDashboardPage(props: {
   // Counts
   const collectorCount = await prisma.collector.count();
   const spotPriceCount = await prisma.pricePoint.count({ where: { source: "FIELD_AGENT" } });
-  const trainingSampleCount = await prisma.trainingSample.count();
   const activePickupCount = await prisma.pickupRequest.count({
     where: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
   });

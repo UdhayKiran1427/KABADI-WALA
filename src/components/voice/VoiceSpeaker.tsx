@@ -3,7 +3,6 @@
 import React from "react";
 import { Megaphone, Volume1, Volume2 } from "lucide-react";
 import { useVoice } from "./VoiceLanguageContext";
-import { SCREEN_PROMPTS } from "@/lib/voice/prompts";
 
 export interface VoiceSpeakerProps {
   id?: string;

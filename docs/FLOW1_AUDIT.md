@@ -41,10 +41,20 @@ Handover hash `sha256(ref:code)`: not changed. Batch handovers have no single lo
 - **Pickup-agent flow** (`agentCompleteDoorstepHandoverAction`) pays and completes in one step. Out of scope per spec s15; left as is.
 - `next lint` is not configured (no ESLint config; it prompts interactively).
 
-## Verification (2026-11-02, latest run)
-- Backend: `tsc --noEmit` clean, `tsx --test` 137/137 pass.
-- Flutter: `flutter analyze` 0 errors; `flutter test` 728 pass, 3 fail (R2 / R4 recycler screens and C14), all in files another session was editing during the run (`lib/screens/recycler/r2_*`, `r4_*`). Run alone, only R2 (overflow 480px at 360dp / text scale 1.3) still fails.
-- Full `flutter test` can show different failures on each run while other `flutter` processes use the same `build/` folder.
+## Quality / performance pass (2026-11-02)
+**Next.js**
+- ESLint configured (`eslint.config.mjs`): `npm run lint`, `lint:fix`, `typecheck`, `verify`. Rules: no unused vars (dead code), no `any`, no duplicate imports, type imports, and a ban on float `Math.round(a * b / 1000)` for money. 0 findings.
+- Removed: ~50 unused imports/variables/props, 2 unused DB queries (`datasetCard`, `trainingSampleCount`), unused collector `name` prop (also privacy), fake hardcoded monthly numbers on the impact page.
+- Performance: price board 3 queries instead of 3 per category (+ 60 s cache header); ratings via one `groupBy` instead of loading every rating row; bounding-box prefilter in `recyclers/nearby`; row caps on growing tables (`src/lib/limits.ts`); impact totals via `aggregate`.
+- Reusable: `firstPositiveRate`, `groupValues`, `getAverageRatings`, `boundingBox`, `monthlyKg`, one `WirePayload` type.
+
+**Flutter**
+- `analysis_options.yaml`: performance/async/dead-code rules (const, unused things as errors, strict raw types). 286 safe auto-fixes in 132 files. `flutter analyze` clean.
+- Local DB schema **v11**: 7 indexes (`lots`, `sync_outbox`, `price_cache`, `handovers`, `payments`, `lot_images`), snapshot + generated migrations + migration test (v1..v10 -> v11) pass.
+
+## Verification (latest run)
+- Next.js: `tsc` 0 errors, `eslint` 0 findings, 139 tests pass, `next build` OK.
+- Flutter: `flutter analyze` clean; `flutter test` 861 pass, 9 fail, all in `test/t_f3_widget_test.dart` (a new test file from another session: 320x568 at text scale 2.0 overflow checks and C8/RS1 journeys). Not touched.
 
 ## UNVERIFIED (not run)
 `/admin/disputes` and the rewritten `/lots/{id}/handover` against a real MongoDB replica set, idempotent `/sync/push` double-push, role x route matrix, airplane-mode journey, clock skew.

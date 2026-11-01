@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { validateLotTransition } from "@/lib/domain/lotStateMachine";
-import { FlowError } from "./lotFlowService";
+import { FlowError, notifyRecyclerStaff } from "./lotFlowService";
 import { sendNotification } from "./notificationService";
-import { notifyRecyclerStaff } from "./lotFlowService";
 import { writeAudit } from "./auditService";
 
 export type DisputeOutcome = "CONFIRM" | "CANCEL";

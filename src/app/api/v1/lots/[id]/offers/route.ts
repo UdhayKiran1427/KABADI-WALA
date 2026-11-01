@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireOwnedLot } from "@/lib/auth/lotAccess";
 import { apiErrorFrom, apiSuccess } from "@/lib/apiResponse";

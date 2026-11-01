@@ -1,13 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import {
-  SCREEN_PROMPTS,
-  HAZARD_AUDIO_SCRIPTS,
-  getMaterialPriceSpeech,
-  getVerificationCodeSpeech,
-  getEstimateSpeech,
-} from "../../src/lib/voice/prompts";
-import { getTranslation, UI_TRANSLATIONS } from "../../src/lib/i18n/translations";
+import { SCREEN_PROMPTS, HAZARD_AUDIO_SCRIPTS, getMaterialPriceSpeech, getVerificationCodeSpeech } from "../../src/lib/voice/prompts";
+import { getTranslation } from "../../src/lib/i18n/translations";
 
 describe("Voice Prompts and Engine Contract", () => {
   it("should have complete trilingual scripts (English, Hindi, Marathi) for all collector screens (C1-C12)", () => {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { PDFDocument, PDFFont, PDFPage, rgb, StandardFonts } from "pdf-lib";
-import { getInvoice, Invoice } from "@/lib/services/invoiceService";
+import { PDFDocument, type PDFFont, type PDFPage, rgb, StandardFonts } from "pdf-lib";
+import { getInvoice, type Invoice } from "@/lib/services/invoiceService";
 
 const GREEN = rgb(0.02, 0.47, 0.34);
 const DARK = rgb(0.06, 0.09, 0.16);

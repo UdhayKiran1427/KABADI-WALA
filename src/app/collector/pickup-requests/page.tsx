@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageTitle, PageVoice, T } from "../ui";
 import { kg } from "@/lib/format";
 import { simulateNextPickupStatusAction, cancelPickupRequestAction } from "../actions";
+import { LIST_MAX_ROWS } from "@/lib/limits";
 
 const STAGES = [
   { key: "REQUESTED", hi: "भेजा", en: "Sent", mr: "पाठवले", Icon: ClipboardList },
@@ -24,6 +25,7 @@ export default async function PickupRequestsTimelinePage() {
       lot: { include: { category: true } },
     },
     orderBy: { slot: "desc" },
+    take: LIST_MAX_ROWS,
   });
 
   return (

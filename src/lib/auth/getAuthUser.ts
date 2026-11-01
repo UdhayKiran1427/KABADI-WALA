@@ -1,8 +1,8 @@
 import { getSecretKey } from "./secrets";
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "../prisma";
-import { Role } from "@prisma/client";
+import { type Role } from "@prisma/client";
 import { verifyMobileToken } from "./jwt";
 import { apiError } from "../apiResponse";
 
@@ -26,7 +26,6 @@ export interface AuthenticatedUser {
  */
 export async function getAuthUser(req: NextRequest): Promise<AuthenticatedUser | null> {
   let userId: string | null = null;
-  let role: Role | null = null;
 
   // 1. Check Bearer token in header
   const authHeader = req.headers.get("authorization");
@@ -35,7 +34,6 @@ export async function getAuthUser(req: NextRequest): Promise<AuthenticatedUser |
     const payload = await verifyMobileToken(token);
     if (payload && payload.userId) {
       userId = payload.userId;
-      role = payload.role as Role;
     }
   }
 
@@ -47,7 +45,6 @@ export async function getAuthUser(req: NextRequest): Promise<AuthenticatedUser |
         const { payload } = await jwtVerify(cookie.value, getKey());
         if (payload && payload.userId) {
           userId = String(payload.userId);
-          role = payload.role as Role;
         }
       } catch {
         // invalid cookie

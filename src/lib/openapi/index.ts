@@ -1,7 +1,8 @@
 import { responses, schemas, securitySchemes } from "./components";
 import { operations, type DocRole } from "./paths";
+import type { WirePayload } from "@/lib/contract/wirePayload";
 
-type Json = Record<string, any>;
+type Json = WirePayload;
 
 export const SPEC_SLUGS = ["collector", "recycler", "admin", "field-agent", "all"] as const;
 export type SpecSlug = (typeof SPEC_SLUGS)[number];

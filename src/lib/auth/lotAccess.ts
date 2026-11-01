@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "../prisma";
 import { apiError } from "../apiResponse";
-import { AuthenticatedUser, requireApiUser } from "./getAuthUser";
+import { type AuthenticatedUser, requireApiUser } from "./getAuthUser";
 
 /**
  * Authenticates a collector (or admin) and loads a lot they own.

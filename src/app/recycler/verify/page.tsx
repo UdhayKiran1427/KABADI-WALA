@@ -4,6 +4,10 @@ import Link from "next/link";
 import { confirmHandoverAction } from "../actions";
 import { kg } from "@/lib/format";
 import { verifyEnteredHandoverCode } from "@/lib/domain/handover";
+import type { Prisma } from "@prisma/client";
+
+const LOT_INCLUDE = { category: true, images: true, handovers: true, collector: true, transaction: true } as const;
+type VerifyLot = Prisma.LotGetPayload<{ include: typeof LOT_INCLUDE }>;
 
 export default async function VerifyHandoverPage({
   searchParams,
@@ -14,12 +18,12 @@ export default async function VerifyHandoverPage({
   const recyclerId = dbUser.recyclerId;
   const { query, error } = await searchParams;
 
-  let lot: any = null;
-  let handover: any = null;
+  let lot: VerifyLot | null = null;
+  let handover: VerifyLot["handovers"][number] | null = null;
 
   if (query) {
     const cleanQuery = query.trim();
-    const include = { category: true, images: true, handovers: true, collector: true, transaction: true } as const;
+    const include = LOT_INCLUDE;
     // A recycler only ever sees lots that were handed to its own facility.
     lot = await prisma.lot.findFirst({
       where: {
@@ -40,12 +44,12 @@ export default async function VerifyHandoverPage({
       const match = open.find((h) => verifyEnteredHandoverCode(h, cleanQuery));
       if (match) {
         lot = await prisma.lot.findFirst({ where: { id: match.lotId, chosenRecyclerId: recyclerId }, include });
-        handover = lot?.handovers.find((h: any) => h.id === match.id) ?? null;
+        handover = lot?.handovers.find((h) => h.id === match.id) ?? null;
       }
     }
 
     if (lot && !handover && lot.handovers.length > 0) {
-      handover = lot.handovers.find((h: any) => h.handoverRef === cleanQuery) ?? lot.handovers[0];
+      handover = lot.handovers.find((h) => h.handoverRef === cleanQuery) ?? lot.handovers[0];
     }
   }
 
@@ -182,7 +186,7 @@ export default async function VerifyHandoverPage({
                     Ground Collection Photos ({lot.images.length})
                   </label>
                   <div style={{ display: "flex", gap: "0.75rem", overflowX: "auto", paddingBottom: "0.5rem" }}>
-                    {lot.images.map((img: any) => (
+                    {lot.images.map((img) => (
                       <div
                         key={img.id}
                         style={{

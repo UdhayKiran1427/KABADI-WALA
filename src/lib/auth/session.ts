@@ -1,9 +1,9 @@
 import { getSecretKey } from "./secrets";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "../prisma";
-import { Role } from "@prisma/client";
+import { type Role } from "@prisma/client";
 
 const getKey = () => getSecretKey("SESSION_SECRET");
 const COOKIE_NAME = "ewaste_session";

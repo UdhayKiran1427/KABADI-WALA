@@ -1,5 +1,6 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { boundingBox } from "@/lib/domain/geoBox";
 import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { calculateHaversineDistanceKm } from "@/lib/domain/matching";
 
@@ -31,8 +32,14 @@ export async function GET(req: NextRequest) {
       return apiError("INVALID_PARAMS", "Invalid numeric parameters or out-of-range coordinates", 400);
     }
 
+    // Database prefilter by bounding box, then the exact distance check below.
+    const box = boundingBox(lat, lng, radiusKm);
     const recyclers = await prisma.recycler.findMany({
-      where: { authorizationStatus: "VERIFIED" },
+      where: {
+        authorizationStatus: "VERIFIED",
+        latitude: { gte: box.minLat, lte: box.maxLat },
+        longitude: { gte: box.minLng, lte: box.maxLng },
+      },
       select: {
         id: true,
         name: true,

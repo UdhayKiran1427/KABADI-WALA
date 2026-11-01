@@ -1,11 +1,11 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { AppLanguage, speakText, stopSpeaking, isSpeechSupported } from "@/lib/voice/speech";
+import { type AppLanguage, speakText, stopSpeaking, isSpeechSupported } from "@/lib/voice/speech";
 import { SCREEN_PROMPTS } from "@/lib/voice/prompts";
 import { getTranslation } from "@/lib/i18n/translations";
 
-export type TextLanguage = "EN" | "HI";
+export type TextLanguage = "EN" | "HI" | "MR";
 
 interface VoiceContextType {
   // Voice Language: EN, HI, MR
@@ -14,7 +14,7 @@ interface VoiceContextType {
   setLanguage: (lang: AppLanguage) => void;
   setVoiceLanguage: (lang: AppLanguage) => void;
 
-  // Text Display Language: EN, HI
+  // Text Display Language: EN, HI, MR
   textLanguage: TextLanguage;
   setTextLanguage: (lang: TextLanguage) => void;
 
@@ -45,7 +45,7 @@ export function VoiceLanguageProvider({ children }: { children: React.ReactNode 
         setVoiceLanguageState(savedVoice as AppLanguage);
       }
       const savedText = localStorage.getItem("kabadi_text_lang");
-      if (savedText === "HI" || savedText === "EN") {
+      if (savedText === "HI" || savedText === "EN" || savedText === "MR") {
         setTextLanguageState(savedText as TextLanguage);
       }
     } catch {
@@ -55,12 +55,10 @@ export function VoiceLanguageProvider({ children }: { children: React.ReactNode 
 
   const setVoiceLanguage = useCallback((lang: AppLanguage) => {
     setVoiceLanguageState(lang);
-    if (lang === "EN" || lang === "HI") {
-      setTextLanguageState(lang);
-      try {
-        localStorage.setItem("kabadi_text_lang", lang);
-      } catch {}
-    }
+    setTextLanguageState(lang);
+    try {
+      localStorage.setItem("kabadi_text_lang", lang);
+    } catch {}
     stopSpeaking();
     setSpeakingId(null);
     try {
@@ -85,8 +83,8 @@ export function VoiceLanguageProvider({ children }: { children: React.ReactNode 
         return getTranslation(keyOrObj, textLanguage);
       }
       if (textLanguage === "EN") return keyOrObj.en;
-      if (textLanguage === "HI") return keyOrObj.hi;
-      return keyOrObj.mr || keyOrObj.hi || keyOrObj.en;
+      if (textLanguage === "MR") return keyOrObj.mr || keyOrObj.hi || keyOrObj.en;
+      return keyOrObj.hi || keyOrObj.en;
     },
     [textLanguage]
   );

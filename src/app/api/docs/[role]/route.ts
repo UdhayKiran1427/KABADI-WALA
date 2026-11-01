@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { apiError } from "@/lib/apiResponse";
 import { buildSpec, isSpecSlug, SPEC_SLUGS } from "@/lib/openapi";
 

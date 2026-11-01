@@ -1,7 +1,8 @@
-import { Prisma } from "@prisma/client";
-import { NextRequest } from "next/server";
+import { type Prisma } from "@prisma/client";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
+import { PRICE_HISTORY_MAX_ROWS } from "@/lib/limits";
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     const prices = await prisma.pricePoint.findMany({
       where,
       orderBy: { recordedAt: "asc" },
+      take: PRICE_HISTORY_MAX_ROWS,
       select: {
         id: true,
         categoryId: true,

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
 import { buildPublicReceipt } from "@/lib/domain/anonymization";

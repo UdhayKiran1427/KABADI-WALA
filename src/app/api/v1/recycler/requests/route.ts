@@ -1,8 +1,9 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
 import { LOT_ITEMS_INCLUDE, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
+import { LIST_MAX_ROWS } from "@/lib/limits";
 
 /**
  * Open lot requests for the signed-in recycler: lots within 5 km that are still looking for a buyer.
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: { createdAt: "desc" },
+      take: LIST_MAX_ROWS,
     });
 
     const requests = await Promise.all(

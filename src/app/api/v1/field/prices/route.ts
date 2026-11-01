@@ -1,5 +1,5 @@
-import { Prisma } from "@prisma/client";
-import { NextRequest } from "next/server";
+import { type Prisma } from "@prisma/client";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const auth = await getAuthUser(req);
-    let recordedById: string | null = auth?.userId || null;
+    const recordedById: string | null = auth?.userId || null;
 
     const { body, response: bodyError } = await parseBody(req, LogPriceSchema);
     if (bodyError) return bodyError;

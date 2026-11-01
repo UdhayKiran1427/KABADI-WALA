@@ -1,24 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { NextRequest } from "next/server";
-import { requireApiUser, AuthenticatedUser } from "../../src/lib/auth/getAuthUser";
-import { signMobileToken } from "../../src/lib/auth/jwt";
+import { type AuthenticatedUser } from "../../src/lib/auth/getAuthUser";
 
 describe("ROLE RB3: Role Isolation & Access Guarding", () => {
   it("blocks a collector token from accessing ADMIN API endpoints (ROLE RB3.2 & RB3.6)", async () => {
-    // Generate valid mobile token for a COLLECTOR
-    const collectorToken = await signMobileToken({
-      userId: "collector-uuid-001",
-      phone: "9876543210",
-      role: "COLLECTOR",
-    });
-
-    const req = new NextRequest("http://localhost:3000/api/v1/admin/recyclers", {
-      headers: {
-        authorization: `Bearer ${collectorToken}`,
-      },
-    });
-
     // An API user whose DB role is COLLECTOR attempting to invoke an ADMIN route
     // Note: getAuthUser checks against the database, let's verify requireApiUser role filter
     const mockCollectorUser: AuthenticatedUser = {

@@ -4,7 +4,7 @@ import {
   selectBroadcastTargets,
   calculateLotValuePaise,
   isValidCoordinate,
-  BroadcastCandidate,
+  type BroadcastCandidate,
 } from "../../src/lib/domain/lotBroadcast";
 
 const DHARAVI = { lat: 19.0434, lng: 72.8567 };

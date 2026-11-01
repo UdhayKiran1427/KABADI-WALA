@@ -1,41 +1,40 @@
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { roundCoordinateTo100m } from "@/lib/domain/anonymization";
+import { impactWindowStart, monthlyKg } from "@/lib/domain/impact";
 
 export default async function AdminImpactPage() {
   await requireRole(["ADMIN"]);
 
-  // 1. Kg routed through formal channel
-  const confirmedHandovers = await prisma.handover.findMany({
-    where: { status: "CONFIRMED" },
-    select: { confirmedWeightGrams: true, capturedAt: true },
-  });
-  const totalGrams = confirmedHandovers.reduce((sum, h) => sum + (h.confirmedWeightGrams || 0), 0);
-  const totalKg = Math.round(totalGrams / 1000);
+  const now = new Date();
 
-  // 2. Active collectors count
-  const collectorsCount = await prisma.collector.count();
+  // Totals are computed by the database, not by loading every row.
+  const [weightSum, collectorsCount, paidSum, monthlyRows, coverageRequests] = await Promise.all([
+    prisma.handover.aggregate({ where: { status: "CONFIRMED" }, _sum: { confirmedWeightGrams: true } }),
+    prisma.collector.count(),
+    prisma.payment.aggregate({ _sum: { amountPaise: true } }),
+    // Only the last 6 months, only the two columns we bucket.
+    prisma.handover.findMany({
+      where: { status: "CONFIRMED", capturedAt: { gte: impactWindowStart(now) } },
+      select: { confirmedWeightGrams: true, capturedAt: true },
+    }),
+    // Newest 5000 requests are plenty for a ~100m demand heatmap.
+    prisma.coverageRequest.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5000,
+      select: { latitude: true, longitude: true, approxWeightGrams: true },
+    }),
+  ]);
 
-  // 3. Paid out amount
-  const payments = await prisma.payment.findMany({ select: { amountPaise: true } });
-  const totalPaidRupees = payments.reduce((sum, p) => sum + p.amountPaise, 0) / 100;
+  const totalKg = Math.round((weightSum._sum.confirmedWeightGrams ?? 0) / 1000);
+  const totalPaidRupees = (paidSum._sum.amountPaise ?? 0) / 100;
   const totalPaidLakhs = (totalPaidRupees / 100000).toFixed(1);
 
-  // 4. Monthly volume aggregation (last 6 months) for SVG bars
-  const monthsData = [
-    { label: "Jun", kg: 1200 },
-    { label: "Jul", kg: 1850 },
-    { label: "Aug", kg: 2400 },
-    { label: "Sep", kg: 3100 },
-    { label: "Oct", kg: 3800 },
-    { label: "Nov", kg: Math.max(totalKg, 4200) },
-  ];
-  const maxKg = Math.max(...monthsData.map((m) => m.kg), 5000);
-
-  // 5. Coverage gap demand heatmap (~100m cells from CoverageRequest)
-  const coverageRequests = await prisma.coverageRequest.findMany({
-    include: { category: true },
-  });
+  const monthsData = monthlyKg(
+    monthlyRows.map((h) => ({ capturedAt: h.capturedAt, grams: h.confirmedWeightGrams })),
+    now
+  );
+  const maxKg = Math.max(...monthsData.map((m) => m.kg), 1);
 
   // Group by rounded 100m lat/lng cells
   const cellMap = new Map<string, { lat: number; lng: number; count: number; totalWeightKg: number }>();
@@ -48,7 +47,7 @@ export default async function AdminImpactPage() {
     cell.totalWeightKg += cr.approxWeightGrams / 1000;
     cellMap.set(key, cell);
   }
-  const heatmapCells = Array.from(cellMap.values());
+  const heatmapCells = Array.from(cellMap.values()).sort((x, y) => y.count - x.count);
 
   return (
     <div>
@@ -69,7 +68,7 @@ export default async function AdminImpactPage() {
         <div className="stat-box">
           <div className="stat-label">Paid to collectors</div>
           <div className="stat-value" style={{ color: "#0284c7" }}>₹{totalPaidLakhs}L</div>
-          <small style={{ color: "var(--text-muted)" }}>₹{(totalPaidRupees).toLocaleString("en-IN")}</small>
+          <small style={{ color: "var(--text-muted)" }}>₹{totalPaidRupees.toLocaleString("en-IN")}</small>
         </div>
       </div>
 

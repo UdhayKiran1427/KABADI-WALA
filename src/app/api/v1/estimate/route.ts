@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
 import { calculateEstimate } from "@/lib/domain/estimates";
@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
     const priceRecords = await prisma.pricePoint.findMany({
       where: { categoryId, recordedAt: { gte: thirtyDaysAgo } },
       select: { buyingPricePaise: true, recordedAt: true },
+      orderBy: { recordedAt: "desc" },
+      take: 500, // plenty for a stable median; keeps the estimate fast as price history grows
     });
 
     // Fetch active recycler rates for this category

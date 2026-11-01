@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, hashPassword } from "@/lib/auth/password";
 import { createSessionCookie, clearSessionCookie, requireRole } from "@/lib/auth/session";
-import { Language, Condition, DataSplit } from "@prisma/client";
+import { Language, DataSplit } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { amountPaise, firstPositiveRate } from "@/lib/domain/money";
 import { verifyEnteredHandoverCode } from "@/lib/domain/handover";
@@ -162,8 +162,6 @@ export async function uploadTrainingPhotoAction(formData: FormData) {
   const { user } = await requireRole(["FIELD_AGENT", "ADMIN"]);
 
   const categoryId = parseInt(formData.get("categoryId") as string, 10);
-  const subCategory = (formData.get("subCategory") as string)?.trim() || "Unsorted";
-  const condition = (formData.get("condition") as Condition) || Condition.UNKNOWN;
   const split = (formData.get("split") as DataSplit) || DataSplit.TRAIN;
   const storageKey = `images/field-agent/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
 
@@ -230,7 +228,6 @@ export async function fieldRegisterAction(formData: FormData): Promise<void> {
   const password = (formData.get("password") as string)?.trim();
   const confirmPassword = (formData.get("confirmPassword") as string)?.trim();
   const language = ((formData.get("language") as string)?.toUpperCase() || "EN") as Language;
-  const assignedArea = (formData.get("assignedArea") as string)?.trim() || "Mumbai Central Hub";
 
   if (!phone || !password) {
     redirect("/field/register?error=Phone and password are required");
@@ -278,7 +275,7 @@ export async function fieldRegisterAction(formData: FormData): Promise<void> {
 
 
 export async function agentUpdatePickupStatusAction(formData: FormData) {
-  const { user } = await requireRole(["FIELD_AGENT", "ADMIN"]);
+  await requireRole(["FIELD_AGENT", "ADMIN"]);
   const requestId = formData.get("requestId") as string;
   const newStatus = formData.get("status") as string;
 

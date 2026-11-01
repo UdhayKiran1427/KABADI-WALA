@@ -95,12 +95,8 @@ export function LanguageSelect() {
   const { voiceLanguage, setVoiceLanguage, setTextLanguage } = useVoice();
 
   const onChange = (lang: AppLanguage) => {
-    if (lang === "MR") {
-      setTextLanguage("HI");
-      setVoiceLanguage("MR");
-    } else {
-      setVoiceLanguage(lang);
-    }
+    setVoiceLanguage(lang);
+    setTextLanguage(lang as "EN" | "HI" | "MR");
   };
 
   return (

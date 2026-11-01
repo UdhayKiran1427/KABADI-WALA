@@ -6,7 +6,7 @@ import {
   primaryItem,
   averageRatePerKgPaise,
   completeItemRates,
-  PricedLotItem,
+  type PricedLotItem,
 } from "../../src/lib/domain/lotItems";
 
 const items: PricedLotItem[] = [

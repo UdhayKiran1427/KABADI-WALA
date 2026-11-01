@@ -1,8 +1,9 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthCollector } from "@/lib/auth/getAuthCollector";
 import { apiError, apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";
 import { z } from "zod";
+import { LIST_MAX_ROWS } from "@/lib/limits";
 
 const PickupRequestSchema = z.object({
   lotId: z.string().min(1),
@@ -74,6 +75,7 @@ export async function GET(req: NextRequest) {
         lot: { select: { id: true, lotRef: true, approxWeightGrams: true } },
       },
       orderBy: { createdAt: "desc" },
+      take: LIST_MAX_ROWS,
     });
 
     return apiSuccess({ requests });

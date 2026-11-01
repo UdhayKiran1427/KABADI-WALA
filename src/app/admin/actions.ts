@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, createSessionCookie, clearSessionCookie } from "@/lib/auth/session";
 import { writeAudit } from "@/lib/services/auditService";
 import { resolveDispute, type DisputeOutcome } from "@/lib/services/disputeService";
-import { verifyPassword, hashPassword, hashPin } from "@/lib/auth/password";
+import { verifyPassword, hashPassword } from "@/lib/auth/password";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createRecycler, setRecyclerStatus, setTodayPrices } from "@/lib/services/adminService";

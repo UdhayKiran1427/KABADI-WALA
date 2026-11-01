@@ -21,7 +21,6 @@ export default async function CollectorSettingsPage() {
     <CollectorSettingsClient
       phone={user.phone}
       shortCode={collector?.shortCode || "KW01"}
-      name={collector?.name || "Collector"}
       operatingArea={collector?.operatingArea || "Mumbai"}
       logoutAction={collectorLogoutAction}
     />

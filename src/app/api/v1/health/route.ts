@@ -1,8 +1,7 @@
-import { NextRequest } from "next/server";
 import { assertReplicaSetHealth } from "@/lib/prisma";
 import { apiError, apiSuccess } from "@/lib/apiResponse";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const dbHealth = await assertReplicaSetHealth();
 

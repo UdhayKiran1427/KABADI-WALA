@@ -12,7 +12,7 @@
  *  - Lot status is only ever written through lotStatusMapping + lotStateMachine.
  */
 
-import { Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
 import { validateLotRef } from "../domain/lotRef";
 import { validateLotTransition } from "../domain/lotStateMachine";
 import {
@@ -26,9 +26,10 @@ import { validateStorageKey, storageObjectExists } from "../storage";
 import { lotClientState, serializePullLot, type LotWithChildren } from "../contract/serializers";
 import type { SyncRole } from "../auth/getAuthSyncActor";
 import { amountPaise } from "@/lib/domain/money";
+import type { WirePayload } from "@/lib/contract/wirePayload";
 
 export type Tx = Prisma.TransactionClient;
-type Payload = Record<string, any>;
+type Payload = WirePayload;
 
 export type MutationStatus = "APPLIED" | "DUPLICATE" | "CONFLICT" | "REJECTED";
 

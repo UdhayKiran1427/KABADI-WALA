@@ -473,7 +473,7 @@ export async function createPickupRequestAction(formData: FormData) {
 }
 
 export async function simulateNextPickupStatusAction(formData: FormData) {
-  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  await requireRole(["COLLECTOR", "ADMIN"]);
   const requestId = formData.get("requestId") as string;
 
   const req = await prisma.pickupRequest.findUnique({ where: { id: requestId } });
@@ -506,7 +506,7 @@ export async function simulateNextPickupStatusAction(formData: FormData) {
 }
 
 export async function cancelPickupRequestAction(formData: FormData) {
-  const { user } = await requireRole(["COLLECTOR", "ADMIN"]);
+  await requireRole(["COLLECTOR", "ADMIN"]);
   const requestId = formData.get("requestId") as string;
   const reason = (formData.get("reason") as string)?.trim() || "Collector cancelled request";
 

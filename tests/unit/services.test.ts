@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { sortMutations, SyncMutationInput } from "../../src/lib/services/syncEngine";
+import { sortMutations, type SyncMutationInput } from "../../src/lib/services/syncEngine";
 import { apiSuccess, apiError } from "../../src/lib/apiResponse";
 
 describe("Unit: Services & Utilities", () => {

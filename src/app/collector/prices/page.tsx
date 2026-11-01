@@ -2,7 +2,7 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { generateCategoryPriceBoard } from "@/lib/domain/priceBoard";
 import { PageTitle, PageVoice } from "../ui";
-import { PricesBoardClient, CategoryBoardItem, NearbyAreaItem } from "./PricesBoardClient";
+import { PricesBoardClient, type CategoryBoardItem, type NearbyAreaItem } from "./PricesBoardClient";
 import { calculateHaversineDistanceKm } from "@/lib/domain/matching";
 
 export default async function CollectorPriceBoardPage() {

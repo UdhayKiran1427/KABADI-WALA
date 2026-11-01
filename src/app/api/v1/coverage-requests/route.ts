@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthCollector } from "@/lib/auth/getAuthCollector";
 import { apiError, apiSuccess, parseBody, apiErrorFrom } from "@/lib/apiResponse";

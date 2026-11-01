@@ -7,7 +7,6 @@ import { LotItemsPicker } from "./LotItemsPicker";
 import { PhotoPicker } from "./PhotoPicker";
 import { getTodayRates } from "@/lib/services/lotFlowService";
 import { PageTitle, PageVoice, T } from "../ui";
-import { rupees } from "@/lib/format";
 
 export default async function CreateLotPage(props: {
   searchParams: Promise<{ error?: string; categoryId?: string }>;

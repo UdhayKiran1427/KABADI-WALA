@@ -4,7 +4,7 @@ import {
   calculateHaversineDistanceKm,
   calculateCompassDirection,
   matchRecyclers,
-  CandidateRecycler,
+  type CandidateRecycler,
 } from "../../src/lib/domain/matching";
 
 test("calculateHaversineDistanceKm calculates accurate geographic distance", () => {

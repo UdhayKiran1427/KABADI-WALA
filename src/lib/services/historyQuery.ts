@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { HistoryQuery, periodStart } from "../historyFilters";
+import { type HistoryQuery, periodStart } from "../historyFilters";
 
 const contains = (q: string) => ({ contains: q, mode: "insensitive" as const });
 

@@ -40,10 +40,6 @@ export default async function DatasetHealthPage() {
   });
 
   // Dataset Card
-  const datasetCard = await prisma.datasetCard.findFirst({
-    orderBy: { generatedAt: "desc" },
-  });
-
   return (
     <div>
       <div style={{ marginBottom: "1.5rem" }}>

@@ -1,15 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "../../src/lib/prisma";
-import { hashPin, hashPassword } from "../../src/lib/auth/password";
 import { signMobileToken } from "../../src/lib/auth/jwt";
 import { generateLotRef, validateLotRef } from "../../src/lib/domain/lotRef";
 import { calculateEstimate } from "../../src/lib/domain/estimates";
 import { matchRecyclers } from "../../src/lib/domain/matching";
-import { evaluateWeightTolerance, classifyLocationProof, generateVerificationCode } from "../../src/lib/domain/handover";
+import { evaluateWeightTolerance, generateVerificationCode } from "../../src/lib/domain/handover";
 import { buildPublicReceipt } from "../../src/lib/domain/anonymization";
 import { checkWeightAnomalies, checkPriceAnomalies } from "../../src/lib/domain/anomalies";
-import { processMutation } from "../../src/lib/services/syncEngine";
+import { amountPaise } from "../../src/lib/domain/money";
 
 describe("E2E: Complete Real-World User Journeys", () => {
   it("Journey 1: Full Collector Lifecycle (Onboard -> Create Lot -> Match -> Handover -> Payment)", async () => {
@@ -100,7 +99,7 @@ describe("E2E: Complete Real-World User Journeys", () => {
 
     // Update lot to MATCHED and create Transaction
     const txId = `TX-E2E-${Date.now()}`;
-    const agreedPricePaise = Math.round((chosenRecycler.ratePerKgPaise * 5000) / 1000);
+    const agreedPricePaise = amountPaise(5000, chosenRecycler.ratePerKgPaise);
     await prisma.lot.update({
       where: { id: lot.id },
       data: {
@@ -144,7 +143,7 @@ describe("E2E: Complete Real-World User Journeys", () => {
     const tolerance = evaluateWeightTolerance(5000, 5100);
     assert.equal(tolerance.autoAccepted, true);
 
-    const finalAmountPaise = Math.round((chosenRecycler.ratePerKgPaise * 5100) / 1000);
+    const finalAmountPaise = amountPaise(5100, chosenRecycler.ratePerKgPaise);
     await prisma.$transaction(async (db) => {
       await db.handover.update({
         where: { id: handover.id },

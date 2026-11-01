@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { requireOwnedLot } from "@/lib/auth/lotAccess";
 import { apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
 import { rebroadcastLot } from "@/lib/services/lotFlowService";

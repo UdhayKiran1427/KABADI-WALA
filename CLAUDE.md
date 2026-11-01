@@ -16,7 +16,8 @@ Next.js 15 App Router + TypeScript strict + Prisma 6 on MongoDB (replica set `rs
 - Start with `docs/INDEX.md` (all routes, pages, exports, prisma models, ~10KB). Never dump many route files with a shell loop. After adding/removing routes or exports: `python3 -I scripts/gen-index.py`.
 - A hook blocks whole-file Reads over 250 lines / 12KB. Grep, then Read with `offset`+`limit` (<=150 lines).
 - Search with Grep first, then Read only the needed line range. Don't read whole `syncEngine.ts` / `paths.ts` / `schema.prisma` / `PROJECT.md`; grep for the symbol or section.
-- Verify with `npx tsc --noEmit` and `npx tsx --test "tests/unit/**/*.test.ts"` (domain tests: `tests/domain`). Pipe output through `tail -30`; run `npm run build` only when asked. Don't start `next dev` just to check types.
+- Verify with `npm run verify` (tsc + eslint + tests); pipe output through `tail -30`. ESLint is strict: no unused code, no `any`, money only via `amountPaise`. Run `npm run build` only when asked. Don't start `next dev` just to check types.
+- Queries on growing tables need `take` (constants in `src/lib/limits.ts`); no per-row queries in loops.
 - Don't re-explain unchanged code; keep replies short.
 - Shell: `cat` is aliased to `bat` (not installed); use the Read tool or `command cat`.
 

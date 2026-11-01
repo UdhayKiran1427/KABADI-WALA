@@ -5,6 +5,7 @@ import { agentUpdatePickupStatusAction, agentCompleteDoorstepHandoverAction } fr
 import { VoiceSpeaker } from "@/components/voice/VoiceSpeaker";
 import { kg, rupees } from "@/lib/format";
 import { firstPositiveRate } from "@/lib/domain/money";
+import { LIST_MAX_ROWS } from "@/lib/limits";
 
 export default async function FieldPickupsPage(props: {
   searchParams: Promise<{ success?: string; error?: string }>;
@@ -14,6 +15,7 @@ export default async function FieldPickupsPage(props: {
 
   const pickups = await prisma.pickupRequest.findMany({
     orderBy: { slot: "desc" },
+    take: LIST_MAX_ROWS,
     include: {
       lot: {
         include: {

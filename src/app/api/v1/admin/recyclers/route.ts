@@ -1,9 +1,10 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
 import { apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
 import { createRecycler } from "@/lib/services/adminService";
+import { LIST_MAX_ROWS } from "@/lib/limits";
 
 const CreateRecyclerSchema = z.object({
   name: z.string().min(2),
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
 
     const recyclers = await prisma.recycler.findMany({
       orderBy: { createdAt: "desc" },
+      take: LIST_MAX_ROWS,
       include: { staff: { include: { user: { select: { phone: true } } } } },
     });
 

@@ -1,7 +1,8 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
-import { matchRecyclers, CandidateRecycler } from "@/lib/domain/matching";
+import { matchRecyclers, type CandidateRecycler } from "@/lib/domain/matching";
+import { getAverageRatings, ratingOf } from "@/lib/services/ratingService";
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,23 +31,15 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch all recyclers accepting this category with their active rate & ratings
-    const recyclers = await prisma.recycler.findMany({
-      include: {
-        rates: {
-          where: { categoryId, isCurrent: true },
-        },
-        ratings: {
-          select: { rating: true },
-        },
-      },
-    });
+    const [recyclers, averages] = await Promise.all([
+      prisma.recycler.findMany({
+        include: { rates: { where: { categoryId, isCurrent: true } } },
+      }),
+      getAverageRatings(), // one groupBy instead of loading every rating row
+    ]);
 
     const candidates: CandidateRecycler[] = recyclers.map((r) => {
       const activeRate = r.rates[0];
-      const avgRating =
-        r.ratings.length > 0
-          ? r.ratings.reduce((acc, curr) => acc + curr.rating, 0) / r.ratings.length
-          : 4.5; // default 4.5 if no ratings yet
 
       return {
         id: r.id,
@@ -62,7 +55,7 @@ export async function GET(req: NextRequest) {
         pickupChargePaise: r.pickupChargePaise,
         ratePerKgPaise: activeRate ? activeRate.ratePerKgPaise : 0,
         rateEffectiveFrom: activeRate ? activeRate.effectiveFrom : new Date(0),
-        averageRating: Math.round(avgRating * 10) / 10,
+        averageRating: ratingOf(averages, r.id),
       };
     });
 

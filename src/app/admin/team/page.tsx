@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth/session";
 import { Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { createTeamUserAction } from "../actions";
+import { LIST_MAX_ROWS } from "@/lib/limits";
 
 export default async function AdminTeamPage() {
   await requireRole(["ADMIN"]);
@@ -11,6 +12,7 @@ export default async function AdminTeamPage() {
       role: { in: ["ADMIN", "FIELD_AGENT"] },
     },
     orderBy: { createdAt: "desc" },
+    take: LIST_MAX_ROWS,
   });
 
   return (

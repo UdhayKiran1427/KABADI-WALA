@@ -1,23 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import {
-  ArrowRight,
-  BellRing,
-  Check,
-  CircleCheck,
-  CircleCheckBig,
-  LoaderCircle,
-  Lock,
-  MapPin,
-  Navigation,
-  Phone,
-  ReceiptText,
-  RefreshCw,
-  SearchX,
-  Trash,
-  TriangleAlert,
-  Truck,
-} from "lucide-react";
+import { ArrowRight, BellRing, Check, CircleCheck, CircleCheckBig, LoaderCircle, Lock, MapPin, ReceiptText, RefreshCw, SearchX, Trash, TriangleAlert, Truck } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { confirmLotAction, rebroadcastLotAction, selectRecyclerOfferAction, deleteLotAction, submitCoverageRequestAction, createPickupRequestAction } from "../../actions";
@@ -31,7 +14,7 @@ import { ConfirmSubmit, LotStatusBadge, PageTitle, PageVoice, T } from "../../ui
 import { RecyclerDirectionsCard } from "@/components/geo/RecyclerDirectionsCard";
 import { calculateHaversineDistanceKm } from "@/lib/domain/matching";
 import { calculateTravelMinutes } from "@/lib/domain/geoDirections";
-import { inr, kg as kgText } from "@/lib/format";
+import { inr } from "@/lib/format";
 
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 const spokenRupees = (paise: number) => Math.round(paise / 100).toString();

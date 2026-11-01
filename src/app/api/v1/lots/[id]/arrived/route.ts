@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiSuccess } from "@/lib/apiResponse";
@@ -9,7 +9,7 @@ export async function POST(
   props: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user, response } = await requireApiUser(req, ["COLLECTOR", "ADMIN"]);
+    const { response } = await requireApiUser(req, ["COLLECTOR", "ADMIN"]);
     if (response) return response;
 
     const { id } = await props.params;

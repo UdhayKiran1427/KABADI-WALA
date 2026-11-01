@@ -488,7 +488,7 @@ export async function updateProfileAction(formData: FormData) {
 }
 
 export async function recyclerAcceptBargainAction(formData: FormData) {
-  const { dbUser } = await requireRole(["RECYCLER", "ADMIN"]);
+  await requireRole(["RECYCLER", "ADMIN"]);
   const transactionId = formData.get("transactionId") as string;
 
   const txRecord = await prisma.transaction.findUnique({
@@ -535,7 +535,7 @@ export async function recyclerAcceptBargainAction(formData: FormData) {
 }
 
 export async function recyclerCounterBargainAction(formData: FormData) {
-  const { dbUser } = await requireRole(["RECYCLER", "ADMIN"]);
+  await requireRole(["RECYCLER", "ADMIN"]);
   const transactionId = formData.get("transactionId") as string;
   const counterRateRupees = parseFloat(formData.get("counterRateRupees") as string);
   const note = (formData.get("note") as string)?.trim() || "";

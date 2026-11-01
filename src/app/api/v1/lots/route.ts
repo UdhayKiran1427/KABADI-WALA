@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
@@ -7,7 +7,7 @@ import { lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
 import { calculateLotValuePaise } from "@/lib/domain/lotBroadcast";
 import { COLLECTOR_HISTORY_STATUSES, collectorHistoryWhere } from "@/lib/services/historyQuery";
 import { parseHistoryQuery } from "@/lib/historyFilters";
-import { LotStatus, Prisma } from "@prisma/client";
+import { LotStatus } from "@prisma/client";
 import { validateStorageKey } from "@/lib/storage";
 import { z } from "zod";
 

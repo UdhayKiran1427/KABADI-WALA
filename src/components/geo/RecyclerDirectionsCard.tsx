@@ -15,7 +15,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import {
-  TravelMode,
+  type TravelMode,
   calculateTravelMinutes,
   getDirectionsUrl,
   buildLocationShareMessage,

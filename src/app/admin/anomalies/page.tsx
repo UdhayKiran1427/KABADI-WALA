@@ -1,9 +1,10 @@
-import { FlagStatus, Prisma } from "@prisma/client";
+import { FlagStatus, type Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth/session";
 import { CircleCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { reviewAnomalyFormAction } from "../actions";
+import { LIST_MAX_ROWS } from "@/lib/limits";
 
 export default async function AdminAnomaliesPage({
   searchParams,
@@ -21,6 +22,7 @@ export default async function AdminAnomaliesPage({
   const flags = await prisma.anomalyFlag.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    take: LIST_MAX_ROWS,
     include: {
       lot: {
         include: {

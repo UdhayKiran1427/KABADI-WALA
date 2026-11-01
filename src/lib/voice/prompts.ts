@@ -1,7 +1,7 @@
 // Trilingual Audio Narration Scripts for KabadiWala Platform
 // Supports English, Hindi, and Marathi aligned with UI wireframes for all user roles
 
-import { AppLanguage } from "./speech";
+import { type AppLanguage } from "./speech";
 
 export interface ScreenVoicePrompt {
   hi: string;

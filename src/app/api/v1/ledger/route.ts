@@ -1,7 +1,8 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthCollector } from "@/lib/auth/getAuthCollector";
 import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
+import { LEDGER_MAX_LOTS } from "@/lib/limits";
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
         category: { select: { nameEn: true, nameHi: true, iconKey: true } },
       },
       orderBy: { collectedAt: "desc" },
+      take: LEDGER_MAX_LOTS, // safety ceiling; `truncated` tells the app when it was hit
     });
 
     let totalReceivedPaise = 0;
@@ -66,6 +68,7 @@ export async function GET(req: NextRequest) {
       pendingPaise: totalPendingPaise,
       pendingRupees: (totalPendingPaise / 100).toFixed(2),
       totalLots: lots.length,
+      truncated: lots.length === LEDGER_MAX_LOTS,
       items,
     });
   } catch (err) {

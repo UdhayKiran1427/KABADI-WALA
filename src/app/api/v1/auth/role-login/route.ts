@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPin, verifyPassword } from "@/lib/auth/password";
 import { signMobileToken } from "@/lib/auth/jwt";

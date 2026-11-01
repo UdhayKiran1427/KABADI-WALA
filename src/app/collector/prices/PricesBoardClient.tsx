@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { ArrowRight, CheckCircle2, ChevronRight, Compass, Info, MapPin, Navigation, Sparkles, TrendingUp, XCircle } from "lucide-react";
+import { CheckCircle2, Info, MapPin, Navigation, Sparkles } from "lucide-react";
 import { VoicePriceRow } from "@/components/voice/VoicePriceRow";
-import { compareAreaPrice, DEFAULT_TRAVEL_COST_PER_KM_PAISE } from "@/lib/domain/nearbyPrices";
+import { compareAreaPrice } from "@/lib/domain/nearbyPrices";
 import { T, useTxt } from "../ui";
 
 export interface CategoryBoardItem {

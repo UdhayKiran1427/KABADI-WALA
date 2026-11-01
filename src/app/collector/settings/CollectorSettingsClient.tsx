@@ -2,28 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  ArrowLeftRight,
-  BatteryCharging,
-  Check,
-  Globe,
-  Info,
-  Lock,
-  LogOut,
-  Settings,
-  Shield,
-  TriangleAlert,
-  User,
-  Volume2,
-} from "lucide-react";
-import { PageVoice, useTxt, type Txt } from "../ui";
+import { ArrowLeftRight, BatteryCharging, Check, Globe, Info, Lock, LogOut, Settings, Shield, TriangleAlert, User } from "lucide-react";
+import { PageVoice, useTxt } from "../ui";
 import { useVoice } from "@/components/voice/VoiceLanguageContext";
-import { AppLanguage } from "@/lib/voice/speech";
+import { type AppLanguage } from "@/lib/voice/speech";
 
 interface CollectorSettingsClientProps {
   phone: string;
   shortCode: string;
-  name: string;
   operatingArea: string;
   logoutAction: () => Promise<void>;
 }
@@ -31,7 +17,6 @@ interface CollectorSettingsClientProps {
 export function CollectorSettingsClient({
   phone,
   shortCode,
-  name,
   operatingArea,
   logoutAction,
 }: CollectorSettingsClientProps) {

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPin, verifyPin } from "@/lib/auth/password";
 import { getAuthCollector } from "@/lib/auth/getAuthCollector";

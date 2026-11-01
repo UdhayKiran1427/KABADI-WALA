@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { saveLocalFile, readLocalFile, sanitizeStorageKey, validateStorageKey, imageContentType, MAX_IMAGE_BYTES } from "@/lib/storage";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";

@@ -1,5 +1,5 @@
-import { Prisma } from "@prisma/client";
-import { NextRequest } from "next/server";
+import { type Prisma } from "@prisma/client";
+import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiSuccess, apiErrorFrom } from "@/lib/apiResponse";
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const auth = await getAuthUser(req);
-    let agentId: string | null = auth?.userId || null;
+    const agentId: string | null = auth?.userId || null;
 
     let body: unknown;
     try {

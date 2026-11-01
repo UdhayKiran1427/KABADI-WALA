@@ -40,13 +40,14 @@ import {
   type HandlerContext,
   type HandlerResult,
 } from "./syncHandlers";
+import type { WirePayload } from "@/lib/contract/wirePayload";
 
 export interface SyncMutationInput {
   clientMutationId: string;
   entity: string;
   entityId: string;
   op: "create" | "update";
-  payload: Record<string, any>;
+  payload: WirePayload;
   clientTimestamp: string;
 }
 
@@ -179,9 +180,9 @@ export function normalizePayload(
   entity: string,
   op: "create" | "update",
   entityId: string,
-  input: Record<string, any>
-): { payload: Record<string, any>; warnings: string[] } {
-  const payload: Record<string, any> = { ...input };
+  input: WirePayload
+): { payload: WirePayload; warnings: string[] } {
+  const payload: WirePayload = { ...input };
   const warnings: string[] = [];
 
   if (op === "update" && payload.id === entityId) delete payload.id;
@@ -205,7 +206,7 @@ export function normalizePayload(
   return { payload, warnings };
 }
 
-type Validated = { ok: true; payload: Record<string, any>; warnings: string[] } | { ok: false; result: HandlerResult };
+type Validated = { ok: true; payload: WirePayload; warnings: string[] } | { ok: false; result: HandlerResult };
 
 function validateMutation(m: SyncMutationInput): Validated {
   if (!isPushEntity(m.entity)) {
@@ -241,7 +242,7 @@ function validateMutation(m: SyncMutationInput): Validated {
   if (typeof payload.id === "string" && payload.id !== m.entityId) {
     return { ok: false, result: reject("INVALID_PAYLOAD", "payload.id must equal entityId") };
   }
-  return { ok: true, payload: parsed.data as Record<string, any>, warnings };
+  return { ok: true, payload: parsed.data as WirePayload, warnings };
 }
 
 const HANDLERS: Record<PushEntity, (c: HandlerContext) => Promise<HandlerResult>> = {

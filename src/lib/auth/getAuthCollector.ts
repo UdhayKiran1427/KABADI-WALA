@@ -1,5 +1,5 @@
-import { NextRequest } from "next/server";
-import { verifyMobileToken, MobileTokenPayload } from "./jwt";
+import { type NextRequest } from "next/server";
+import { verifyMobileToken, type MobileTokenPayload } from "./jwt";
 import { prisma } from "../prisma";
 
 export async function getAuthCollector(req: NextRequest): Promise<{

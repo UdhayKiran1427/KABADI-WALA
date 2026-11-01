@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser } from "@/lib/auth/getAuthUser";
 import { apiErrorFrom, apiSuccess, parseBody } from "@/lib/apiResponse";
