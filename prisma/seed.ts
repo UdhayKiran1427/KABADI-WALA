@@ -284,6 +284,23 @@ async function main() {
       update: {},
     });
 
+    // Demo Field Agent
+    const agentPassHash = await hashPassword("agent123");
+    await prisma.user.upsert({
+      where: { phone: "9830000001" },
+      create: {
+        phone: "9830000001",
+        pinHash: agentPassHash,
+        role: "FIELD_AGENT",
+        language: "HI",
+      },
+      update: {
+        pinHash: agentPassHash,
+        role: "FIELD_AGENT",
+      },
+    });
+    console.log("✓ Seeded Demo Field Agent (9830000001 / agent123).");
+
     // Ground Price Records across weeks for M2 chart
     const dummyPrices = [
       { cat: 1, price: 31000, daysAgo: 50 },

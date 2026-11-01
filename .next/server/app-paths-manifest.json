@@ -1,5 +1,5 @@
 {
   "/page": "app/page.js",
-  "/collector/login/page": "app/collector/login/page.js",
-  "/collector/page": "app/collector/page.js"
+  "/admin/login/page": "app/admin/login/page.js",
+  "/admin/page": "app/admin/page.js"
 }

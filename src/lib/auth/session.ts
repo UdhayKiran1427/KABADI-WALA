@@ -70,7 +70,9 @@ export async function requireRole(
 
   const fallbackLogin =
     customRedirect ||
-    (allowedRoles.includes("COLLECTOR")
+    (allowedRoles.includes("FIELD_AGENT")
+      ? "/field/login"
+      : allowedRoles.includes("COLLECTOR")
       ? "/collector/login"
       : allowedRoles.includes("ADMIN")
       ? "/admin/login"
