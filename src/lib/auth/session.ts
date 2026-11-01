@@ -68,7 +68,13 @@ export async function requireRole(
 ): Promise<{ user: SessionPayload; dbUser: { id: string; phone: string; role: Role; recyclerId?: string } }> {
   const session = await getSession();
 
-  const fallbackLogin = customRedirect || (allowedRoles.includes("ADMIN") ? "/admin/login" : "/recycler/login");
+  const fallbackLogin =
+    customRedirect ||
+    (allowedRoles.includes("COLLECTOR")
+      ? "/collector/login"
+      : allowedRoles.includes("ADMIN")
+      ? "/admin/login"
+      : "/recycler/login");
 
   if (!session) {
     redirect(fallbackLogin);
