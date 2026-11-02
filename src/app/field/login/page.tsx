@@ -31,7 +31,7 @@ export default async function FieldAgentLoginPage(props: {
             }}
           >
             <Recycle size={22} aria-hidden="true" />
-            <span>KABADI WALA &bull; Field Operations</span>
+            <span>E-WASTE SAATHI &bull; Field Operations</span>
           </Link>
 
           <div style={{ marginTop: "3.5rem" }}>

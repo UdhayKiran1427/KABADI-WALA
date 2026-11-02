@@ -16,7 +16,7 @@ export default function HomePage() {
           <div className="r-role-icon" style={{ width: 64, height: 64, borderRadius: 18 }}>
             <Recycle size={34} aria-hidden="true" />
           </div>
-          <h1 style={{ fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--slate-900)" }}>Kabadi Wala</h1>
+          <h1 style={{ fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--slate-900)" }}>E-Waste Saathi</h1>
           <p style={{ color: "var(--slate-600)", fontSize: "1.05rem" }}>
             Sell e-waste scrap to nearby recyclers at a fair price.
           </p>

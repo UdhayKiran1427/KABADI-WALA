@@ -1,4 +1,4 @@
-// Trilingual Audio Narration Scripts for KabadiWala Platform
+// Trilingual Audio Narration Scripts for E-Waste Saathi Platform
 // Supports English, Hindi, and Marathi aligned with UI wireframes for all user roles
 
 import { type AppLanguage } from "./speech";
@@ -15,9 +15,9 @@ export interface ScreenVoicePrompt {
 export const SCREEN_PROMPTS: Record<string, ScreenVoicePrompt> = {
   // C1: Language Select
   C1_LANGUAGE: {
-    hi: "कबाड़ीवाला पोर्टल में आपका स्वागत है। अपनी भाषा चुनें। हिंदी या मराठी में आवाज सुनने के लिए स्पीकर बटन दबाएं।",
-    mr: "कबाडीवाला पोर्टलवर आपले स्वागत आहे. आपली भाषा निवडा. हिंदी किंवा मराठीत आवाज ऐकण्यासाठी स्पीकर बटण दाबा.",
-    en: "Welcome to KabadiWala Portal. Select your language. Press the speaker button to hear audio in English, Hindi, or Marathi.",
+    hi: "ई-वेस्ट साथी पोर्टल में आपका स्वागत है। अपनी भाषा चुनें। हिंदी या मराठी में आवाज सुनने के लिए स्पीकर बटन दबाएं।",
+    mr: "ई-वेस्ट साथी पोर्टलवर आपले स्वागत आहे. आपली भाषा निवडा. हिंदी किंवा मराठीत आवाज ऐकण्यासाठी स्पीकर बटण दाबा.",
+    en: "Welcome to E-Waste Saathi Portal. Select your language. Press the speaker button to hear audio in English, Hindi, or Marathi.",
     shortLabelHi: "भाषा चुनें",
     shortLabelMr: "भाषा निवडा",
     shortLabelEn: "Select Language",
@@ -35,9 +35,9 @@ export const SCREEN_PROMPTS: Record<string, ScreenVoicePrompt> = {
 
   // C3: Home Dashboard
   C3_HOME: {
-    hi: "नमस्कार! कबाड़ीवाला ई-कचरा पोर्टल में आपका स्वागत है। नया लॉट बनाएं, आज के भाव देखें, अपनी कुल कमाई जांचें, या सुरक्षा नियम देखें।",
-    mr: "नमस्कार! कबाडीवाला ई-कचरा पोर्टलवर आपले स्वागत आहे. नवीन लॉट तयार करा, आजचे भाव पहा, आपली कमाई तपासा, किंवा सुरक्षा नियम पहा.",
-    en: "Welcome to KabadiWala E-Waste Portal! Create a new lot, check today's prices, view your total earnings, or review safety rules.",
+    hi: "नमस्कार! ई-वेस्ट साथी ई-कचरा पोर्टल में आपका स्वागत है। नया लॉट बनाएं, आज के भाव देखें, अपनी कुल कमाई जांचें, या सुरक्षा नियम देखें।",
+    mr: "नमस्कार! ई-वेस्ट साथी ई-कचरा पोर्टलवर आपले स्वागत आहे. नवीन लॉट तयार करा, आजचे भाव पहा, आपली कमाई तपासा, किंवा सुरक्षा नियम पहा.",
+    en: "Welcome to E-Waste Saathi E-Waste Portal! Create a new lot, check today's prices, view your total earnings, or review safety rules.",
     shortLabelHi: "होम डैशबोर्ड",
     shortLabelMr: "होम डॅशबोर्ड",
     shortLabelEn: "Home Dashboard",

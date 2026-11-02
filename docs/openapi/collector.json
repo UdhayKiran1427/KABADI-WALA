@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Kabadi-Wala API — Collector",
+    "title": "E-Waste Saathi API — Collector",
     "version": "1.0.0",
     "description": "Informal e-waste collectors using the mobile app. Flow: check today's price → create a lot → confirm (broadcast to recyclers within 5 km) → see interested recyclers → select one → pay via QR. Also ledger, pickup requests and offline sync.\n\n**Conventions** — money is integer **paise**, weight is integer **grams**, timestamps are ISO-8601 UTC.\n\nSuccess: `{ \"data\": ... }` · Failure: `{ \"error\": { \"code\", \"message\", \"details?\" } }`.\n\n**Auth** — mobile clients send `Authorization: Bearer <JWT>` (from `POST /api/v1/auth/login`); the web portal uses the `ewaste_session` cookie.\n\nEndpoints marked `x-roles` containing `PUBLIC` need no sign-in; the rest require the **COLLECTOR** role."
   },

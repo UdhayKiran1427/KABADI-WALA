@@ -3,7 +3,7 @@ import "./globals.css";
 import { VoiceLanguageProvider } from "@/components/voice/VoiceLanguageContext";
 
 export const metadata: Metadata = {
-  title: "KABADI WALA | Circular E-Waste Supply Chain Platform",
+  title: "E-Waste Saathi | Circular E-Waste Supply Chain Platform",
   description: "Bridging informal e-waste collectors with authorized recyclers through fair pricing, safety, and traceability.",
   icons: {
     icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♻️</text></svg>",

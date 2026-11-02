@@ -1,4 +1,4 @@
-// Client-side Web Speech API Wrapper for KabadiWala
+// Client-side Web Speech API Wrapper for E-Waste Saathi
 // Supports English (en-IN/en-US), Hindi (hi-IN) and Marathi (mr-IN) voices with graceful fallbacks
 
 export type AppLanguage = "HI" | "MR" | "EN";

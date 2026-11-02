@@ -83,7 +83,7 @@ export function RecyclerDirectionsCard({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Kabadi-Wala: ${recycler.name}`,
+          title: `E-Waste Saathi: ${recycler.name}`,
           text,
         });
         return;

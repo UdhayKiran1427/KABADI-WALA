@@ -40,7 +40,7 @@ export function CollectorNavbarClient({ unreadNotifications = 0, name }: Collect
         <Link href="/collector" className="brand" style={{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: 0 }}>
           <Recycle size={22} aria-hidden="true" style={{ color: "var(--primary)", flexShrink: 0 }} />
           <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {tx({ hi: "कबाड़ीवाला", en: "Kabadi Wala", mr: "कबाडीवाला" })}
+            {tx({ hi: "ई-वेस्ट साथी", en: "E-Waste Saathi", mr: "ई-वेस्ट साथी" })}
           </span>
           <span
             style={{

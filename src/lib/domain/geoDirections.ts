@@ -85,7 +85,7 @@ export function buildLocationShareMessage(options: {
   const landmarkText = landmark ? ` (${landmark})` : "";
 
   if (language === "EN") {
-    return `Kabadi-Wala Handover Details:\nLot: ${lotRef}\nRecycler: ${recyclerName}${landmarkText}\nLocation: ${mapsUrl}`;
+    return `E-Waste Saathi Handover Details:\nLot: ${lotRef}\nRecycler: ${recyclerName}${landmarkText}\nLocation: ${mapsUrl}`;
   }
   if (language === "MR") {
     return `कबाडी-वाला डिलिव्हरी माहिती:\nलॉट: ${lotRef}\nखरेदीदार: ${recyclerName}${landmarkText}\nठिकाण: ${mapsUrl}`;

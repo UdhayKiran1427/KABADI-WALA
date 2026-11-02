@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Kabadi-Wala API — Recycler",
+    "title": "E-Waste Saathi API — Recycler",
     "version": "1.0.0",
     "description": "Authorized recycler staff (sign in with `POST /auth/staff-login`): see open lot requests within 5 km, answer INTERESTED / DECLINED with a rate, list won deals, view the deal, and record the scale-weight handover. Rates / profile / pickup dispatch in the web portal run through server actions and are not REST endpoints.\n\n**Conventions** — money is integer **paise**, weight is integer **grams**, timestamps are ISO-8601 UTC.\n\nSuccess: `{ \"data\": ... }` · Failure: `{ \"error\": { \"code\", \"message\", \"details?\" } }`.\n\n**Auth** — mobile clients send `Authorization: Bearer <JWT>` (from `POST /api/v1/auth/login`); the web portal uses the `ewaste_session` cookie.\n\nEndpoints marked `x-roles` containing `PUBLIC` need no sign-in; the rest require the **RECYCLER** role."
   },

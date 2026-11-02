@@ -13,9 +13,9 @@ export interface TranslationDictionary {
 export const UI_TRANSLATIONS: TranslationDictionary = {
   // Navigation
   "nav.brand": {
-    en: "KABADI WALA",
-    hi: "कबाड़ीवाला",
-    mr: "कबाडीवाला",
+    en: "E-WASTE SAATHI",
+    hi: "ई-वेस्ट साथी",
+    mr: "ई-वेस्ट साथी",
   },
   "nav.home": {
     en: "Home",

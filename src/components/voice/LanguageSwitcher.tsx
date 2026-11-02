@@ -33,11 +33,11 @@ export function LanguageSwitcher({
   const handleHearOnly = (e: React.MouseEvent, lang: AppLanguage) => {
     e.stopPropagation();
     if (lang === "EN") {
-      speak("English language. KabadiWala Portal.", "lang-preview-en", "EN");
+      speak("English language. E-Waste Saathi Portal.", "lang-preview-en", "EN");
     } else if (lang === "HI") {
-      speak("हिंदी भाषा। कबाड़ीवाला पोर्टल।", "lang-preview-hi", "HI");
+      speak("हिंदी भाषा। ई-वेस्ट साथी पोर्टल।", "lang-preview-hi", "HI");
     } else {
-      speak("मराठी भाषा. कबाडीवाला पोर्टल.", "lang-preview-mr", "MR");
+      speak("मराठी भाषा. ई-वेस्ट साथी पोर्टल.", "lang-preview-mr", "MR");
     }
   };
 

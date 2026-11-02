@@ -104,7 +104,7 @@ export function buildSpec(slug: SpecSlug): Json {
     paths[path][method] = { ...operation, "x-roles": roles };
   }
 
-  const title = slug === "all" ? "Kabadi-Wala API — all roles" : `Kabadi-Wala API — ${SPEC_TITLES[slug]}`;
+  const title = slug === "all" ? "E-Waste Saathi API — all roles" : `E-Waste Saathi API — ${SPEC_TITLES[slug]}`;
 
   return {
     openapi: "3.0.3",

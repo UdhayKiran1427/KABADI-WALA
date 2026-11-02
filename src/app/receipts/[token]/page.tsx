@@ -72,7 +72,7 @@ export default async function PublicReceiptPage({
         {/* Certificate Header */}
         <div style={{ textAlign: "center", borderBottom: "2px dashed var(--slate-300)", paddingBottom: "1.75rem", marginBottom: "1.75rem" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "var(--primary-700)", fontWeight: 800, fontSize: "1.2rem", marginBottom: "0.5rem" }}>
-            <span>♻️</span> KABADI WALA
+            <span>♻️</span> E-WASTE SAATHI
           </div>
           <h1 style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--slate-900)", letterSpacing: "-0.01em" }}>
             Formal Traceability Receipt

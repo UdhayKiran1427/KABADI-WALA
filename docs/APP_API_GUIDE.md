@@ -1,4 +1,4 @@
-# Kabadi-Wala – App API Guide
+# E-Waste Saathi – App API Guide
 
 How the platform works for **Admin**, **Collector** and **Recycler**, and the API endpoints the mobile app uses for each step.
 

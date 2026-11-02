@@ -18,7 +18,7 @@ export default async function FieldAgentRegisterPage(props: {
         <div>
           <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#ffffff", fontWeight: 800, fontSize: "1.2rem", textDecoration: "none" }}>
             <span>♻️</span>
-            <span>KABADI WALA</span>
+            <span>E-WASTE SAATHI</span>
           </Link>
           <div style={{ marginTop: "3rem" }}>
             <span

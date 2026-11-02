@@ -433,9 +433,9 @@ export function CollectorSettingsClient({
         <div>
           <strong>{tx({ hi: "गोपनीयता वादा:", en: "Zero-PII Privacy Notice:", mr: "गोपनीयता सूचना:" })}</strong>{" "}
           {tx({
-            hi: "कबाड़ीवाला कभी भी आपका आधार, असली पता या पहचान दस्तावेज स्टोर नहीं करता। केवल ई-कचरा वजन और भुगतान रिकॉर्ड सुरक्षित रखे जाते हैं।",
-            en: "KabadiWala never collects or stores Aadhaar, street addresses, or personal identity documents. Only scrap weight, rate, and transaction records are maintained.",
-            mr: "कबाडीवाला कधीही आधार किंवा ओळखपत्रे साठवत नाही.",
+            hi: "ई-वेस्ट साथी कभी भी आपका आधार, असली पता या पहचान दस्तावेज स्टोर नहीं करता। केवल ई-कचरा वजन और भुगतान रिकॉर्ड सुरक्षित रखे जाते हैं।",
+            en: "E-Waste Saathi never collects or stores Aadhaar, street addresses, or personal identity documents. Only scrap weight, rate, and transaction records are maintained.",
+            mr: "ई-वेस्ट साथी कधीही आधार किंवा ओळखपत्रे साठवत नाही.",
           })}
         </div>
       </section>

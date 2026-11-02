@@ -60,9 +60,9 @@ export function PageVoice({ hi, en, mr }: Narration) {
 }
 
 const DEFAULT_NARRATION: Narration = {
-  en: "Kabadi Wala. Tap New lot to sell your scrap.",
-  hi: "कबाड़ीवाला। अपना कबाड़ बेचने के लिए नया लॉट दबाएं।",
-  mr: "कबाडीवाला. आपला भंगार विकण्यासाठी नवीन लॉट दाबा.",
+  en: "E-Waste Saathi. Tap New lot to sell your scrap.",
+  hi: "ई-वेस्ट साथी। अपना कबाड़ बेचने के लिए नया लॉट दबाएं।",
+  mr: "ई-वेस्ट साथी. आपला भंगार विकण्यासाठी नवीन लॉट दाबा.",
 };
 
 /** Small round speaker button: reads the current page aloud in the chosen voice language. */

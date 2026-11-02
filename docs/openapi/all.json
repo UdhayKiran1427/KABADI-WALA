@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Kabadi-Wala API — all roles",
+    "title": "E-Waste Saathi API — all roles",
     "version": "1.0.0",
     "description": "Every REST endpoint in the platform, each tagged with the roles that may call it (`x-roles`).\n\n**Conventions** — money is integer **paise**, weight is integer **grams**, timestamps are ISO-8601 UTC.\n\nSuccess: `{ \"data\": ... }` · Failure: `{ \"error\": { \"code\", \"message\", \"details?\" } }`.\n\n**Auth** — mobile clients send `Authorization: Bearer <JWT>` (from `POST /api/v1/auth/login`); the web portal uses the `ewaste_session` cookie."
   },

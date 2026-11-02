@@ -24,7 +24,7 @@ export default async function RecyclerLayout({
         <div className="navbar-inner r-navbar-inner" style={{ maxWidth: "1100px" }}>
           <Link href="/recycler" className="brand">
             <Recycle size={22} aria-hidden="true" />
-            <span>Kabadi Wala</span>
+            <span>E-Waste Saathi</span>
           </Link>
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
