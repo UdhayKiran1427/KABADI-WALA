@@ -69,18 +69,19 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
     offerRows.map(async (offer) => ({ offer, items: lotItemsOf(offer.lot), photos: await lotPhotoUrls(offer.lot.images) }))
   );
 
-  // Deals still to pay: lots whose collector selected this facility (paid ones are in History)
+  // Open deals: still to pay, or paid but not picked up yet (finished ones are in History)
   const deals = await prisma.lot.findMany({
     where: {
       chosenRecyclerId: recyclerId,
-      status: "MATCHED",
       offers: { some: { recyclerId, status: "SELECTED" } },
+      OR: [{ status: "MATCHED" }, { status: "COMPLETED", vehicleDispatches: { none: { status: "PICKED_UP" } } }],
     },
     include: {
       category: true,
       ...LOT_ITEMS_INCLUDE,
       collector: { include: { user: { select: { phone: true } } } },
       transaction: true,
+      vehicleDispatches: { where: { status: "ON_THE_WAY" }, select: { id: true }, take: 1 },
     },
     orderBy: { updatedAt: "desc" },
     take: 20,
@@ -244,7 +245,7 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
               <h2 className="r-section-title">
                 <Handshake size={20} aria-hidden="true" /> My Deals
               </h2>
-              <div className="r-muted">{unpaidDealCount > 0 ? `${unpaidDealCount} to pay` : "All paid"} · <Link href="/recycler/history">Order history</Link></div>
+              <div className="r-muted">{unpaidDealCount > 0 ? `${unpaidDealCount} to pay` : deals.length > 0 ? "Pickups pending" : "All done"} · <Link href="/recycler/history">Order history</Link></div>
             </div>
             <span className="badge badge-neutral">{deals.length}</span>
           </div>
@@ -261,6 +262,12 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
                 const tx = lot.transaction;
                 const amount = tx ? tx.finalPricePaise ?? tx.quotedPricePaise : 0;
                 const isPaid = tx?.paymentStatus === "PAID";
+                const vehicleOnTheWay = lot.vehicleDispatches.length > 0;
+                const badge = !isPaid
+                  ? { cls: "badge-warning", label: "To pay", action: "Open & pay" }
+                  : vehicleOnTheWay
+                  ? { cls: "badge-info", label: "Vehicle on the way", action: "Enter code" }
+                  : { cls: "badge-success", label: "Paid · send vehicle", action: "Send vehicle" };
                 return (
                   <div key={lot.id} className="r-item">
                     <div className="r-item-head">
@@ -281,14 +288,9 @@ export default async function RecyclerDashboardPage(props: { searchParams: Promi
                     </div>
 
                     <div className="r-actions" style={{ justifyContent: "space-between" }}>
-                      <span className={`badge ${isPaid ? "badge-success" : "badge-warning"}`}>
-                        {isPaid ? "Paid" : "To pay"}
-                      </span>
-                      <Link
-                        href={`/recycler/deals/${lot.id}`}
-                        className={`btn btn-sm ${isPaid ? "btn-secondary" : "btn-primary"} r-inline`}
-                      >
-                        {isPaid ? "View" : "Open & pay"} <ArrowRight size={15} aria-hidden="true" />
+                      <span className={`badge ${badge.cls}`}>{badge.label}</span>
+                      <Link href={`/recycler/deals/${lot.id}`} className="btn btn-sm btn-primary r-inline">
+                        {badge.action} <ArrowRight size={15} aria-hidden="true" />
                       </Link>
                     </div>
                   </div>

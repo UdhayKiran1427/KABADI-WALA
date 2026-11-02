@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return apiError("NOT_FOUND", "Deal not found", 404);
     }
 
-    const deal = await getDealView(lot.id, req.nextUrl.origin);
+    const deal = await getDealView(lot.id, req.nextUrl.origin, { forCollector: !!user.collectorId && user.collectorId === lot.collectorId });
     if (!deal) {
       return apiError("NO_DEAL", "No recycler has been selected for this lot yet", 404);
     }

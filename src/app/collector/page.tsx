@@ -2,6 +2,9 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { CollectorDashboardClient } from "./CollectorDashboardClient";
 import { calculateHaversineDistanceKm } from "@/lib/domain/matching";
+import { LOT_ITEMS_INCLUDE } from "@/lib/services/lotItemsView";
+import { LOT_PICKUP_INCLUDE } from "@/lib/services/vehicleService";
+import { collectorLotPickup } from "./lotPickup";
 
 const LOTS_SHOWN = 10;
 
@@ -45,7 +48,12 @@ export default async function CollectorDashboardPage(props: {
           status: true,
           estimatedValuePaise: true,
           finalPricePaise: true,
-          category: { select: { nameEn: true, nameHi: true, nameMr: true } },
+          categoryId: true,
+          listedRatePerKgPaise: true,
+          quotedRatePaise: true,
+          category: { select: { id: true, nameEn: true, nameHi: true, nameMr: true } },
+          ...LOT_ITEMS_INCLUDE,
+          ...LOT_PICKUP_INCLUDE,
           _count: { select: { items: true } },
         },
       })
@@ -53,7 +61,16 @@ export default async function CollectorDashboardPage(props: {
 
   return (
     <CollectorDashboardClient
-      lots={lots.slice(0, LOTS_SHOWN)}
+      lots={lots.slice(0, LOTS_SHOWN).map((lot) => ({
+        id: lot.id,
+        approxWeightGrams: lot.approxWeightGrams,
+        status: lot.status,
+        estimatedValuePaise: lot.estimatedValuePaise,
+        finalPricePaise: lot.finalPricePaise,
+        category: lot.category,
+        _count: lot._count,
+        pickup: collectorLotPickup(lot),
+      }))}
       hasMore={lots.length > LOTS_SHOWN}
       campBanner={campBanner}
       roleDeniedNotice={roleDeniedNotice}

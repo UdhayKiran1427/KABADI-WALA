@@ -86,6 +86,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       await db.matchSuggestion.deleteMany({ where: { lotId: id } });
       await db.lotOffer.deleteMany({ where: { lotId: id } });
       await db.lotItem.deleteMany({ where: { lotId: id } });
+      await db.vehicleDispatch.deleteMany({ where: { lotId: id } });
       await db.receiptShareToken.deleteMany({ where: { lotId: id } });
       await db.payment.deleteMany({ where: { lotId: id } });
       await db.handover.deleteMany({ where: { lotId: id } });

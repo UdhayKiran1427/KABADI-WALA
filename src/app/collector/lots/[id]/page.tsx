@@ -15,6 +15,7 @@ import { RecyclerDirectionsCard } from "@/components/geo/RecyclerDirectionsCard"
 import { calculateHaversineDistanceKm } from "@/lib/domain/matching";
 import { calculateTravelMinutes } from "@/lib/domain/geoDirections";
 import { inr } from "@/lib/format";
+import { getLotDispatch } from "@/lib/services/vehicleService";
 
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 const spokenRupees = (paise: number) => Math.round(paise / 100).toString();
@@ -63,6 +64,10 @@ export default async function CollectorLotDetailPage(props: {
   const canDelete = lot.status === "DRAFT" || lot.status === "READY";
   const isPaid = tx?.paymentStatus === "PAID";
   const total = tx ? dealTotal : listedTotal;
+  // Buyer's vehicle for the pickup; its OTP is shown only here, to the collector
+  const dispatch = tx ? await getLotDispatch(lot.id) : null;
+  const vehicleComing = dispatch?.status === "ON_THE_WAY";
+  const spokenOtp = vehicleComing ? dispatch.otp.split("").join(" ") : "";
   // Per-material rates: agreed ones once a buyer is chosen, otherwise today's price
   const itemRate = (categoryId: number, listed: number) =>
     tx?.itemRates.find((r) => r.categoryId === categoryId)?.ratePerKgPaise ?? (tx && items.length === 1 ? dealRate : listed);
@@ -77,7 +82,13 @@ export default async function CollectorLotDetailPage(props: {
     hi: `${spokenItems("hi")}। कुल ${spokenRupees(total)} रुपये।`,
     mr: `${spokenItems("mr")}. एकूण ${spokenRupees(total)} रुपये.`,
   };
-  const step = isPaid
+  const step = vehicleComing
+    ? {
+        en: `Vehicle ${dispatch.vehicle.number} is coming. Your pickup code is ${spokenOtp}. Tell it to the driver.`,
+        hi: `गाड़ी ${dispatch.vehicle.number} आ रही है। आपका पिकअप कोड है ${spokenOtp}। यह कोड ड्राइवर को बताएं।`,
+        mr: `गाडी ${dispatch.vehicle.number} येत आहे. तुमचा पिकअप कोड आहे ${spokenOtp}. हा कोड ड्रायव्हरला सांगा.`,
+      }
+    : isPaid
     ? { en: "Payment received.", hi: "पैसे मिल गए।", mr: "पैसे मिळाले." }
     : lot.status === "DRAFT"
     ? { en: "Check and tap Confirm.", hi: "जांचें और पक्का करें दबाएं।", mr: "तपासा आणि निश्चित करा दाबा." }
@@ -96,7 +107,7 @@ export default async function CollectorLotDetailPage(props: {
   return (
     <div className="c-page">
       <PageVoice en={`${base.en} ${step.en}`} hi={`${base.hi} ${step.hi}`} mr={`${base.mr} ${step.mr}`} />
-      {(lot.status === "READY" || lot.status === "MATCHED") && <AutoRefresh />}
+      {(lot.status === "READY" || lot.status === "MATCHED" || (isPaid && dispatch?.status !== "PICKED_UP")) && <AutoRefresh />}
 
       <PageTitle title={{ hi: "लॉट", en: "Lot", mr: "लॉट" }} back="/collector" sub={lot.lotRef} />
 
@@ -313,6 +324,52 @@ export default async function CollectorLotDetailPage(props: {
               <ReceiptText size={20} aria-hidden="true" />
               <T hi="बिल देखें" en="View bill" mr="बिल पहा" />
             </Link>
+          )}
+        </div>
+      )}
+
+      {/* Pickup: the buyer's vehicle and the code the collector gives the driver */}
+      {tx && (dispatch || isPaid) && (
+        <div className="card" style={{ padding: "1.25rem", textAlign: "center", border: vehicleComing ? "2px solid #0284c7" : undefined }}>
+          {!dispatch ? (
+            <div className="c-hint" style={{ justifyContent: "center" }}>
+              <Truck size={18} aria-hidden="true" />
+              <T hi="खरीदार की गाड़ी का इंतज़ार" en="Waiting for the buyer's vehicle" mr="खरेदीदाराच्या गाडीची वाट" />
+            </div>
+          ) : vehicleComing ? (
+            <>
+              <div className="c-hint" style={{ justifyContent: "center", fontWeight: 700 }}>
+                <Truck size={18} aria-hidden="true" />
+                <T hi="गाड़ी आ रही है" en="Vehicle on the way" mr="गाडी येत आहे" />
+              </div>
+              <div style={{ fontWeight: 800, color: "var(--slate-900)", marginTop: "0.25rem" }}>
+                {dispatch.vehicle.number} · {dispatch.vehicle.name}
+              </div>
+              <div className="c-section-title" style={{ marginTop: "0.75rem" }}>
+                <T hi="पिकअप कोड" en="Pickup code" mr="पिकअप कोड" />
+              </div>
+              <div className="c-otp">{dispatch.otp}</div>
+              <div className="c-hint" style={{ justifyContent: "center" }}>
+                <Lock size={14} aria-hidden="true" />
+                <T
+                  hi="माल देते समय यह कोड सिर्फ ड्राइवर को बताएं"
+                  en="Tell this code only to the driver when you hand over the scrap"
+                  mr="माल देताना हा कोड फक्त ड्रायव्हरला सांगा"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <CircleCheck size={40} aria-hidden="true" style={{ color: "var(--primary)" }} />
+              <div style={{ fontSize: "1.15rem", fontWeight: 900, color: "var(--primary-800)" }}>
+                <T hi="माल उठा लिया गया" en="Picked up" mr="माल उचलला" />
+              </div>
+              <div className="c-hint" style={{ justifyContent: "center" }}>
+                {dispatch.vehicle.number} · {dispatch.vehicle.name}
+                {dispatch.pickedUpAt &&
+                  ` · ${dispatch.pickedUpAt.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`}
+              </div>
+            </>
           )}
         </div>
       )}

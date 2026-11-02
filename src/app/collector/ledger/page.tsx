@@ -4,7 +4,10 @@ import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { parseHistoryQuery } from "@/lib/historyFilters";
 import { COLLECTOR_HISTORY_STATUSES, collectorHistoryWhere } from "@/lib/services/historyQuery";
-import { LotStatusBadge, PageTitle, PageVoice, T } from "../ui";
+import { LotPickupLine, LotStatusBadge, PageTitle, PageVoice, T } from "../ui";
+import { collectorLotPickup } from "../lotPickup";
+import { LOT_ITEMS_INCLUDE } from "@/lib/services/lotItemsView";
+import { LOT_PICKUP_INCLUDE } from "@/lib/services/vehicleService";
 import { CollectorHistoryFilters } from "./CollectorHistoryFilters";
 import { kg, rupees, inr } from "@/lib/format";
 
@@ -26,7 +29,13 @@ export default async function CollectorHistoryPage(props: {
       where,
       orderBy: { collectedAt: "desc" },
       take: 100,
-      include: { category: true, transaction: { include: { recycler: { select: { name: true } } } }, _count: { select: { items: true } } },
+      include: {
+        category: true,
+        transaction: { include: { recycler: { select: { name: true } } } },
+        ...LOT_ITEMS_INCLUDE,
+        ...LOT_PICKUP_INCLUDE,
+        _count: { select: { items: true } },
+      },
     }),
     prisma.materialCategory.findMany({
       where: { isActive: true },
@@ -101,6 +110,7 @@ export default async function CollectorHistoryPage(props: {
                   {lot.collectedAt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                   {lot.transaction?.recycler && <> &middot; {lot.transaction.recycler.name}</>}
                 </div>
+                <LotPickupLine pickup={collectorLotPickup(lot)} />
               </div>
               <LotStatusBadge status={lot.status} />
               <ChevronRight size={20} aria-hidden="true" style={{ color: "var(--slate-400)", flexShrink: 0 }} />

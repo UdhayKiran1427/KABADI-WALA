@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (bodyError) return bodyError;
 
     await selectOffer(lot.id, body.offerId);
-    return apiSuccess({ deal: await getDealView(lot.id, req.nextUrl.origin) });
+    return apiSuccess({ deal: await getDealView(lot.id, req.nextUrl.origin, { forCollector: true }) });
   } catch (err) {
     return apiErrorFrom(err);
   }

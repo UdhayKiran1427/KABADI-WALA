@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { ChevronRight, IndianRupee, Inbox, MapPin, PackagePlus, ShieldAlert, Truck } from "lucide-react";
-import { LotStatusBadge, PageVoice, useTxt, type Txt } from "./ui";
+import { LotPickupLine, LotStatusBadge, PageVoice, useTxt, type LotPickup, type Txt } from "./ui";
 import { kg } from "@/lib/format";
 
 interface CollectorDashboardClientProps {
@@ -16,6 +16,7 @@ interface CollectorDashboardClientProps {
     category: { nameEn: string; nameHi: string; nameMr?: string | null };
     /** Number of materials in the lot (0 for lots created before multi-material lots) */
     _count: { items: number };
+    pickup: LotPickup | null;
   }>;
   hasMore: boolean;
   campBanner?: {
@@ -130,6 +131,7 @@ export function CollectorDashboardClient({ lots, hasMore, campBanner, roleDenied
                   <div style={{ fontSize: "0.85rem", color: "var(--slate-600)" }}>
                     {kg(lot.approxWeightGrams)} kg &middot; ₹{amount.toLocaleString("en-IN")}
                   </div>
+                  <LotPickupLine pickup={lot.pickup} />
                 </div>
                 <LotStatusBadge status={lot.status} />
                 <ChevronRight size={20} aria-hidden="true" style={{ color: "var(--slate-400)", flexShrink: 0 }} />

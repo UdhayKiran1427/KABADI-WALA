@@ -397,6 +397,7 @@ export async function deleteLotAction(formData: FormData) {
     await db.matchSuggestion.deleteMany({ where: { lotId } });
     await db.lotOffer.deleteMany({ where: { lotId } });
     await db.lotItem.deleteMany({ where: { lotId } });
+    await db.vehicleDispatch.deleteMany({ where: { lotId } });
     await db.receiptShareToken.deleteMany({ where: { lotId } });
     await db.payment.deleteMany({ where: { lotId } });
     await db.handover.deleteMany({ where: { lotId } });

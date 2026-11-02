@@ -60,7 +60,8 @@ sequenceDiagram
 6. Wait for recyclers. Poll `GET /lots/{id}/offers` (every 10–15 s while on the screen) to show who is ready to buy, with price and address. Use `POST /lots/{id}/search-again` if nobody is in range yet.
 7. Pick one → `POST /lots/{id}/select`. Status `MATCHED`. The response contains the recycler's full details and the payment QR link.
 8. Show the payment QR (`deal.payUrl`) and wait. Poll `GET /lots/{id}/deal` until `paymentStatus` is `PAID`, then show the success screen and invoice.
-9. Order history with search and filters → `GET /lots?q=&status=&material=&period=`. Profile → `GET /auth/me`.
+9. Pickup: keep polling `GET /lots/{id}/deal`. When the recycler sends a vehicle, `deal.pickup` has the vehicle and a 4-digit `otp` (only the collector gets it). Show the code under the bill; the collector tells it to the driver. When `pickup.status` is `PICKED_UP` the flow is done.
+10. Order history with search and filters → `GET /lots?q=&status=&material=&period=`. Profile → `GET /auth/me`.
 
 ### Recycler
 1. Sign in → `POST /auth/staff-login` (phone + password given by admin).
@@ -69,7 +70,9 @@ sequenceDiagram
 4. When a collector chooses you, the lot appears in `GET /recycler/deals` and you get a notification.
 5. Open the deal → `GET /lots/{lotId}/deal` to see the collector's name, phone and lot location.
 6. Pay: scan the collector's QR, take the token from the URL (`…/pay/{token}`) and call `POST /payments/{token}/demo-pay`. Show the success + invoice from the response.
-7. Order history with search by collector name/phone and filters → `GET /recycler/deals?q=&status=&material=&period=`.
+7. Vehicles: list with state → `GET /recycler/vehicles` (`EMPTY`, `ON_THE_WAY`, `LOADED`); add one (name + number only) → `POST /recycler/vehicles`.
+8. Send a vehicle for the lot → `POST /lots/{lotId}/vehicle`. At the collector, the driver asks for the 4-digit code and enters it → `POST /lots/{lotId}/vehicle/verify`. Correct code = pickup done. Back at the yard → `POST /recycler/vehicles/{id}/unload`.
+9. Order history with search by collector name/phone and filters → `GET /recycler/deals?q=&status=&material=&period=`.
 
 > **Demo payment:** no real money moves. The QR encodes `{server}/pay/{token}`. Opening it in a browser also marks the deal paid and shows the invoice page `{server}/invoice/{token}`.
 
@@ -89,6 +92,10 @@ sequenceDiagram
 **Recycler offer (`offer.status`)**: `NOTIFIED` (not answered) → `INTERESTED` / `DECLINED` → `SELECTED` / `NOT_SELECTED`.
 
 **Payment (`paymentStatus`)**: `UNPAID` → `PAID`.
+
+**Pickup (`deal.pickup.status`)**: `ON_THE_WAY` → `PICKED_UP` (correct OTP) or `CANCELLED` (vehicle called back; send again for a new OTP). 5 wrong codes lock the OTP.
+
+**Vehicle (`state`)**: `EMPTY`, `ON_THE_WAY` (going to a pickup), `LOADED` (picked up, not yet unloaded at the yard).
 
 ---
 
@@ -135,6 +142,19 @@ sequenceDiagram
 | GET | `/recycler/requests` | Recycler | Open lot requests within 5 km. Each has `offerId`, `status` (`NOTIFIED` / `INTERESTED`), `distanceKm`, `notifiedAt`, my answer (`myItemRates`, `myTotalPaise`) and `lot {lotRef, items [{categoryId, names, weightGrams, listedRatePerKgPaise}], photos [{id, url}], approxWeightGrams, listedValuePaise, area}`. |
 | POST | `/recycler/requests/{offerId}` | Recycler | Answer a request. Body: `{ "response": "INTERESTED", "itemRates": [{ "categoryId": 1, "ratePerKgPaise": 12000 }, ...] }` or `{ "response": "DECLINED" }`. Materials left out of `itemRates` use `ratePerKgPaise` if sent, otherwise today's price. Returns `totalPaise`. |
 | GET | `/recycler/deals?q=&status=&material=&period=` | Recycler | **Order history**: lots where a collector chose me (max 100), with collector name/phone/area, `amountPaise`, `paymentStatus`. `q` searches collector name, collector phone, lot ref and material. `status`: `topay` or `paid`. `material` and `period` as for `/lots`. All optional. |
+
+### 4.4b Vehicles & pickup
+
+| Method | Path | Who | Description |
+|---|---|---|---|
+| GET | `/recycler/vehicles` | Recycler | My vehicles: `id, name, number, state` (`EMPTY` / `ON_THE_WAY` / `LOADED`), `onTheWay`, `loaded` (lot counts). |
+| POST | `/recycler/vehicles` | Recycler | Add a vehicle. Body: `{ "name": "Ramesh - Tata Ace", "number": "MH 01 AB 1234" }`. 409 `DUPLICATE` if the number exists. |
+| DELETE | `/recycler/vehicles/{id}` | Recycler | Remove a vehicle. 409 `VEHICLE_BUSY` while it is on the way. |
+| POST | `/recycler/vehicles/{id}/unload` | Recycler | Vehicle emptied at the yard: it shows as `EMPTY` again. |
+| POST | `/lots/{id}/vehicle` | Recycler (the deal's buyer) | Send a vehicle. Body: `{ "vehicleId": "…" }`. Creates a new 4-digit OTP for the collector. 409 `ALREADY_SENT` if one is on the way or the lot is picked up. |
+| DELETE | `/lots/{id}/vehicle` | Recycler (the deal's buyer) | Call the vehicle back; the OTP stops working. |
+| POST | `/lots/{id}/vehicle/verify` | Recycler (the deal's buyer) | Enter the collector's code. Body: `{ "otp": "4821" }`. Correct: `PICKED_UP`, both sides notified. Wrong: 400 `WRONG_OTP` with tries left; after 5: 429 `OTP_LOCKED` (call back and send again). |
+| GET | `/lots/{id}/deal` | Collector, recycler | Includes `pickup { status, vehicle {name, number}, dispatchedAt, pickedUpAt, otp }`. `otp` is only sent to the lot's collector while the vehicle is on the way. |
 
 ### 4.5 Payment & invoice
 

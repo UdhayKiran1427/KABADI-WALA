@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (result === "NOT_FOUND") return apiError("NOT_FOUND", "Payment link not found or expired", 404);
     if (result === "NOT_PAYABLE") return apiError("NOT_PAYABLE", "This lot cannot be paid in its current state", 409);
 
-    return apiSuccess({ result, deal: await getDealView(share.lot.id, req.nextUrl.origin) });
+    return apiSuccess({ result, deal: await getDealView(share.lot.id, req.nextUrl.origin, { forCollector: !!user.collectorId && user.collectorId === share.lot.collectorId }) });
   } catch (err) {
     return apiErrorFrom(err);
   }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CircleCheckBig, Map as MapIcon, Phone, Receipt } from "lucide-react";
+import { ArrowLeft, CircleAlert, CircleCheck, CircleCheckBig, Map as MapIcon, Phone, Receipt } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { AutoRefresh } from "@/components/AutoRefresh";
@@ -8,10 +8,15 @@ import { DemoPaymentQr } from "@/components/payment/DemoPaymentQr";
 import { LOT_ITEMS_INCLUDE, dealLines, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
 import { LotPhotoStrip } from "@/components/LotPhotoStrip";
 import { rupeesIN } from "@/lib/format";
+import { SendVehicleCard } from "./SendVehicleCard";
 
-export default async function RecyclerDealPage(props: { params: Promise<{ lotId: string }> }) {
+export default async function RecyclerDealPage(props: {
+  params: Promise<{ lotId: string }>;
+  searchParams: Promise<{ success?: string; error?: string }>;
+}) {
   const { dbUser } = await requireRole(["RECYCLER"]);
   const { lotId } = await props.params;
+  const searchParams = await props.searchParams;
 
   const lot = await prisma.lot.findUnique({
     where: { id: lotId },
@@ -50,25 +55,39 @@ export default async function RecyclerDealPage(props: { params: Promise<{ lotId:
         <h1 className="r-page-title" style={{ marginTop: "0.25rem" }}>Lot {lot.lotRef}</h1>
       </div>
 
+      {searchParams.success && (
+        <div className="alert alert-success" style={{ marginBottom: 0 }}>
+          <CircleCheck size={18} aria-hidden="true" /> {searchParams.success}
+        </div>
+      )}
+      {searchParams.error && (
+        <div className="alert alert-danger" style={{ marginBottom: 0 }}>
+          <CircleAlert size={18} aria-hidden="true" /> {searchParams.error}
+        </div>
+      )}
+
       <div className="r-grid-2-lg">
-        {/* Payment first: it is the one action on this screen */}
-        <div className="card" style={{ padding: "1.5rem", border: isPaid ? "2px solid var(--primary)" : "2px solid var(--info)" }}>
-          {isPaid ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", textAlign: "center" }}>
-              <CircleCheckBig size={44} color="var(--primary)" aria-hidden="true" />
-              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-800)" }}>Payment successful</div>
-              <div style={{ fontSize: "1.6rem", fontWeight: 900 }}>₹{rupeesIN(amountPaise)}</div>
-              {token && (
-                <Link href={`/invoice/${token}`} className="btn btn-secondary btn-block" style={{ marginTop: "0.5rem" }}>
-                  <Receipt size={16} aria-hidden="true" /> View invoice
-                </Link>
-              )}
-            </div>
-          ) : token ? (
-            <DemoPaymentQr token={token} amountPaise={amountPaise} caption={`Scan to pay ${collectorName}`} />
-          ) : (
-            <div className="alert alert-danger" style={{ marginBottom: 0 }}>Payment link missing for this deal.</div>
-          )}
+        {/* Payment first, then sending a vehicle for the pickup */}
+        <div className="r-stack" style={{ minWidth: 0 }}>
+          <div className="card" style={{ padding: "1.5rem", border: isPaid ? "2px solid var(--primary)" : "2px solid var(--info)" }}>
+            {isPaid ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", textAlign: "center" }}>
+                <CircleCheckBig size={44} color="var(--primary)" aria-hidden="true" />
+                <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-800)" }}>Payment successful</div>
+                <div style={{ fontSize: "1.6rem", fontWeight: 900 }}>₹{rupeesIN(amountPaise)}</div>
+                {token && (
+                  <Link href={`/invoice/${token}`} className="btn btn-secondary btn-block" style={{ marginTop: "0.5rem" }}>
+                    <Receipt size={16} aria-hidden="true" /> View invoice
+                  </Link>
+                )}
+              </div>
+            ) : token ? (
+              <DemoPaymentQr token={token} amountPaise={amountPaise} caption={`Scan to pay ${collectorName}`} />
+            ) : (
+              <div className="alert alert-danger" style={{ marginBottom: 0 }}>Payment link missing for this deal.</div>
+            )}
+          </div>
+          <SendVehicleCard lotId={lot.id} recyclerId={dbUser.recyclerId} />
         </div>
 
         <div className="card" style={{ padding: "1.25rem", minWidth: 0 }}>

@@ -339,18 +339,20 @@ model Recycler {
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @updatedAt
 
-  staff            RecyclerStaff[]
-  rates            RecyclerRate[]
-  serviceAreas     RecyclerServiceArea[]
-  verifications    RecyclerVerification[]
-  transactions     Transaction[]
-  suggestions      MatchSuggestion[]
-  prices           PricePoint[]
-  collectionPoints CollectionPoint[]
-  batchHandovers   BatchHandover[]
-  pickupRequests   PickupRequest[]
-  ratings          RecyclerRating[]
-  lotOffers        LotOffer[]
+  staff             RecyclerStaff[]
+  rates             RecyclerRate[]
+  serviceAreas      RecyclerServiceArea[]
+  verifications     RecyclerVerification[]
+  transactions      Transaction[]
+  suggestions       MatchSuggestion[]
+  prices            PricePoint[]
+  collectionPoints  CollectionPoint[]
+  batchHandovers    BatchHandover[]
+  pickupRequests    PickupRequest[]
+  ratings           RecyclerRating[]
+  lotOffers         LotOffer[]
+  vehicles          Vehicle[]
+  vehicleDispatches VehicleDispatch[]
 
   @@index([district, authorizationStatus])
   @@index([latitude, longitude])
@@ -501,20 +503,21 @@ model Lot {
   syncedAt             DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
-  images           LotImage[]
-  suggestions      MatchSuggestion[]
-  transaction      Transaction?
-  handovers        Handover[]
-  payments         Payment[]
-  batchItems       BatchHandoverItem[]
-  disputes         Dispute[]
-  incidentReports  IncidentReport[]
-  pickupRequests   PickupRequest[]
-  flags            AnomalyFlag[]
-  receiptTokens    ReceiptShareToken[]
-  offers           LotOffer[]
-  items            LotItem[]
-  dealerComparison DealerComparison?
+  images            LotImage[]
+  suggestions       MatchSuggestion[]
+  transaction       Transaction?
+  handovers         Handover[]
+  payments          Payment[]
+  batchItems        BatchHandoverItem[]
+  disputes          Dispute[]
+  incidentReports   IncidentReport[]
+  pickupRequests    PickupRequest[]
+  flags             AnomalyFlag[]
+  receiptTokens     ReceiptShareToken[]
+  offers            LotOffer[]
+  items             LotItem[]
+  vehicleDispatches VehicleDispatch[]
+  dealerComparison  DealerComparison?
 
   @@index([collectorId, collectedAt])
   @@index([status])
@@ -571,6 +574,45 @@ model LotItem {
 
   @@index([lotId])
   @@index([categoryId])
+}
+
+// A recycler's vehicle, e.g. "Ramesh - Tata Ace", MH01AB1234.
+model Vehicle {
+  id         String            @id @default(uuid()) @map("_id")
+  recyclerId String
+  recycler   Recycler          @relation(fields: [recyclerId], references: [id])
+  name       String
+  number     String // Registration number, upper-case, single spaces
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  dispatches VehicleDispatch[]
+
+  @@unique([recyclerId, number])
+}
+
+// A vehicle sent to pick up a lot. Only the collector sees the OTP and gives it to the driver;
+// the pickup is done when the recycler's side enters it.
+// ON_THE_WAY -> PICKED_UP | CANCELLED. unloadedAt is set when the vehicle is emptied at the yard.
+model VehicleDispatch {
+  id           String    @id @default(uuid()) @map("_id")
+  lotId        String
+  lot          Lot       @relation(fields: [lotId], references: [id])
+  recyclerId   String
+  recycler     Recycler  @relation(fields: [recyclerId], references: [id])
+  vehicleId    String
+  vehicle      Vehicle   @relation(fields: [vehicleId], references: [id])
+  otp          String
+  otpAttempts  Int       @default(0)
+  status       String    @default("ON_THE_WAY")
+  dispatchedAt DateTime  @default(now())
+  pickedUpAt   DateTime?
+  unloadedAt   DateTime?
+  cancelledAt  DateTime?
+
+  @@index([lotId])
+  @@index([vehicleId, status])
+  @@index([recyclerId, status])
 }
 
 // Broadcast of a confirmed lot to one nearby recycler.

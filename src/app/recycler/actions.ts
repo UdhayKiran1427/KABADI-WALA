@@ -9,6 +9,7 @@ import { checkWeightAnomalies, checkPriceAnomalies, checkLocationAnomalies } fro
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { FlowError, respondToOffer } from "@/lib/services/lotFlowService";
+import { addVehicle, cancelDispatch, dispatchVehicle, markVehicleUnloaded, removeVehicle, verifyPickupOtp } from "@/lib/services/vehicleService";
 import { amountPaise, firstPositiveRate } from "@/lib/domain/money";
 
 /**
@@ -757,4 +758,82 @@ export async function respondToLotOfferAction(formData: FormData) {
       ? "/recycler?success=You are on the collector's list. You will be notified if they choose you."
       : "/recycler"
   );
+}
+
+/**
+ * Runs a vehicle step for the signed-in recycler, then returns to `back` with its outcome message.
+ */
+async function runVehicleStep(back: string, step: (recyclerId: string) => Promise<string>): Promise<never> {
+  const { dbUser } = await requireRole(["RECYCLER"]);
+  const sep = back.includes("?") ? "&" : "?";
+  if (!dbUser.recyclerId) {
+    redirect(`${back}${sep}error=${encodeURIComponent("Your account is not linked to a recycler facility")}`);
+  }
+  let message: string;
+  try {
+    message = await step(dbUser.recyclerId);
+  } catch (err) {
+    if (err instanceof FlowError) {
+      redirect(`${back}${sep}error=${encodeURIComponent(err.message)}`);
+    }
+    throw err;
+  }
+  revalidatePath("/recycler/vehicles");
+  redirect(`${back}${sep}success=${encodeURIComponent(message)}`);
+}
+
+/** Safe return path: only pages inside the recycler portal. */
+const backTo = (formData: FormData, fallback: string) => {
+  const back = (formData.get("back") as string) || "";
+  return /^\/recycler(\/[\w/-]*)?$/.test(back) ? back : fallback;
+};
+
+export async function addVehicleAction(formData: FormData) {
+  await runVehicleStep(backTo(formData, "/recycler/vehicles"), async (recyclerId) => {
+    const vehicle = await addVehicle(recyclerId, {
+      name: formData.get("name") as string,
+      number: formData.get("number") as string,
+    });
+    return `${vehicle.number} added`;
+  });
+}
+
+export async function removeVehicleAction(formData: FormData) {
+  await runVehicleStep("/recycler/vehicles", async (recyclerId) => {
+    await removeVehicle(recyclerId, formData.get("vehicleId") as string);
+    return "Vehicle removed";
+  });
+}
+
+export async function markVehicleUnloadedAction(formData: FormData) {
+  await runVehicleStep("/recycler/vehicles", async (recyclerId) => {
+    const count = await markVehicleUnloaded(recyclerId, formData.get("vehicleId") as string);
+    return count > 0 ? `Unloaded ${count} ${count === 1 ? "lot" : "lots"}. The vehicle is empty now.` : "Vehicle was already empty";
+  });
+}
+
+export async function dispatchVehicleAction(formData: FormData) {
+  const lotId = formData.get("lotId") as string;
+  await runVehicleStep(`/recycler/deals/${lotId}`, async (recyclerId) => {
+    const vehicleId = formData.get("vehicleId") as string;
+    if (!vehicleId) throw new FlowError("VALIDATION_ERROR", "Choose a vehicle to send");
+    const { vehicle } = await dispatchVehicle(recyclerId, lotId, vehicleId);
+    return `${vehicle.number} sent. Ask the collector for the 4-digit pickup code.`;
+  });
+}
+
+export async function cancelDispatchAction(formData: FormData) {
+  const lotId = formData.get("lotId") as string;
+  await runVehicleStep(`/recycler/deals/${lotId}`, async (recyclerId) => {
+    await cancelDispatch(recyclerId, lotId);
+    return "Vehicle called back. You can send another one.";
+  });
+}
+
+export async function verifyPickupOtpAction(formData: FormData) {
+  const lotId = formData.get("lotId") as string;
+  await runVehicleStep(`/recycler/deals/${lotId}`, async (recyclerId) => {
+    await verifyPickupOtp(recyclerId, lotId, formData.get("otp") as string);
+    return "Code matched. Pickup complete.";
+  });
 }

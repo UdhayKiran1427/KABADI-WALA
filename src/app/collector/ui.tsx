@@ -2,7 +2,8 @@
 
 import React, { useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { ArrowLeft, Languages, Square, Volume2 } from "lucide-react";
+import { ArrowLeft, Clock, Languages, PackageCheck, Square, Truck, Volume2 } from "lucide-react";
+import { kg } from "@/lib/format";
 import { useVoice } from "@/components/voice/VoiceLanguageContext";
 import type { AppLanguage } from "@/lib/voice/speech";
 
@@ -167,6 +168,46 @@ const LOT_STATUS: Record<string, Txt & { cls: string }> = {
   DISPUTED: { hi: "विवाद", en: "Dispute", mr: "वाद", cls: "badge-danger" },
 };
 const CLOSED: Txt & { cls: string } = { hi: "बंद", en: "Closed", mr: "बंद", cls: "badge-neutral" };
+
+export type LotPickup = {
+  status: "WAITING" | "ON_THE_WAY" | "PICKED_UP";
+  vehicleNumber?: string;
+  /** What the vehicle took, shown once picked up */
+  materials?: Array<Txt & { grams: number }>;
+};
+
+/** One line under a lot row: waiting for the buyer's vehicle, vehicle coming, or what was picked up. */
+export function LotPickupLine({ pickup }: { pickup: LotPickup | null }) {
+  const tx = useTxt();
+  if (!pickup) return null;
+
+  if (pickup.status === "WAITING") {
+    return (
+      <div className="c-pickup-line is-waiting">
+        <Clock size={14} aria-hidden="true" />
+        {tx({ hi: "गाड़ी का इंतज़ार", en: "Waiting for vehicle", mr: "गाडीची वाट" })}
+      </div>
+    );
+  }
+  if (pickup.status === "ON_THE_WAY") {
+    return (
+      <div className="c-pickup-line is-coming">
+        <Truck size={14} aria-hidden="true" />
+        {tx({ hi: "गाड़ी आ रही है", en: "Vehicle coming", mr: "गाडी येत आहे" })} · {pickup.vehicleNumber}
+      </div>
+    );
+  }
+  const what = (pickup.materials ?? []).map((m) => `${tx(m)} ${kg(m.grams)} kg`).join(", ");
+  return (
+    <div className="c-pickup-line is-done">
+      <PackageCheck size={14} aria-hidden="true" />
+      <span>
+        {tx({ hi: "उठा लिया", en: "Picked up", mr: "उचलले" })}
+        {what && <>: {what}</>}
+      </span>
+    </div>
+  );
+}
 
 export function LotStatusBadge({ status }: { status: string }) {
   const tx = useTxt();

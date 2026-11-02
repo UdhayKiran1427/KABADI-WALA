@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, LayoutDashboard, LogOut, ReceiptText, Recycle, User } from "lucide-react";
+import { Bell, LayoutDashboard, LogOut, ReceiptText, Recycle, Truck, User } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
 import { recyclerLogoutAction } from "./actions";
 import { getUnreadNotificationCount } from "@/lib/services/notificationService";
@@ -38,6 +38,10 @@ export default async function RecyclerLayout({
                 <Link href="/recycler/history" className="nav-link r-nav-link" aria-label="Order history">
                   <ReceiptText size={18} aria-hidden="true" />
                   <span className="r-nav-label">History</span>
+                </Link>
+                <Link href="/recycler/vehicles" className="nav-link r-nav-link" aria-label="Vehicles">
+                  <Truck size={18} aria-hidden="true" />
+                  <span className="r-nav-label">Vehicles</span>
                 </Link>
                 <Link
                   href="/recycler/notifications"
