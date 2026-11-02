@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth/session";
 import { listVehicles } from "@/lib/services/vehicleService";
 import { addVehicleAction, markVehicleUnloadedAction, removeVehicleAction } from "../actions";
 import { VehicleStateBadge, time } from "../deals/[lotId]/SendVehicleCard";
+import { T } from "@/app/collector/ui";
 
 export default async function RecyclerVehiclesPage(props: { searchParams: Promise<{ success?: string; error?: string }> }) {
   const { dbUser } = await requireRole(["RECYCLER"]);
@@ -12,7 +13,7 @@ export default async function RecyclerVehiclesPage(props: { searchParams: Promis
   return (
     <div className="r-stack">
       <h1 className="r-page-title r-inline">
-        <Truck size={22} aria-hidden="true" /> Vehicles
+        <Truck size={22} aria-hidden="true" /> <T hi="गाड़ियां" en="Vehicles" mr="गाड्या" />
       </h1>
 
       {searchParams.success && (
@@ -29,14 +30,18 @@ export default async function RecyclerVehiclesPage(props: { searchParams: Promis
       <div className="r-grid-2-lg">
         <section className="card" style={{ padding: "1.25rem", minWidth: 0 }}>
           <div className="r-section-head">
-            <h2 className="r-section-title">All vehicles</h2>
+            <h2 className="r-section-title">
+              <T hi="सभी गाड़ियां" en="All vehicles" mr="सर्व गाड्या" />
+            </h2>
             <span className="badge badge-neutral">{vehicles.length}</span>
           </div>
 
           {vehicles.length === 0 ? (
             <div className="r-empty">
               <Truck size={28} aria-hidden="true" />
-              <div>No vehicles yet.</div>
+              <div>
+                <T hi="अभी कोई गाड़ी नहीं।" en="No vehicles yet." mr="अजून गाडी नाही." />
+              </div>
             </div>
           ) : (
             <div className="r-list">
@@ -48,7 +53,7 @@ export default async function RecyclerVehiclesPage(props: { searchParams: Promis
                       <div className="r-muted">{v.name}</div>
                       {v.state === "EMPTY" && v.lastUnloadedAt && (
                         <div className="r-unloaded">
-                          <PackageCheck size={14} aria-hidden="true" /> Unloaded · {time(v.lastUnloadedAt)}
+                          <PackageCheck size={14} aria-hidden="true" /> <T hi="उतार दिया" en="Unloaded" mr="उतरवले" /> · {time(v.lastUnloadedAt)}
                         </div>
                       )}
                     </div>
@@ -59,7 +64,7 @@ export default async function RecyclerVehiclesPage(props: { searchParams: Promis
                       <form action={markVehicleUnloadedAction}>
                         <input type="hidden" name="vehicleId" value={v.id} />
                         <button type="submit" className="btn btn-sm btn-secondary r-inline">
-                          <PackageOpen size={15} aria-hidden="true" /> Mark unloaded
+                          <PackageOpen size={15} aria-hidden="true" /> <T hi="माल उतार दिया" en="Mark unloaded" mr="माल उतरवला" />
                         </button>
                       </form>
                     )}
@@ -67,7 +72,7 @@ export default async function RecyclerVehiclesPage(props: { searchParams: Promis
                       <form action={removeVehicleAction}>
                         <input type="hidden" name="vehicleId" value={v.id} />
                         <button type="submit" className="btn btn-sm btn-secondary r-inline" style={{ color: "var(--danger)" }}>
-                          <Trash size={15} aria-hidden="true" /> Remove
+                          <Trash size={15} aria-hidden="true" /> <T hi="हटाएं" en="Remove" mr="काढा" />
                         </button>
                       </form>
                     )}
@@ -80,19 +85,23 @@ export default async function RecyclerVehiclesPage(props: { searchParams: Promis
 
         <section className="card" style={{ padding: "1.25rem", minWidth: 0 }}>
           <h2 className="r-section-title" style={{ marginBottom: "0.75rem" }}>
-            <Plus size={20} aria-hidden="true" /> Add vehicle
+            <Plus size={20} aria-hidden="true" /> <T hi="गाड़ी जोड़ें" en="Add vehicle" mr="गाडी जोडा" />
           </h2>
           <form action={addVehicleAction} className="r-vehicle-add">
             <label className="form-group" style={{ marginBottom: 0 }}>
-              <span className="form-label">Name</span>
+              <span className="form-label">
+                <T hi="नाम" en="Name" mr="नाव" />
+              </span>
               <input name="name" required minLength={2} maxLength={40} placeholder="e.g. Ramesh – Tata Ace" className="form-control" />
             </label>
             <label className="form-group" style={{ marginBottom: 0 }}>
-              <span className="form-label">Vehicle number</span>
+              <span className="form-label">
+                <T hi="गाड़ी नंबर" en="Vehicle number" mr="गाडी नंबर" />
+              </span>
               <input name="number" required maxLength={14} placeholder="e.g. MH 01 AB 1234" className="form-control" />
             </label>
             <button type="submit" className="btn btn-primary btn-block r-inline">
-              <Plus size={16} aria-hidden="true" /> Add vehicle
+              <Plus size={16} aria-hidden="true" /> <T hi="गाड़ी जोड़ें" en="Add vehicle" mr="गाडी जोडा" />
             </button>
           </form>
         </section>

@@ -7,7 +7,8 @@ import { resolveDispute, type DisputeOutcome } from "@/lib/services/disputeServi
 import { verifyPassword, hashPassword } from "@/lib/auth/password";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createRecycler, setRecyclerStatus, setTodayPrices } from "@/lib/services/adminService";
+import { createRecycler, setRecyclerStatus, setTodayPrices, updateRecycler } from "@/lib/services/adminService";
+import { RECYCLER_FORM_FIELDS, type RecyclerFormState, type RecyclerFormValues } from "./recyclers/recyclerFormState";
 import { FlowError } from "@/lib/services/lotFlowService";
 
 /**
@@ -71,42 +72,56 @@ export async function updateRecyclerStatusFormAction(formData: FormData): Promis
 }
 
 /**
- * M1: Add new recycler facility and staff login credentials.
+ * M1: Add a recycler facility with its staff login, or edit one (when `recyclerId` is posted).
+ * Used with useActionState: on an error the typed values come back so the form keeps them.
  */
-export async function createRecyclerAction(formData: FormData) {
+export async function saveRecyclerAction(prev: RecyclerFormState, formData: FormData): Promise<RecyclerFormState> {
   const { dbUser } = await requireRole(["ADMIN"]);
 
   const get = (key: string) => ((formData.get(key) as string) || "").trim();
-  const validTill = get("validTill");
-  const name = get("name");
-  const staffPhone = get("staffPhone");
+  const values = Object.fromEntries(RECYCLER_FORM_FIELDS.map((key) => [key, get(key)])) as RecyclerFormValues;
+  const recyclerId = get("recyclerId");
+  const input = {
+    name: values.name,
+    contactPhone: values.contactPhone,
+    authorizationNo: values.authorizationNo,
+    authorizationValidTill: values.validTill ? new Date(values.validTill) : undefined,
+    address: values.address,
+    area: values.area,
+    district: values.district,
+    latitude: parseFloat(values.latitude),
+    longitude: parseFloat(values.longitude),
+    serviceRadiusKm: parseFloat(values.serviceRadiusKm),
+    staffPhone: values.staffPhone,
+    staffPassword: (formData.get("staffPassword") as string) || undefined,
+  };
 
   try {
-    await createRecycler({
-      name,
-      contactPhone: get("contactPhone"),
-      authorizationNo: get("authorizationNo"),
-      authorizationValidTill: validTill ? new Date(validTill) : undefined,
-      address: get("address"),
-      area: get("area"),
-      district: get("district"),
-      state: get("state"),
-      latitude: parseFloat(get("latitude")),
-      longitude: parseFloat(get("longitude")),
-      serviceRadiusKm: parseFloat(get("serviceRadiusKm")),
-      staffPhone,
-      staffPassword: formData.get("staffPassword") as string,
-    });
+    if (recyclerId) {
+      await updateRecycler(recyclerId, input);
+    } else {
+      await createRecycler({ ...input, staffPassword: input.staffPassword ?? "" });
+    }
   } catch (err) {
     if (err instanceof FlowError) {
-      redirect(`/admin/recyclers?error=${encodeURIComponent(err.message)}`);
+      return { error: err.message, values, attempt: prev.attempt + 1 };
     }
     throw err;
   }
 
-  await writeAudit({ actorId: dbUser.id, action: "RECYCLER_CREATED", entityType: "Recycler", details: { name } });
+  await writeAudit({
+    actorId: dbUser.id,
+    action: recyclerId ? "RECYCLER_UPDATED" : "RECYCLER_CREATED",
+    entityType: "Recycler",
+    entityId: recyclerId || undefined,
+    details: { name: values.name },
+  });
   revalidatePath("/admin/recyclers");
-  redirect(`/admin/recyclers?success=${encodeURIComponent(`${name} added. Staff can sign in with ${staffPhone}.`)}`);
+  revalidatePath("/admin");
+  const message = recyclerId
+    ? `${values.name} updated.`
+    : `${values.name} added. Staff can sign in with ${values.staffPhone}.`;
+  redirect(`/admin/recyclers?success=${encodeURIComponent(message)}`);
 }
 
 /**

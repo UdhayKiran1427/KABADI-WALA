@@ -142,6 +142,11 @@ export default async function CollectorLotDetailPage(props: {
           })}
         </ul>
         <div className="c-total">= {rupees(total)}</div>
+        {lot.askingPricePaise != null && !tx && (
+          <div className="c-asking-show">
+            <T hi="आपका भाव" en="Your price" mr="तुमचा भाव" />: <strong>{rupees(lot.askingPricePaise)}</strong>
+          </div>
+        )}
         {items.length > 1 && <div className="c-hint" style={{ justifyContent: "center" }}>{kg} kg</div>}
         {photos.length > 0 && (
           <div style={{ marginTop: "0.75rem" }}>
@@ -241,6 +246,19 @@ export default async function CollectorLotDetailPage(props: {
                       </div>
                       {items.length === 1 && (
                         <div style={{ fontSize: "0.8rem", color: "var(--slate-500)" }}>{rupees(offer.ratePerKgPaise ?? listedRate)}/kg</div>
+                      )}
+                      {lot.askingPricePaise != null && (
+                        <div className={`c-offer-vs ${offerTotal >= lot.askingPricePaise ? "is-ok" : "is-low"}`}>
+                          {offerTotal >= lot.askingPricePaise ? (
+                            <T hi="आपका भाव मिला" en="Meets your price" mr="तुमचा भाव मिळाला" />
+                          ) : (
+                            <T
+                              hi={`आपके भाव से ${rupees(lot.askingPricePaise - offerTotal)} कम`}
+                              en={`${rupees(lot.askingPricePaise - offerTotal)} below your price`}
+                              mr={`तुमच्या भावापेक्षा ${rupees(lot.askingPricePaise - offerTotal)} कमी`}
+                            />
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

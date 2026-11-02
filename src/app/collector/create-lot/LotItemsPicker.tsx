@@ -137,9 +137,36 @@ export function LotItemsPicker({ materials, initialCategoryId }: { materials: Pi
 
         {lines.length > 0 && (
           <div className="c-items-total">
-            <span>{tx({ hi: "कुल", en: "Total", mr: "एकूण" })}</span>
+            <span>{tx({ hi: "आज के भाव से कुल", en: "Total at today's rate", mr: "आजच्या भावाने एकूण" })}</span>
             <strong>{inr(total)}</strong>
           </div>
+        )}
+
+        {lines.length > 0 && (
+          <label className="c-asking">
+            <span className="c-asking-label">
+              {tx({ hi: "आप कितने में बेचना चाहते हैं? (वैकल्पिक)", en: "Your selling price (optional)", mr: "तुम्हाला किती ला विकायचे आहे? (ऐच्छिक)" })}
+            </span>
+            <span className="c-asking-row">
+              <span aria-hidden="true">₹</span>
+              <input
+                type="number"
+                name="askingPrice"
+                inputMode="decimal"
+                min="1"
+                step="any"
+                placeholder={String(Math.round(total / 100))}
+                className="form-control"
+              />
+            </span>
+            <small className="c-hint">
+              {tx({
+                hi: "खाली छोड़ें तो आज के भाव से बिकेगा। खरीदार यह भाव देखेंगे और अपना भाव दे सकते हैं।",
+                en: "Leave blank to sell at today's rate. Buyers see this price and can make their own offer.",
+                mr: "रिकामे ठेवल्यास आजच्या भावाने विकले जाईल. खरेदीदार हा भाव पाहतील आणि त्यांचा भाव देऊ शकतात.",
+              })}
+            </small>
+          </label>
         )}
       </section>
     </div>

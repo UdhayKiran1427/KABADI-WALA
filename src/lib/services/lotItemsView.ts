@@ -43,6 +43,17 @@ export function lotItemsLabel(items: LotItemView[]): string {
   return items.map((i) => `${i.category.nameEn} ${(i.weightGrams / 1000).toFixed(1)} kg`).join(" + ");
 }
 
+/** The same label in each app language (Marathi falls back to Hindi names). */
+export function lotItemsTxt(items: LotItemView[]): { en: string; hi: string; mr: string } {
+  const label = (name: (c: MaterialNames) => string) =>
+    items.map((i) => `${name(i.category)} ${(i.weightGrams / 1000).toFixed(1)} kg`).join(" + ");
+  return {
+    en: label((c) => c.nameEn),
+    hi: label((c) => c.nameHi || c.nameEn),
+    mr: label((c) => c.nameMr || c.nameHi || c.nameEn),
+  };
+}
+
 /** Display URLs for a lot's photos. */
 export async function lotPhotoUrls(images: Array<{ id: string; storageKey: string }>): Promise<Array<{ id: string; url: string }>> {
   return Promise.all(images.map(async (img) => ({ id: img.id, url: await getImageUrl(img.storageKey) })));

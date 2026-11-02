@@ -66,7 +66,7 @@ sequenceDiagram
 ### Recycler
 1. Sign in → `POST /auth/staff-login` (phone + password given by admin).
 2. See nearby lot requests → `GET /recycler/requests` (material, weight, price, distance, area – **no collector name or phone**).
-3. Answer each request → `POST /recycler/requests/{offerId}` with `INTERESTED` (+ your ₹/kg for each material; pre-fill with today's price) or `DECLINED`.
+3. Answer each request → `POST /recycler/requests/{offerId}` with `INTERESTED` (+ your ₹/kg for each material; pre-fill with `suggestedItemRates`: the collector's asking price, or today's price when none) or `DECLINED`.
 4. When a collector chooses you, the lot appears in `GET /recycler/deals` and you get a notification.
 5. Open the deal → `GET /lots/{lotId}/deal` to see the collector's name, phone and lot location.
 6. Pay: scan the collector's QR, take the token from the URL (`…/pay/{token}`) and call `POST /payments/{token}/demo-pay`. Show the success + invoice from the response.
@@ -125,7 +125,7 @@ sequenceDiagram
 
 | Method | Path | Who | Description |
 |---|---|---|---|
-| POST | `/lots` | Collector | Create a lot. Body: `items: [{ categoryId, weightGrams }]` (1–10 materials; repeated materials are added together), `latitude?, longitude?, id? (client UUID), photos? (up to 5 storage keys)`. The older single `categoryId` + `approxWeightGrams` still works. Every material needs today's price (`PRICE_NOT_SET` otherwise). Returns the lot with `items` (each with `listedRatePerKgPaise`, `valuePaise`), `estimatedValuePaise` (total) and `photos` (URLs). Status `DRAFT`. Without GPS, the collector's registered area is used. |
+| POST | `/lots` | Collector | Create a lot. Body: `items: [{ categoryId, weightGrams }]` (1–10 materials; repeated materials are added together), `latitude?, longitude?, id? (client UUID), photos? (up to 5 storage keys), askingPricePaise?` (the collector's own selling price for the whole lot, e.g. `290000` = ₹2900; leave out to sell at today's rate). The older single `categoryId` + `approxWeightGrams` still works. Every material needs today's price (`PRICE_NOT_SET` otherwise). Returns the lot with `items` (each with `listedRatePerKgPaise`, `valuePaise`), `estimatedValuePaise` (total at today's rate), `askingPricePaise` and `photos` (URLs). Status `DRAFT`. Without GPS, the collector's registered area is used. |
 | GET | `/lots?q=&status=&material=&period=` | Collector | **Order history**, newest first (max 200). `q` searches lot ref, material name and buyer (recycler) name. `status`: `finding` (DRAFT+READY), `topay` (MATCHED), `paid` (COMPLETED), or an exact lot status. `material`: category id. `period`: `7d`, `30d`, `90d`. All optional. |
 | GET | `/lots/{id}` | Collector (owner) | One lot with all its data. |
 | DELETE | `/lots/{id}` | Collector (owner) | Delete a lot that is not paid. |
@@ -139,7 +139,7 @@ sequenceDiagram
 
 | Method | Path | Who | Description |
 |---|---|---|---|
-| GET | `/recycler/requests` | Recycler | Open lot requests within 5 km. Each has `offerId`, `status` (`NOTIFIED` / `INTERESTED`), `distanceKm`, `notifiedAt`, my answer (`myItemRates`, `myTotalPaise`) and `lot {lotRef, items [{categoryId, names, weightGrams, listedRatePerKgPaise}], photos [{id, url}], approxWeightGrams, listedValuePaise, area}`. |
+| GET | `/recycler/requests` | Recycler | Open lot requests within 5 km. Each has `offerId`, `status` (`NOTIFIED` / `INTERESTED`), `distanceKm`, `notifiedAt`, my answer (`myItemRates`, `myTotalPaise`) and `lot {lotRef, items [{categoryId, names, weightGrams, listedRatePerKgPaise}], photos [{id, url}], approxWeightGrams, listedValuePaise, askingPricePaise, suggestedItemRates, area}`. When `askingPricePaise` is set, show "Collector asks ₹…" and pre-fill the offer with `suggestedItemRates` (they add up to the asking price). |
 | POST | `/recycler/requests/{offerId}` | Recycler | Answer a request. Body: `{ "response": "INTERESTED", "itemRates": [{ "categoryId": 1, "ratePerKgPaise": 12000 }, ...] }` or `{ "response": "DECLINED" }`. Materials left out of `itemRates` use `ratePerKgPaise` if sent, otherwise today's price. Returns `totalPaise`. |
 | GET | `/recycler/deals?q=&status=&material=&period=` | Recycler | **Order history**: lots where a collector chose me (max 100), with collector name/phone/area, `amountPaise`, `paymentStatus`. `q` searches collector name, collector phone, lot ref and material. `status`: `topay` or `paid`. `material` and `period` as for `/lots`. All optional. |
 

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 export type AuditAction =
   | "RECYCLER_STATUS_SET"
   | "RECYCLER_CREATED"
+  | "RECYCLER_UPDATED"
   | "TODAY_PRICES_SET"
   | "PRICE_ADDED"
   | "ANOMALY_REVIEWED"

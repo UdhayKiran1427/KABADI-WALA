@@ -1,8 +1,10 @@
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { Ban, CalendarX, Check, CircleAlert, CircleCheck, LockKeyhole, Plus } from "lucide-react";
-import { updateRecyclerStatusFormAction, createRecyclerAction } from "../actions";
-import { CoordinateInputs } from "./CoordinateInputs";
+import Link from "next/link";
+import { Ban, CalendarX, Check, CircleAlert, CircleCheck, Pencil, Plus } from "lucide-react";
+import { updateRecyclerStatusFormAction } from "../actions";
+import { RecyclerForm } from "./RecyclerForm";
+import { EMPTY_RECYCLER_FORM } from "./recyclerFormState";
 
 export default async function AdminRecyclersPage(props: { searchParams: Promise<{ error?: string; success?: string }> }) {
   await requireRole(["ADMIN"]);
@@ -24,7 +26,12 @@ export default async function AdminRecyclersPage(props: { searchParams: Promise<
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <h1 className="r-page-title">Recyclers</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+        <h1 className="r-page-title">Recyclers</h1>
+        <a href="#add-recycler" className="btn btn-primary r-inline">
+          <Plus size={16} aria-hidden="true" /> Add recycler
+        </a>
+      </div>
 
       {searchParams.success && (
         <div className="alert alert-success" style={{ marginBottom: 0 }}>
@@ -83,6 +90,9 @@ export default async function AdminRecyclersPage(props: { searchParams: Promise<
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                        <Link href={`/admin/recyclers/${r.id}`} className="btn btn-sm btn-secondary r-inline">
+                          <Pencil size={14} aria-hidden="true" /> Edit
+                        </Link>
                         {r.authorizationStatus !== "VERIFIED" && (
                           <form action={updateRecyclerStatusFormAction}>
                             <input type="hidden" name="recyclerId" value={r.id} />
@@ -124,77 +134,12 @@ export default async function AdminRecyclersPage(props: { searchParams: Promise<
       </div>
 
       {/* Add New Recycler Facility Form (Responsive full-width or split) */}
-      <div className="card">
+      <div className="card" id="add-recycler" style={{ scrollMarginTop: "5rem" }}>
         <h2 className="r-section-title" style={{ marginBottom: "1rem" }}>
           <Plus size={20} aria-hidden="true" /> Add recycler
         </h2>
 
-        <form action={createRecyclerAction}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="name" style={{ fontWeight: 700 }}>Business name</label>
-              <input id="name" name="name" type="text" className="form-control" placeholder="e.g. EcoMetals Recycling Pvt Ltd" required />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="contactPhone" style={{ fontWeight: 700 }}>Phone</label>
-              <input id="contactPhone" name="contactPhone" type="text" className="form-control" placeholder="e.g. 9876543210" required />
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="authorizationNo" style={{ fontWeight: 700 }}>Authorization no.</label>
-              <input id="authorizationNo" name="authorizationNo" type="text" className="form-control" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="validTill" style={{ fontWeight: 700 }}>Valid till</label>
-              <input id="validTill" name="validTill" type="date" className="form-control" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="serviceRadiusKm" style={{ fontWeight: 700 }}>Service radius (km)</label>
-              <input id="serviceRadiusKm" name="serviceRadiusKm" type="number" defaultValue="15" className="form-control" required />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="address" style={{ fontWeight: 700 }}>Address</label>
-            <input id="address" name="address" type="text" className="form-control" required />
-          </div>
-
-          <div className="r-grid-2" style={{ gap: "0 1rem" }}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="area" style={{ fontWeight: 700 }}>Area</label>
-              <input id="area" name="area" type="text" className="form-control" placeholder="e.g. Dharavi Central" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="district" style={{ fontWeight: 700 }}>District</label>
-              <input id="district" name="district" type="text" defaultValue="Mumbai" className="form-control" required />
-            </div>
-          </div>
-
-          <CoordinateInputs />
-
-          <div style={{ background: "var(--slate-50)", padding: "1.25rem", borderRadius: "var(--radius-md)", border: "1px solid var(--slate-200)", marginBottom: "1.5rem" }}>
-            <h3 className="r-section-title" style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>
-              <LockKeyhole size={16} aria-hidden="true" /> Login for the recycler
-            </h3>
-            <div className="r-grid-2">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" htmlFor="staffPhone" style={{ fontWeight: 600 }}>Login phone</label>
-                <input id="staffPhone" name="staffPhone" type="text" className="form-control" placeholder="10-digit phone number" required />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" htmlFor="staffPassword" style={{ fontWeight: 600 }}>Password</label>
-                <input id="staffPassword" name="staffPassword" type="password" minLength={6} className="form-control" required />
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" className="btn btn-primary btn-lg">
-            <Plus size={18} aria-hidden="true" /> Add recycler
-          </button>
-        </form>
+        <RecyclerForm initial={EMPTY_RECYCLER_FORM} />
       </div>
     </div>
   );

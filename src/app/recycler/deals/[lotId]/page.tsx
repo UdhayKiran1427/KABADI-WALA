@@ -9,6 +9,7 @@ import { LOT_ITEMS_INCLUDE, dealLines, lotItemsOf, lotPhotoUrls } from "@/lib/se
 import { LotPhotoStrip } from "@/components/LotPhotoStrip";
 import { rupeesIN } from "@/lib/format";
 import { SendVehicleCard } from "./SendVehicleCard";
+import { T } from "@/app/collector/ui";
 
 export default async function RecyclerDealPage(props: {
   params: Promise<{ lotId: string }>;
@@ -50,9 +51,11 @@ export default async function RecyclerDealPage(props: {
 
       <div>
         <Link href="/recycler" className="r-inline r-muted">
-          <ArrowLeft size={16} aria-hidden="true" /> Dashboard
+          <ArrowLeft size={16} aria-hidden="true" /> <T hi="डैशबोर्ड" en="Dashboard" mr="डॅशबोर्ड" />
         </Link>
-        <h1 className="r-page-title" style={{ marginTop: "0.25rem" }}>Lot {lot.lotRef}</h1>
+        <h1 className="r-page-title" style={{ marginTop: "0.25rem" }}>
+          <T hi="लॉट" en="Lot" mr="लॉट" /> {lot.lotRef}
+        </h1>
       </div>
 
       {searchParams.success && (
@@ -73,18 +76,24 @@ export default async function RecyclerDealPage(props: {
             {isPaid ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", textAlign: "center" }}>
                 <CircleCheckBig size={44} color="var(--primary)" aria-hidden="true" />
-                <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-800)" }}>Payment successful</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-800)" }}>
+                  <T hi="पेमेंट सफल" en="Payment successful" mr="पेमेंट यशस्वी" />
+                </div>
                 <div style={{ fontSize: "1.6rem", fontWeight: 900 }}>₹{rupeesIN(amountPaise)}</div>
                 {token && (
                   <Link href={`/invoice/${token}`} className="btn btn-secondary btn-block" style={{ marginTop: "0.5rem" }}>
-                    <Receipt size={16} aria-hidden="true" /> View invoice
+                    <Receipt size={16} aria-hidden="true" /> <T hi="बिल देखें" en="View invoice" mr="बिल पहा" />
                   </Link>
                 )}
               </div>
             ) : token ? (
-              <DemoPaymentQr token={token} amountPaise={amountPaise} caption={`Scan to pay ${collectorName}`} />
+              <DemoPaymentQr token={token} amountPaise={amountPaise} caption={
+                <T hi={`${collectorName} को पेमेंट के लिए स्कैन करें`} en={`Scan to pay ${collectorName}`} mr={`${collectorName} ला पेमेंटसाठी स्कॅन करा`} />
+              } />
             ) : (
-              <div className="alert alert-danger" style={{ marginBottom: 0 }}>Payment link missing for this deal.</div>
+              <div className="alert alert-danger" style={{ marginBottom: 0 }}>
+                <T hi="इस डील का पेमेंट लिंक नहीं मिला।" en="Payment link missing for this deal." mr="या डीलची पेमेंट लिंक सापडली नाही." />
+              </div>
             )}
           </div>
           <SendVehicleCard lotId={lot.id} recyclerId={dbUser.recyclerId} />
@@ -93,7 +102,9 @@ export default async function RecyclerDealPage(props: {
         <div className="card" style={{ padding: "1.25rem", minWidth: 0 }}>
           <h2 className="r-section-title" style={{ marginBottom: "0.5rem" }}>{collectorName}</h2>
           <div className="r-kv">
-            <span>Phone</span>
+            <span>
+              <T hi="फ़ोन" en="Phone" mr="फोन" />
+            </span>
             <span>
               <a href={`tel:${lot.collector.user.phone}`} className="r-inline" style={{ color: "var(--primary-700)" }}>
                 <Phone size={15} aria-hidden="true" /> {lot.collector.user.phone}
@@ -102,24 +113,30 @@ export default async function RecyclerDealPage(props: {
           </div>
           {area && (
             <div className="r-kv">
-              <span>Area</span>
+              <span>
+                <T hi="इलाका" en="Area" mr="परिसर" />
+              </span>
               <span>{area}</span>
             </div>
           )}
           <div className="r-kv">
-            <span>Collector code</span>
+            <span>
+              <T hi="कलेक्टर कोड" en="Collector code" mr="कलेक्टर कोड" />
+            </span>
             <span>{lot.collector.shortCode}</span>
           </div>
           {lines.map((line) => (
             <div key={line.categoryId} className="r-kv">
               <span>
-                {line.category.nameEn} · {(line.weightGrams / 1000).toFixed(1)} kg × ₹{(line.ratePerKgPaise / 100).toFixed(2)}
+                <T hi={line.category.nameHi} en={line.category.nameEn} mr={line.category.nameMr} /> · {(line.weightGrams / 1000).toFixed(1)} kg × ₹{(line.ratePerKgPaise / 100).toFixed(2)}
               </span>
               <span>₹{(line.amountPaise / 100).toLocaleString("en-IN")}</span>
             </div>
           ))}
           <div className="r-kv" style={{ borderBottom: "none", fontSize: "1.05rem" }}>
-            <span>Total</span>
+            <span>
+              <T hi="कुल" en="Total" mr="एकूण" />
+            </span>
             <span style={{ fontWeight: 800 }}>₹{rupeesIN(amountPaise)}</span>
           </div>
 
@@ -137,7 +154,7 @@ export default async function RecyclerDealPage(props: {
               className="btn btn-secondary btn-sm"
               style={{ marginTop: "0.75rem" }}
             >
-              <MapIcon size={15} aria-hidden="true" /> Open in Maps
+              <MapIcon size={15} aria-hidden="true" /> <T hi="मैप में खोलें" en="Open in Maps" mr="मॅपमध्ये उघडा" />
             </a>
           )}
         </div>

@@ -19,10 +19,10 @@ export interface CreateRecyclerInput {
   staffPassword: string;
 }
 
-/**
- * Adds a verified recycler facility with one staff login.
- */
-export async function createRecycler(input: CreateRecyclerInput) {
+export type UpdateRecyclerInput = Omit<CreateRecyclerInput, "staffPassword"> & { staffPassword?: string };
+
+/** Field checks shared by add and edit. The password is required only when it is given or for a new login. */
+function validateRecyclerInput(input: UpdateRecyclerInput, passwordRequired: boolean) {
   if (!input.name || !input.address || !input.area || !input.authorizationNo || !input.contactPhone) {
     throw new FlowError("VALIDATION_ERROR", "Please fill in all required facility fields");
   }
@@ -32,15 +32,36 @@ export async function createRecycler(input: CreateRecyclerInput) {
   if (!/^\d{10}$/.test(input.staffPhone || "")) {
     throw new FlowError("VALIDATION_ERROR", "Staff phone must be a 10-digit number");
   }
-  if (!input.staffPassword || input.staffPassword.length < 6) {
+  if ((passwordRequired || input.staffPassword) && (!input.staffPassword || input.staffPassword.length < 6)) {
     throw new FlowError("VALIDATION_ERROR", "Staff password must be at least 6 characters");
   }
-  if (await prisma.user.findUnique({ where: { phone: input.staffPhone }, select: { id: true } })) {
-    throw new FlowError("DUPLICATE", "A user with this staff phone already exists", 409);
+}
+
+/** Login phone and permit number must be unique; `self` are the records being edited. */
+async function assertRecyclerUnique(input: UpdateRecyclerInput, self?: { recyclerId: string; staffUserId?: string }) {
+  const phoneOwner = await prisma.user.findUnique({ where: { phone: input.staffPhone }, select: { id: true } });
+  if (phoneOwner && phoneOwner.id !== self?.staffUserId) {
+    throw new FlowError("DUPLICATE", `Login phone ${input.staffPhone} is already used by another account`, 409);
   }
-  if (await prisma.recycler.findUnique({ where: { authorizationNo: input.authorizationNo }, select: { id: true } })) {
-    throw new FlowError("DUPLICATE", "A recycler with this authorization number already exists", 409);
+  const permitOwner = await prisma.recycler.findUnique({
+    where: { authorizationNo: input.authorizationNo },
+    select: { id: true, name: true },
+  });
+  if (permitOwner && permitOwner.id !== self?.recyclerId) {
+    throw new FlowError(
+      "DUPLICATE",
+      `Authorization no. ${input.authorizationNo} is already used by "${permitOwner.name}". Enter a different number, or edit that recycler.`,
+      409
+    );
   }
+}
+
+/**
+ * Adds a verified recycler facility with one staff login.
+ */
+export async function createRecycler(input: CreateRecyclerInput) {
+  validateRecyclerInput(input, true);
+  await assertRecyclerUnique(input);
 
   const staffPasswordHash = await hashPassword(input.staffPassword);
 
@@ -78,6 +99,54 @@ export async function createRecycler(input: CreateRecyclerInput) {
     }
 
     return recycler;
+  });
+}
+
+/**
+ * Edits a recycler's facility details and its staff login (phone; password only when a new one is given).
+ * The approval status is not changed here.
+ */
+export async function updateRecycler(recyclerId: string, input: UpdateRecyclerInput) {
+  const recycler = await prisma.recycler.findUnique({
+    where: { id: recyclerId },
+    include: { staff: { include: { user: { select: { id: true } } }, take: 1 } },
+  });
+  if (!recycler) throw new FlowError("NOT_FOUND", "Recycler not found", 404);
+  const staffUserId = recycler.staff[0]?.user.id;
+
+  validateRecyclerInput(input, !staffUserId);
+  await assertRecyclerUnique(input, { recyclerId, staffUserId });
+
+  const pinHash = input.staffPassword ? await hashPassword(input.staffPassword) : undefined;
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.recycler.update({
+      where: { id: recyclerId },
+      data: {
+        name: input.name,
+        contactPhone: input.contactPhone,
+        address: input.address,
+        area: input.area,
+        district: input.district || recycler.district,
+        state: input.state || recycler.state,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        authorizationNo: input.authorizationNo,
+        authorizationValidTill: input.authorizationValidTill ?? recycler.authorizationValidTill,
+        serviceRadiusKm: Number.isFinite(input.serviceRadiusKm) ? input.serviceRadiusKm : recycler.serviceRadiusKm,
+      },
+    });
+
+    if (staffUserId) {
+      await tx.user.update({ where: { id: staffUserId }, data: { phone: input.staffPhone, ...(pinHash ? { pinHash } : {}) } });
+    } else {
+      const staffUser = await tx.user.create({
+        data: { phone: input.staffPhone, pinHash: pinHash!, role: "RECYCLER", language: "EN" },
+      });
+      await tx.recyclerStaff.create({ data: { userId: staffUser.id, recyclerId } });
+    }
+
+    return updated;
   });
 }
 

@@ -24,6 +24,8 @@ const CreateLotSchema = z.object({
   deviceLat: z.number().optional(),
   deviceLng: z.number().optional(),
   photos: z.array(z.string()).max(5).optional().default([]),
+  // Collector's own selling price for the whole lot, in paise (e.g. 290000 = ₹2900). Omit to sell at today's rate.
+  askingPricePaise: z.number().int().positive().nullable().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
     const { body, response: bodyError } = await parseBody(req, CreateLotSchema);
     if (bodyError) return bodyError;
 
-    const { id, items, categoryId, approxWeightGrams, latitude, longitude, deviceLat, deviceLng, photos } = body;
+    const { id, items, categoryId, approxWeightGrams, latitude, longitude, deviceLat, deviceLng, photos, askingPricePaise } = body;
     const lotItems = items ?? (categoryId && approxWeightGrams ? [{ categoryId, weightGrams: approxWeightGrams }] : []);
     if (lotItems.length === 0) {
       return apiError("VALIDATION_ERROR", "Send items: [{ categoryId, weightGrams }]", 400);
@@ -101,6 +103,7 @@ export async function POST(req: NextRequest) {
       longitude: longitude ?? deviceLng,
       lotId: id,
       photoKeys: photos,
+      askingPricePaise,
     });
 
     return apiSuccess(
@@ -118,6 +121,7 @@ export async function POST(req: NextRequest) {
           })),
           approxWeightGrams: lot.approxWeightGrams,
           estimatedValuePaise: lot.estimatedValuePaise,
+          askingPricePaise: lot.askingPricePaise,
           photos: await lotPhotoUrls(lot.images),
           latitude: lot.collectLat,
           longitude: lot.collectLng,

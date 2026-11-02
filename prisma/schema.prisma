@@ -493,6 +493,7 @@ model Lot {
   chosenRecyclerId     String?
   quotedRatePaise      Int?
   expectedValuePaise   Int?
+  askingPricePaise     Int? // Collector's own selling price for the whole lot; null = today's rate
   finalPricePaise      Int?
   expiresAt            DateTime?
   soldBy               String?

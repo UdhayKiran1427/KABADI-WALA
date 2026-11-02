@@ -2,13 +2,14 @@ import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { ScanLine } from "lucide-react";
 import { rupeesIN } from "@/lib/format";
+import { T } from "@/app/collector/ui";
 
 /**
  * DEMO payment QR. Scanning it (or tapping the link) opens /pay/[token],
  * which records a demo payment and shows the invoice.
  * The URL uses the host the page was opened on, so open the app via your LAN IP to scan from a phone.
  */
-export async function DemoPaymentQr({ token, amountPaise, caption }: { token: string; amountPaise: number; caption: string }) {
+export async function DemoPaymentQr({ token, amountPaise, caption }: { token: string; amountPaise: number; caption: React.ReactNode }) {
   const h = await headers();
   const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
   const proto = h.get("x-forwarded-proto") || "http";
@@ -28,9 +29,11 @@ export async function DemoPaymentQr({ token, amountPaise, caption }: { token: st
         dangerouslySetInnerHTML={{ __html: svg }}
       />
       <a href={`/pay/${token}`} className="btn btn-primary">
-        <ScanLine size={18} aria-hidden="true" /> Pay now (demo)
+        <ScanLine size={18} aria-hidden="true" /> <T hi="अभी पेमेंट करें (डेमो)" en="Pay now (demo)" mr="आता पेमेंट करा (डेमो)" />
       </a>
-      <span className="badge badge-warning" style={{ fontSize: "0.7rem" }}>Demo – no real money</span>
+      <span className="badge badge-warning" style={{ fontSize: "0.7rem" }}>
+        <T hi="डेमो – असली पैसे नहीं" en="Demo – no real money" mr="डेमो – खरे पैसे नाहीत" />
+      </span>
     </div>
   );
 }

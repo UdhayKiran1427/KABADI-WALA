@@ -4,6 +4,7 @@ import { requireApiUser } from "@/lib/auth/getAuthUser";
 import { apiError, apiErrorFrom, apiSuccess } from "@/lib/apiResponse";
 import { LOT_ITEMS_INCLUDE, lotItemsOf, lotPhotoUrls } from "@/lib/services/lotItemsView";
 import { LIST_MAX_ROWS } from "@/lib/limits";
+import { askingItemRates } from "@/lib/domain/lotItems";
 
 /**
  * Open lot requests for the signed-in recycler: lots within 5 km that are still looking for a buyer.
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
             approxWeightGrams: true,
             listedRatePerKgPaise: true,
             estimatedValuePaise: true,
+            askingPricePaise: true,
             collectedAt: true,
             categoryId: true,
             category: { select: { id: true, nameEn: true, nameHi: true, nameMr: true } },
@@ -64,6 +66,10 @@ export async function GET(req: NextRequest) {
           approxWeightGrams: o.lot.approxWeightGrams,
           listedRatePerKgPaise: o.lot.listedRatePerKgPaise,
           listedValuePaise: o.lot.estimatedValuePaise,
+          // Collector's own price for the whole lot (null = sells at today's rate)
+          askingPricePaise: o.lot.askingPricePaise,
+          // Per-material ₹/kg that add up to the asking price: use them to pre-fill the offer
+          suggestedItemRates: askingItemRates(lotItemsOf(o.lot), o.lot.askingPricePaise),
           area: o.lot.collector.operatingArea,
           collectedAt: o.lot.collectedAt,
         },

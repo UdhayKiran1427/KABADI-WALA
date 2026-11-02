@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { recyclerLogoutAction } from "./actions";
 import { getUnreadNotificationCount } from "@/lib/services/notificationService";
 import { LanguageSwitcher } from "@/components/voice/LanguageSwitcher";
+import { T } from "@/app/collector/ui";
 
 export default async function RecyclerLayout({
   children,
@@ -33,15 +34,15 @@ export default async function RecyclerLayout({
               <nav className="r-nav" aria-label="Recycler">
                 <Link href="/recycler" className="nav-link r-nav-link" aria-label="Dashboard">
                   <LayoutDashboard size={18} aria-hidden="true" />
-                  <span className="r-nav-label">Dashboard</span>
+                  <span className="r-nav-label"><T hi="डैशबोर्ड" en="Dashboard" mr="डॅशबोर्ड" /></span>
                 </Link>
                 <Link href="/recycler/history" className="nav-link r-nav-link" aria-label="Order history">
                   <ReceiptText size={18} aria-hidden="true" />
-                  <span className="r-nav-label">History</span>
+                  <span className="r-nav-label"><T hi="इतिहास" en="History" mr="इतिहास" /></span>
                 </Link>
                 <Link href="/recycler/vehicles" className="nav-link r-nav-link" aria-label="Vehicles">
                   <Truck size={18} aria-hidden="true" />
-                  <span className="r-nav-label">Vehicles</span>
+                  <span className="r-nav-label"><T hi="गाड़ियां" en="Vehicles" mr="गाड्या" /></span>
                 </Link>
                 <Link
                   href="/recycler/notifications"
@@ -49,14 +50,14 @@ export default async function RecyclerLayout({
                   aria-label={unreadNotifications > 0 ? `Notifications, ${unreadNotifications} unread` : "Notifications"}
                 >
                   <Bell size={18} aria-hidden="true" />
-                  <span className="r-nav-label">Notifications</span>
+                  <span className="r-nav-label"><T hi="सूचनाएं" en="Notifications" mr="सूचना" /></span>
                   {unreadNotifications > 0 && (
                     <span className="r-nav-count" aria-hidden="true">{unreadNotifications}</span>
                   )}
                 </Link>
                 <Link href="/recycler/profile" className="nav-link r-nav-link" aria-label="Profile">
                   <User size={18} aria-hidden="true" />
-                  <span className="r-nav-label">Profile</span>
+                  <span className="r-nav-label"><T hi="प्रोफ़ाइल" en="Profile" mr="प्रोफाइल" /></span>
                 </Link>
                 <form action={recyclerLogoutAction} style={{ display: "inline" }}>
                   <button
@@ -66,7 +67,7 @@ export default async function RecyclerLayout({
                     aria-label="Sign out"
                   >
                     <LogOut size={16} aria-hidden="true" />
-                    <span className="r-nav-label">Sign out</span>
+                    <span className="r-nav-label"><T hi="लॉग आउट" en="Sign out" mr="लॉग आउट" /></span>
                   </button>
                 </form>
               </nav>

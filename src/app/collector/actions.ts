@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionCookie, clearSessionCookie, requireRole } from "@/lib/auth/session";
 import { FlowError, MAX_LOT_PHOTOS, createLot, confirmLot, rebroadcastLot, selectOffer } from "@/lib/services/lotFlowService";
-import type { LotItemInput } from "@/lib/domain/lotItems";
+import { parseAskingPricePaise, type LotItemInput } from "@/lib/domain/lotItems";
 import { saveLotImage } from "@/lib/storage";
 import { amountPaise } from "@/lib/domain/money";
 
@@ -65,6 +65,10 @@ export async function createCollectorLotAction(formData: FormData) {
     fail("Choose at least one material and enter its weight");
   }
 
+  // Optional own selling price (₹ for the whole lot); blank = today's rate
+  const asking = parseAskingPricePaise((formData.get("askingPrice") as string | null)?.trim());
+  if ("error" in asking) return fail(asking.error);
+
   const photos = formData.getAll("photos").filter((p): p is File => p instanceof File && p.size > 0);
   if (photos.length > MAX_LOT_PHOTOS) {
     fail(`You can add at most ${MAX_LOT_PHOTOS} photos`);
@@ -91,6 +95,7 @@ export async function createCollectorLotAction(formData: FormData) {
       latitude: parseFloat(formData.get("latitude") as string),
       longitude: parseFloat(formData.get("longitude") as string),
       photoKeys,
+      askingPricePaise: asking.paise,
     });
     lotId = lot.id;
   } catch (err) {

@@ -8,6 +8,7 @@ import {
   type LotItemInput,
   lotValuePaise,
   normalizeLotItems,
+  parseAskingPricePaise,
   type PricedLotItem,
   primaryItem,
   totalWeightGrams,
@@ -109,7 +110,9 @@ export async function broadcastLot(lotId: string): Promise<{ newlyNotified: numb
         notifyRecyclerStaff(
           t.recyclerId,
           `New lot ${t.distanceKm.toFixed(1)} km away`,
-          `${lotItemsLabel(items)} = ${rupees(total)} · Area: ${lot.collector.operatingArea}. Tap "Ready to buy" on your dashboard.`,
+          lot.askingPricePaise
+            ? `${lotItemsLabel(items)} · Collector asks ${rupees(lot.askingPricePaise)} (today's rate ${rupees(total)}) · Area: ${lot.collector.operatingArea}. Tap "Ready to buy" on your dashboard.`
+            : `${lotItemsLabel(items)} = ${rupees(total)} · Area: ${lot.collector.operatingArea}. Tap "Ready to buy" on your dashboard.`,
           { lotId: lot.id, lotRef: lot.lotRef, distanceKm: t.distanceKm }
         )
       )
@@ -191,6 +194,8 @@ export interface CreateLotInput {
   lotId?: string;
   /** Storage keys of already-uploaded photos (max 5) */
   photoKeys?: string[];
+  /** Collector's own selling price for the whole lot (paise); omit to sell at today's rate */
+  askingPricePaise?: number | null;
 }
 
 /**
@@ -205,6 +210,8 @@ export async function createLot(input: CreateLotInput) {
   if ("error" in normalized) throw new FlowError("VALIDATION_ERROR", normalized.error);
 
   const photoKeys = input.photoKeys ?? [];
+  const asking = parseAskingPricePaise(input.askingPricePaise == null ? null : input.askingPricePaise / 100);
+  if ("error" in asking) throw new FlowError("VALIDATION_ERROR", asking.error);
   if (photoKeys.length > MAX_LOT_PHOTOS) {
     throw new FlowError("VALIDATION_ERROR", `You can add at most ${MAX_LOT_PHOTOS} photos`);
   }
@@ -279,6 +286,7 @@ export async function createLot(input: CreateLotInput) {
         approxWeightGrams: weight,
         listedRatePerKgPaise: averageRatePerKgPaise(value, weight),
         estimatedValuePaise: value,
+        askingPricePaise: asking.paise,
         status: "DRAFT",
         collectedAt: now,
         collectLat,

@@ -2276,3 +2276,65 @@ tr:hover td {
   font-weight: 600;
   color: var(--primary-800);
 }
+
+/* Collector own selling price (create lot) and the asking price shown to recyclers */
+.c-asking {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.c-asking-label {
+  font-weight: 700;
+  color: var(--slate-800);
+}
+
+.c-asking-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.c-asking-row .form-control {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.r-asking {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.r-asking-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--slate-500);
+}
+
+.r-asking-sub {
+  font-size: 0.75rem;
+  color: var(--slate-500);
+}
+
+.c-asking-show {
+  margin-top: 0.35rem;
+  font-size: 1rem;
+  color: var(--slate-700);
+}
+
+.c-offer-vs {
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: normal;
+}
+
+.c-offer-vs.is-ok {
+  color: var(--primary-800);
+}
+
+.c-offer-vs.is-low {
+  color: #b45309;
+}

@@ -78,3 +78,28 @@ export function completeItemRates(
   }
   return { rates };
 }
+
+export const MAX_ASKING_PRICE_PAISE = 10_000_000_00; // ₹1 crore
+
+/** Collector's own price for the whole lot: a whole number of paise, or null when not given. */
+export function parseAskingPricePaise(rupees: unknown): { paise: number | null } | { error: string } {
+  if (rupees === undefined || rupees === null || rupees === "") return { paise: null };
+  const value = typeof rupees === "number" ? rupees : parseFloat(String(rupees));
+  if (!Number.isFinite(value) || value <= 0) return { error: "Enter your selling price in ₹, or leave it blank" };
+  const paise = Math.round(value * 100);
+  if (paise > MAX_ASKING_PRICE_PAISE) return { error: "Selling price is too large" };
+  return { paise };
+}
+
+/**
+ * Per-material rates (paise/kg) that add up to the collector's asking price, keeping the listed
+ * rates' proportions. Used to pre-fill a recycler's offer; without an asking price, the listed rates.
+ */
+export function askingItemRates(items: PricedLotItem[], askingPricePaise: number | null): ItemRate[] {
+  const listedTotal = lotValuePaise(items);
+  if (!askingPricePaise || listedTotal <= 0) {
+    return items.map((i) => ({ categoryId: i.categoryId, ratePerKgPaise: i.listedRatePerKgPaise }));
+  }
+  const factor = askingPricePaise / listedTotal;
+  return items.map((i) => ({ categoryId: i.categoryId, ratePerKgPaise: Math.max(1, Math.round(i.listedRatePerKgPaise * factor)) }));
+}
